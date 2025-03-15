@@ -26,6 +26,7 @@ class UpdateMeRequest extends FormRequest
             'email' => 'sometimes|email|max:255|unique:users,email,' . $this->id,
             'name' => 'sometimes|string|max:255',
             'surname' => 'sometimes|string|max:255',
+            'profilePicture' => 'sometimes|max:2048'
         ];
     }
 }

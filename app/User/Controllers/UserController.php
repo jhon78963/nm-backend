@@ -48,7 +48,12 @@ class UserController extends Controller
                 return response()->json($errorResponse);
             }
 
-            $profilePicture = $this->fileService->upload($request, $this->path_images);
+            $profilePicture = $this->fileService->upload(
+                $request,
+                $this->path_images,
+                "profile_picture"
+            );
+
             $newUser = $this->prepareNewUserData(
                 $request->validated(),
                 $profilePicture

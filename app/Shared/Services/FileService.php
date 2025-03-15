@@ -7,10 +7,10 @@ use Storage;
 
 class FileService
 {
-    public function upload($request, String $filePath): ?string
+    public function upload($request, String $filePath, string $key): ?string
     {
-        return ($request->hasFile("file"))
-            ? $request->file("file")->store($filePath)
+        return ($request->hasFile($key))
+            ? $request->file($key)->store($filePath)
             : NULL;
     }
 

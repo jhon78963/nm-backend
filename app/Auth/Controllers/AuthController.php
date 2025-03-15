@@ -10,17 +10,21 @@ use App\Auth\Requests\UpdateMeRequest;
 use App\Auth\Resources\MeResource;
 use App\Auth\Services\AuthService;
 use App\Shared\Controllers\Controller;
+use App\Shared\Services\FileService;
 use App\User\Models\User;
 use Illuminate\Http\JsonResponse;
 use Auth;
 
 class AuthController extends Controller
 {
+    private string $path_images = 'images/profiles';
     protected AuthService $authService;
+    protected FileService $fileService;
 
-    public function __construct(AuthService $authService)
+    public function __construct(AuthService $authService, FileService $fileService)
     {
         $this->authService = $authService;
+        $this->fileService = $fileService;
     }
 
     public function login(LoginRequest $request): JsonResponse
@@ -46,6 +50,8 @@ class AuthController extends Controller
 
     public function updateMe(UpdateMeRequest $request): JsonResponse {
         $this->authService->updateMe($request);
+        $this->fileService->upload($request, $this->path_images, "profile_picture");
+
         return response()->json(['message' => 'User updated successfully']);
     }
 
