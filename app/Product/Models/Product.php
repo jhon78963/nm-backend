@@ -2,9 +2,11 @@
 
 namespace App\Product\Models;
 
+use App\Color\Models\Color;
 use App\Gender\Models\Gender;
 use App\Image\Models\Image;
 use App\Product\Enums\ProductStatus;
+use App\Size\Models\Size;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -81,5 +83,19 @@ class Product extends Model
             Image::class,
             'product_image'
         );
+    }
+
+    public function colors(): BelongsToMany {
+        return $this->belongsToMany(
+            Color::class,
+            'product_color',
+        )->withPivot(['price', 'stock']);
+    }
+
+    public function sizes(): BelongsToMany {
+        return $this->belongsToMany(
+            Size::class,
+            'product_size',
+        )->withPivot(['price', 'stock']);
     }
 }

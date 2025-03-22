@@ -5,7 +5,7 @@ namespace App\Size\Models;
 use App\Product\Models\Product;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Size extends Model
 {
@@ -42,7 +42,10 @@ class Size extends Model
      */
     public $timestamps = false;
 
-    public function products(): HasMany {
-        return $this->hasMany(Product::class);
+    public function products(): BelongsToMany {
+        return $this->belongsToMany(
+            Product::class,
+            'product_size',
+        )->withPivot(['price', 'stock']);
     }
 }

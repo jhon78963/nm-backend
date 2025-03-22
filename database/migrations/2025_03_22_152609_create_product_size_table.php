@@ -17,6 +17,8 @@ return new class extends Migration
             $table->unsignedBigInteger('size_id');
             $table->foreign('size_id')->references('id')->on('sizes');
             $table->primary(['product_id', 'size_id']);
+            $table->integer('stock');
+            $table->float('price');
         });
     }
 
