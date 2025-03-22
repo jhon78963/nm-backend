@@ -1,0 +1,12 @@
+<?php
+
+use App\Color\Controllers\ColorController;
+use Illuminate\Support\Facades\Route;
+
+Route::controller(ColorController::class)->group(function() {
+    Route::post('/colors', 'create');
+    Route::patch('/colors/{color}', 'update');
+    Route::delete('/colors/{color}', 'delete');
+    Route::get('/colors', 'getAll');
+    Route::get('/colors/{color}', 'get');
+});

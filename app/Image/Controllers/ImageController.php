@@ -8,33 +8,18 @@ use App\Image\Services\ImageService;
 use App\Shared\Controllers\Controller;
 use App\Shared\Requests\GetAllRequest;
 use App\Shared\Resources\GetAllCollection;
-use App\Shared\Services\FileService;
 use App\Shared\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 
 class ImageController extends Controller
 {
-    protected FileService $fileService;
     protected ImageService $imageService;
     protected SharedService $sharedService;
 
-    public function __construct(
-        FileService $fileService,
-        ImageService $imageService,
-        SharedService $sharedService,
-    ) {
-        $this->fileService = $fileService;
+    public function __construct(ImageService $imageService, SharedService $sharedService)
+    {
         $this->imageService = $imageService;
         $this->sharedService = $sharedService;
-    }
-
-    public function delete(Image $image): JsonResponse
-    {
-        $this->fileService->delete($image->path);
-        $this->imageService->delete($image);
-        return response()->json([
-            'message' => 'Image removed from system'
-        ]);
     }
 
     public function get(Image $image): JsonResponse
@@ -45,7 +30,7 @@ class ImageController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $query = $this->sharedService->query($request, 'Image', 'Image', 'name');
+        $query = $this->sharedService->query($request, 'Image', 'Image', 'type');
         return response()->json(new GetAllCollection(
             ImageResource::collection($query['collection']),
             $query['total'],

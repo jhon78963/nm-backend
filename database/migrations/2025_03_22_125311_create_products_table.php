@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('images', function (Blueprint $table) {
+        Schema::create('products', function (Blueprint $table) {
             $table->id();
             $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
             $table->integer('creator_user_id')->nullable();
@@ -24,7 +24,17 @@ return new class extends Migration
             $table->foreign('deleter_user_id')->references('id')->on('users');
             $table->datetime('deletion_time')->nullable();
             $table->string('name');
-            $table->string('path');
+            $table->string('description')->nullable();
+            $table->integer('stock')->nullable()->default(0);
+            $table->float('purchase_price');
+            $table->float('wholesale_price');
+            $table->float('min_wholesale_price');
+            $table->float('ratail_price');
+            $table->float('min_ratail_price');
+            $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED']);
+            $table->unsignedBigInteger('gender_id');
+            $table->foreign('gender_id')->references('id')->on('genders');
+
         });
     }
 
@@ -33,6 +43,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('images');
+        Schema::dropIfExists('products');
     }
 };

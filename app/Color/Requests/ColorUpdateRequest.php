@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Auth\Requests;
+namespace App\Color\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateMeRequest extends FormRequest
+class ColorUpdateRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,10 +22,7 @@ class UpdateMeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'username' => 'sometimes|string|max:255|unique:users,email,' . $this->id,
-            'email' => 'sometimes|email|max:255|unique:users,email,' . $this->id,
-            'name' => 'sometimes|string|max:255',
-            'surname' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string|max:25',
         ];
     }
 }

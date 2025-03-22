@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Image\Resources;
+namespace App\Color\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class ImageResource extends JsonResource
+class ColorResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -16,8 +16,7 @@ class ImageResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'type' => $this->type,
-            'shortType' => $this->short_type,
+            'color' => $this->description,
         ];
     }
 }

@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Gender\Seeders\GenderSeeder;
-use App\Role\Seeders\RoleSeed;
-use App\User\Seeders\UserSeed;
+use App\Role\Seeders\RoleSeeder;
+use App\User\Seeders\UserSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -15,8 +15,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RoleSeed::class,
-            UserSeed::class,
+            RoleSeeder::class,
+            UserSeeder::class,
             GenderSeeder::class,
         ]);
     }

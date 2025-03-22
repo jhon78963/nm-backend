@@ -13,13 +13,18 @@ class GenderSeeder extends Seeder
     public function run(): void
     {
         $gender = new Gender();
-        $gender->name = 'Masculino';
+        $gender->name = 'Caballeros';
         $gender->short_name = 'M';
         $gender->save();
 
         $gender = new Gender();
-        $gender->name = 'Femenino';
+        $gender->name = 'Damas';
         $gender->short_name = 'F';
+        $gender->save();
+
+        $gender = new Gender();
+        $gender->name = 'Niños';
+        $gender->short_name = 'N';
         $gender->save();
     }
 }

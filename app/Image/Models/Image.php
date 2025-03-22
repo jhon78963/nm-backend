@@ -2,7 +2,7 @@
 
 namespace App\Image\Models;
 
-use App\Room\Models\Room;
+use App\Product\Models\Product;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -11,15 +11,15 @@ class Image extends Model
 {
     use HasFactory;
 
-     /**
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
      */
     protected $fillable = [
         'id',
-        'name',
-        'path',
+        'type',
+        'short_type',
     ];
 
     /**
@@ -28,7 +28,6 @@ class Image extends Model
      * @var array<int, string>
      */
     protected $hidden = [
-        'creation_time',
         'creator_user_id',
         'last_modification_time',
         'last_modifier_user_id',
@@ -43,4 +42,12 @@ class Image extends Model
      * @var bool
      */
     public $timestamps = false;
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_image'
+        );
+    }
 }

@@ -5,7 +5,6 @@ namespace App\User\Controllers;
 use App\Shared\Controllers\Controller;
 use App\Shared\Requests\GetAllRequest;
 use App\Shared\Resources\GetAllCollection;
-use App\Shared\Services\FileService;
 use App\Shared\Services\SharedService;
 use App\User\Models\User;
 use App\User\Requests\UserCreateRequest;
@@ -18,17 +17,13 @@ use Hash;
 
 class UserController extends Controller
 {
-    private string $path_images = 'images/profiles';
-    protected FileService $fileService;
     protected SharedService $sharedService;
     protected UserService $userService;
 
     public function __construct(
-        FileService $fileService,
         SharedService $sharedService,
         UserService $userService,
     ) {
-        $this->fileService = $fileService;
         $this->sharedService = $sharedService;
         $this->userService = $userService;
     }
@@ -48,15 +43,8 @@ class UserController extends Controller
                 return response()->json($errorResponse);
             }
 
-            $profilePicture = $this->fileService->upload(
-                $request,
-                $this->path_images,
-                "profile_picture"
-            );
-
             $newUser = $this->prepareNewUserData(
                 $request->validated(),
-                $profilePicture
             );
             $this->userService->create($newUser);
             DB::commit();
@@ -96,7 +84,7 @@ class UserController extends Controller
         );
 
         return response()->json(new GetAllCollection(
-            UserResource::collection($query['collection']),
+            UserResource::collection(resource: $query['collection']),
             $query['total'],
             $query['pages'],
         ));
@@ -107,10 +95,8 @@ class UserController extends Controller
         DB::beginTransaction();
         try {
             $userValidated = $this->userService->validate($user, 'User');
-            $profilePicture = $this->fileService->upload($request, $this->path_images);
             $editUser = $this->prepareNewUserData(
                 $request->validated(),
-                $profilePicture
             );
             $this->userService->update($userValidated, $editUser);
             DB::commit();
@@ -144,14 +130,13 @@ class UserController extends Controller
         return null;
     }
 
-    private function prepareNewUserData(array $validatedData, ?string $profilePicture): array
+    private function prepareNewUserData(array $validatedData): array
     {
         $userData = array_merge(
             $validatedData,
             [
                 'password' => Hash::make('password'),
             ],
-            $profilePicture !== null ? ['profilePicture' => $profilePicture] : []
         );
         return $this->sharedService->convertCamelToSnake($userData);
     }

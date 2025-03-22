@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Shared\Resources;
+namespace App\Size\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class GetAllAddResource extends JsonResource
+class SizeResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -16,10 +16,7 @@ class GetAllAddResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'price' => $this->price,
-            'total' => isset($this->pivot) ? $this->price * ($this->pivot->quantity ?? 1) : $this->price,
-            'quantity' => $this->pivot->quantity ?? null,
+            'size' => $this->description,
         ];
     }
 }

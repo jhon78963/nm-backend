@@ -3,11 +3,11 @@
 namespace App\Shared\Services;
 
 use App\User\Models\User;
-use DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Auth;
+use DB;
 
 class ModelService
 {
@@ -15,44 +15,8 @@ class ModelService
         Model $model,
         string $relation,
         int $id,
-        ?float $price = null,
-        ?int $quantity = null,
-        ?bool $isPaid = null,
-        ?bool $isFree = null,
-        ?float $payment = null,
-        ?float $cashPayment = null,
-        ?float $cardPayment = null,
-        ?int $additionalPeople = null,
-        ?int $extraHours = null,
+        array $attributes,
     ): void {
-        $attributes = [];
-        if ($price !== null) {
-            $attributes['price'] = $price;
-        }
-        if ($quantity !== null) {
-            $attributes['quantity'] = $quantity;
-        }
-        if ($isPaid !== null) {
-            $attributes['is_paid'] = $isPaid;
-        }
-        if ($isFree !== null) {
-            $attributes['is_free'] = $isFree;
-        }
-        if ($payment !== null) {
-            $attributes['payment'] = $payment;
-        }
-        if ($cashPayment !== null) {
-            $attributes['cash_payment'] = $cashPayment;
-        }
-        if ($cardPayment !== null) {
-            $attributes['card_payment'] = $cardPayment;
-        }
-        if ($additionalPeople !== null) {
-            $attributes['additional_people'] = $additionalPeople;
-        }
-        if ($extraHours !== null) {
-            $attributes['extra_hours'] = $extraHours;
-        }
         $model->$relation()->attach($id, $attributes);
     }
 
@@ -60,75 +24,9 @@ class ModelService
         Model $model,
         string $relation,
         int $id,
-        ?float $price = null,
-        ?int $quantity = null,
-        ?bool $isPaid = null,
-        ?bool $isFree = null,
-        ?float $payment = null,
-        ?float $cashPayment = null,
-        ?float $cardPayment = null,
-        ?int $additionalPeople = null,
-        ?int $extraHours = null,
+        array $attributes,
     ): void {
-        $attributes = [];
-        if ($price !== null) {
-            $attributes['price'] = $price;
-        }
-        if ($quantity !== null) {
-            $attributes['quantity'] = $quantity;
-        }
-        if ($isPaid !== null) {
-            $attributes['is_paid'] = $isPaid;
-        }
-        if ($isFree !== null) {
-            $attributes['is_free'] = $isFree;
-        }
-        if ($payment !== null) {
-            $attributes['payment'] = $payment;
-        }
-        if ($cashPayment !== null) {
-            $attributes['cash_payment'] = $cashPayment;
-        }
-        if ($cardPayment !== null) {
-            $attributes['card_payment'] = $cardPayment;
-        }
-        if ($additionalPeople !== null) {
-            $attributes['additional_people'] = $additionalPeople;
-        }
-        if ($extraHours !== null) {
-            $attributes['extra_hours'] = $extraHours;
-        }
         $model->$relation()->updateExistingPivot($id, $attributes);
-    }
-
-    public function modifyQuantity(
-        Model $model,
-        string $relation,
-        int $id,
-        ?int $quantity = null,
-        bool $isRemove = false,
-    ): void {
-        $pivot = $model->$relation()->find($id);
-        if ($pivot) {
-            $newQuantity = $pivot->pivot->quantity + ($isRemove ? -$quantity : $quantity);
-            $model->$relation()->updateExistingPivot($id, ['quantity' => $newQuantity]);
-        }
-    }
-
-    public function change(
-        string $tableName,
-        string $firstIdName,
-        string $secondIdName,
-        int $firstId,
-        int $oldId,
-        int $newId,
-    ): void {
-        DB::table($tableName)
-            ->where($firstIdName, '=', $firstId)
-            ->where($secondIdName, '=', $oldId)
-            ->update([
-                $secondIdName => $newId,
-            ]);
     }
 
     public function create(Model $model, array $data): Model
@@ -173,17 +71,6 @@ class ModelService
         $model->fill($data);
         $model->save();
         return $model;
-    }
-
-    public function updatePrice(string $entityName, string $modelName, string $column, $value): mixed
-    {
-        $modelClass = "App\\$entityName\\Models\\$modelName";
-
-        return $modelClass::query()->update([
-            $column => $value,
-            'last_modifier_user_id' => Auth::id(),
-            'last_modification_time' => now()->format('Y-m-d H:i:s'),
-        ]);
     }
 
     public function validate(User | Model $model, string $modelName): User | Model
