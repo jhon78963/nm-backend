@@ -14,9 +14,10 @@ class SizeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return [
+        return array_filter([
             'id' => $this->id,
             'size' => $this->description,
-        ];
+            'stock' => isset($this->pivot) ? (float) $this->pivot->stock : null,
+        ], fn($value): bool => $value !== null);
     }
 }

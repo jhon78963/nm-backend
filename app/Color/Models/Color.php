@@ -3,6 +3,7 @@
 namespace App\Color\Models;
 
 use App\Product\Models\Product;
+use App\Product\Models\ProductSize;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -42,10 +43,10 @@ class Color extends Model
      */
     public $timestamps = false;
 
-    public function products(): BelongsToMany {
+    public function productSizes(): BelongsToMany {
         return $this->belongsToMany(
-            Product::class,
-            'product_color',
+            ProductSize::class,
+            'product_size_color',
         )->withPivot(['price', 'stock']);
     }
 }

@@ -15,18 +15,9 @@ class ModelService
         Model $model,
         string $relation,
         int $id,
-        array $attributes,
+        ?array $attributes = [],
     ): void {
-        $model->$relation()->attach($id, $attributes);
-    }
-
-    public function modify(
-        Model $model,
-        string $relation,
-        int $id,
-        array $attributes,
-    ): void {
-        $model->$relation()->updateExistingPivot($id, $attributes);
+        $model->$relation()->syncWithoutDetaching([$id => $attributes]);
     }
 
     public function create(Model $model, array $data): Model

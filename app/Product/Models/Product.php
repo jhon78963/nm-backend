@@ -2,7 +2,6 @@
 
 namespace App\Product\Models;
 
-use App\Color\Models\Color;
 use App\Gender\Models\Gender;
 use App\Image\Models\Image;
 use App\Product\Enums\ProductStatus;
@@ -85,12 +84,12 @@ class Product extends Model
         );
     }
 
-    public function colors(): BelongsToMany {
-        return $this->belongsToMany(
-            Color::class,
-            'product_color',
-        )->withPivot(['price', 'stock']);
-    }
+    // public function colors(): BelongsToMany {
+    //     return $this->belongsToMany(
+    //         Color::class,
+    //         'product_color',
+    //     )->withPivot(['price', 'stock']);
+    // }
 
     public function sizes(): BelongsToMany {
         return $this->belongsToMany(
