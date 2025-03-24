@@ -1,7 +1,7 @@
 <?php
 
-use App\Product\Controllers\ProductColorController;
 use App\Product\Controllers\ProductController;
+use App\Product\Controllers\ProductSizeColorController;
 use App\Product\Controllers\ProductSizeController;
 use Illuminate\Support\Facades\Route;
 
@@ -13,14 +13,14 @@ Route::controller(ProductController::class)->group(function(): void {
     Route::get('/products/{product}', 'get');
 });
 
-Route::controller(ProductColorController::class)->group(function(): void {
-    Route::post('/products/{product}/color/{colorId}', 'add');
-    Route::patch('/products/{product}/color/{colorId}', 'modify');
-    Route::delete('/products/{product}/color/{colorId}', 'remove');
-});
-
 Route::controller(ProductSizeController::class)->group(function(): void {
     Route::post('/products/{product}/size/{sizeId}', 'add');
     Route::patch('/products/{product}/size/{sizeId}', 'modify');
     Route::delete('/products/{product}/size/{sizeId}', 'remove');
+});
+
+Route::controller(ProductSizeColorController::class)->group(function(): void {
+    Route::post('/product-size/{productSize}/color/{colorId}', 'add');
+    Route::patch('/product-size/{productSize}/color/{colorId}', 'modify');
+    Route::delete('/product-size/{productSize}/color/{colorId}', 'remove');
 });

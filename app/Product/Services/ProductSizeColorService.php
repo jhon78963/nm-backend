@@ -2,10 +2,10 @@
 
 namespace App\Product\Services;
 
-use App\Product\Models\Product;
+use App\Product\Models\ProductSize;
 use App\Shared\Services\ModelService;
 
-class ProductColorService
+class ProductSizeColorService
 {
     protected ModelService $modelService;
 
@@ -14,10 +14,10 @@ class ProductColorService
         $this->modelService = $modelService;
     }
 
-    public function add(Product $product, int $colorId, array $color): void
+    public function add(ProductSize $productSize, int $colorId, array $color): void
     {
         $this->modelService->attach(
-            $product,
+            $productSize,
             'colors',
             $colorId,
             [
@@ -27,10 +27,10 @@ class ProductColorService
         );
     }
 
-    public function modify(Product $product, int $colorId, array $color): void
+    public function modify(ProductSize $productSize, int $colorId, array $color): void
     {
         $this->modelService->attach(
-            $product,
+            $productSize,
             'colors',
             $colorId,
             [
@@ -40,10 +40,10 @@ class ProductColorService
         );
     }
 
-    public function remove(Product $product, int $colorId): void
+    public function remove(ProductSize $productSize, int $colorId): void
     {
         $this->modelService->detach(
-            $product,
+            $productSize,
             'colors',
             $colorId,
         );

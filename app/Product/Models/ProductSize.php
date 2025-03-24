@@ -3,18 +3,15 @@
 namespace App\Product\Models;
 
 use App\Color\Models\Color;
-use App\Gender\Models\Gender;
-use App\Image\Models\Image;
-use App\Product\Enums\ProductStatus;
-use App\Size\Models\Size;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ProductSize extends Model
 {
     use HasFactory;
+
+    protected $table = "product_size";
 
     /**
      * The attributes that are mass assignable.

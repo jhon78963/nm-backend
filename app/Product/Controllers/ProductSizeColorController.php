@@ -2,31 +2,31 @@
 
 namespace App\Product\Controllers;
 
-use App\Product\Models\Product;
+use App\Product\Models\ProductSize;
 use App\Product\Requests\ProductAddRequest;
-use App\Product\Services\ProductColorService;
+use App\Product\Services\ProductSizeColorService;
 use App\Shared\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use DB;
 
-class ProductColorController extends Controller
+class ProductSizeColorController extends Controller
 {
-    protected ProductColorService $productColorService;
+    protected ProductSizeColorService $productSizeColorService;
 
-    public function __construct(ProductColorService $productColorService)
+    public function __construct(ProductSizeColorService $productSizeColorService)
     {
-        $this->productColorService = $productColorService;
+        $this->productSizeColorService = $productSizeColorService;
     }
 
     public function add(
         ProductAddRequest $request,
-        Product $product,
+        ProductSize $productSize,
         int $colorId
     ): JsonResponse {
         DB::beginTransaction();
         try {
-            $this->productColorService->add(
-                $product,
+            $this->productSizeColorService->add(
+                $productSize,
                 $colorId,
                 $request->validated(),
             );
@@ -40,13 +40,13 @@ class ProductColorController extends Controller
 
     public function modify(
         ProductAddRequest $request,
-        Product $product,
+        ProductSize $productSize,
         int $colorId
     ): JsonResponse {
         DB::beginTransaction();
         try {
-            $this->productColorService->modify(
-                $product,
+            $this->productSizeColorService->modify(
+                $productSize,
                 $colorId,
                 $request->validated(),
             );
@@ -59,13 +59,13 @@ class ProductColorController extends Controller
     }
 
     public function remove(
-        Product $product,
+        ProductSize $productSize,
         int $colorId
     ): JsonResponse {
         DB::beginTransaction();
         try {
-            $this->productColorService->remove(
-                $product,
+            $this->productSizeColorService->remove(
+                $productSize,
                 $colorId,
             );
             DB::commit();
