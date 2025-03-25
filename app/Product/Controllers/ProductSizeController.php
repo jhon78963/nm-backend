@@ -3,6 +3,7 @@
 namespace App\Product\Controllers;
 
 use App\Product\Models\Product;
+use App\Product\Models\ProductSize;
 use App\Product\Requests\ProductAddRequest;
 use App\Product\Services\ProductSizeService;
 use App\Shared\Controllers\Controller;
@@ -36,6 +37,18 @@ class ProductSizeController extends Controller
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
         }
+    }
+
+    public function get(int $productId, int $sizeId): JsonResponse
+    {
+        $productSize =  ProductSize::where('product_id', '=', $productId)
+            ->where('size_id', '=', $sizeId)
+            ->first();
+
+        if (!$productSize) {
+            return response()->json(['message' => 'Product size not found'], 404);
+        }
+        return response()->json(['productSizeId' => $productSize->id], 302);
     }
 
     public function modify(

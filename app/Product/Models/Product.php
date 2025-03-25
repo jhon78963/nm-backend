@@ -72,10 +72,20 @@ class Product extends Model
         ];
     }
 
+      /**
+     * Get the gender associated with the product.
+     *
+     * @return BelongsTo
+     */
     public function gender(): BelongsTo {
         return $this->belongsTo(Gender::class);
     }
 
+    /**
+     * Get the images associated with the product.
+     *
+     * @return BelongsToMany
+     */
     public function images(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -84,13 +94,11 @@ class Product extends Model
         );
     }
 
-    // public function colors(): BelongsToMany {
-    //     return $this->belongsToMany(
-    //         Color::class,
-    //         'product_color',
-    //     )->withPivot(['price', 'stock']);
-    // }
-
+    /**
+     * Get the sizes associated with the product.
+     *
+     * @return BelongsToMany
+     */
     public function sizes(): BelongsToMany {
         return $this->belongsToMany(
             Size::class,

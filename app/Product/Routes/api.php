@@ -17,6 +17,7 @@ Route::controller(ProductSizeController::class)->group(function(): void {
     Route::post('/products/{product}/size/{sizeId}', 'add');
     Route::patch('/products/{product}/size/{sizeId}', 'modify');
     Route::delete('/products/{product}/size/{sizeId}', 'remove');
+    Route::get('/products/{productId}/size/{sizeId}', 'get');
 });
 
 Route::controller(ProductSizeColorController::class)->group(function(): void {
