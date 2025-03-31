@@ -30,7 +30,7 @@ class ProductCreateRequest extends FormRequest
             'minWholesalePrice' => 'required',
             'ratailPrice' => 'required',
             'minRatailPrice' => 'required',
-            'status' => 'required|string',
+            'status' => 'nullable|string',
             'genderId' => 'required|integer',
         ];
     }

@@ -5,6 +5,7 @@ namespace App\Size\Controllers;
 use App\Size\Models\Size;
 use App\Size\Requests\SizeCreateRequest;
 use App\Size\Requests\SizeUpdateRequest;
+use App\Size\Resources\AutocompleteSizeResource;
 use App\Size\Resources\SizeResource;
 use App\Size\Services\SizeService;
 use App\Shared\Controllers\Controller;
@@ -30,9 +31,15 @@ class SizeController extends Controller
         DB::beginTransaction();
         try {
             $newSize = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->sizeService->create($newSize);
+            $size = $this->sizeService->create($newSize);
             DB::commit();
-            return response()->json(['message' => 'Size created.'], 201);
+            return response()->json([
+                'message' => 'Size created.',
+                'item' => [
+                    'id' => $size->id,
+                    'value' => $size->description,
+                ],
+            ], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
@@ -72,6 +79,19 @@ class SizeController extends Controller
             $query['total'],
             $query['pages'],
         ));
+    }
+
+    public function getAllAutocomplete(GetAllRequest $request): JsonResponse
+    {
+        $query = $this->sharedService->query(
+            $request,
+            'Size',
+            'Size',
+            'description'
+        );
+        return response()->json(
+            AutocompleteSizeResource::collection($query['collection'])
+        );
     }
 
     public function update(SizeUpdateRequest $request, Size $size): JsonResponse

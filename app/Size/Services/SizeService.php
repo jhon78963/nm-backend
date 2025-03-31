@@ -13,9 +13,9 @@ class SizeService
         $this->modelService = $modelService;
     }
 
-    public function create(array $newSize): void
+    public function create(array $newSize): Size
     {
-        $this->modelService->create(new Size(), $newSize);
+        return $this->modelService->create(new Size(), $newSize);
     }
 
     public function delete(Size $size): void

@@ -31,7 +31,8 @@ return new class extends Migration
             $table->float('min_wholesale_price');
             $table->float('ratail_price');
             $table->float('min_ratail_price');
-            $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED']);
+            $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])
+                ->default('AVAILABLE');
             $table->unsignedBigInteger('gender_id');
             $table->foreign('gender_id')->references('id')->on('genders');
 

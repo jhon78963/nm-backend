@@ -19,7 +19,7 @@ class SizeResource extends JsonResource
     {
         return array_filter([
             'id' => $this->id,
-            'size' => $this->description,
+            'description' => $this->description,
             'stock' => isset($this->pivot) ? (int) $this->pivot->stock : null,
             'price' => isset($this->pivot) ? (float) $this->pivot->price : null,
             'colors' => isset($this->pivot) ? $this->getColorsForProductSize() : null,

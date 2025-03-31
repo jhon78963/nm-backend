@@ -8,5 +8,6 @@ Route::controller(SizeController::class)->group(function() {
     Route::patch('/sizes/{size}', 'update');
     Route::delete('/sizes/{size}', 'delete');
     Route::get('/sizes', 'getAll');
+    Route::get('/sizes/autocomplete', 'getAllAutocomplete');
     Route::get('/sizes/{size}', 'get');
 });
