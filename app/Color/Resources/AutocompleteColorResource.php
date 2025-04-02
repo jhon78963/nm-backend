@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Size\Resources;
+namespace App\Color\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class AutocompleteSizeResource extends JsonResource
+class AutocompleteColorResource extends JsonResource
 {
     /**
      * Transform the resource into an array.

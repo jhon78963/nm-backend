@@ -13,9 +13,9 @@ class ColorService
         $this->modelService = $modelService;
     }
 
-    public function create(array $newColor): void
+    public function create(array $newColor): Color
     {
-        $this->modelService->create(new Color(), $newColor);
+        return $this->modelService->create(new Color(), $newColor);
     }
 
     public function delete(Color $color): void

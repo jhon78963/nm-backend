@@ -5,6 +5,7 @@ namespace App\Color\Controllers;
 use App\Color\Models\Color;
 use App\Color\Requests\ColorCreateRequest;
 use App\Color\Requests\ColorUpdateRequest;
+use App\Color\Resources\AutocompleteColorResource;
 use App\Color\Resources\ColorResource;
 use App\Color\Services\ColorService;
 use App\Shared\Controllers\Controller;
@@ -30,9 +31,15 @@ class ColorController extends Controller
         DB::beginTransaction();
         try {
             $newColor = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->colorService->create($newColor);
+            $color = $this->colorService->create($newColor);
             DB::commit();
-            return response()->json(['message' => 'Color created.'], 201);
+            return response()->json([
+                'message' => 'Color created.',
+                'item' => [
+                    'id' => $color->id,
+                    'value' => $color->description,
+                ],
+            ], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
@@ -72,6 +79,19 @@ class ColorController extends Controller
             $query['total'],
             $query['pages'],
         ));
+    }
+
+    public function getAllAutocomplete(GetAllRequest $request): JsonResponse
+    {
+        $query = $this->sharedService->query(
+            $request,
+            'Color',
+            'Color',
+            'description'
+        );
+        return response()->json(
+            AutocompleteColorResource::collection($query['collection'])
+        );
     }
 
     public function update(ColorUpdateRequest $request, Color $color): JsonResponse
