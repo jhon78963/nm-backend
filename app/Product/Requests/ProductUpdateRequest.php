@@ -26,10 +26,8 @@ class ProductUpdateRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'purchase_price' => 'sometimes',
-            'wholesale_price' => 'sometimes',
-            'min_wholesale_price' => 'sometimes',
-            'ratail_price' => 'sometimes',
-            'min_ratail_price' => 'sometimes',
+            'sale_price' => 'sometimes',
+            'min_sale_price' => 'sometimes',
             'status' => 'sometimes|string',
             'gender_id' => 'sometimes|integer',
         ];

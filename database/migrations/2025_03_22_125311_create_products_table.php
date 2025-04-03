@@ -27,10 +27,8 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->integer('stock')->nullable()->default(0);
             $table->float('purchase_price');
-            $table->float('wholesale_price');
-            $table->float('min_wholesale_price');
-            $table->float('ratail_price');
-            $table->float('min_ratail_price');
+            $table->float('sale_price');
+            $table->float('min_sale_price');
             $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])
                 ->default('AVAILABLE');
             $table->unsignedBigInteger('gender_id');

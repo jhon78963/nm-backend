@@ -25,10 +25,8 @@ class Product extends Model
         'name',
         'description',
         'purchase_price',
-        'wholesale_price',
-        'min_wholesale_price',
-        'ratail_price',
-        'min_ratail_price',
+        'sale_price',
+        'min_sale_price',
         'stock',
         'status',
         'gender_id'
@@ -65,10 +63,8 @@ class Product extends Model
         return [
             'status' => ProductStatus::class,
             'purchase_price' => 'float',
-            'wholesale_price' => 'float',
-            'min_wholesale_price' => 'float',
-            'ratail_price' => 'float',
-            'min_ratail_price' => 'float',
+            'sale_price' => 'float',
+            'min_sale_price' => 'float',
         ];
     }
 

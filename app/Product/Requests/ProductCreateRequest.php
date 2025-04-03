@@ -26,10 +26,8 @@ class ProductCreateRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'purchasePrice' => 'required',
-            'wholesalePrice' => 'required',
-            'minWholesalePrice' => 'required',
-            'ratailPrice' => 'required',
-            'minRatailPrice' => 'required',
+            'salePrice' => 'required',
+            'minSalePrice' => 'required',
             'status' => 'nullable|string',
             'genderId' => 'required|integer',
         ];
