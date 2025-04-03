@@ -30,9 +30,12 @@ class ProductController extends Controller
         DB::beginTransaction();
         try {
             $newProduct = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->productService->create($newProduct);
+            $product = $this->productService->create($newProduct);
             DB::commit();
-            return response()->json(['message' => 'Product created.'], 201);
+            return response()->json([
+                'message' => 'Product created.',
+                'productId' => $product->id,
+            ], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);

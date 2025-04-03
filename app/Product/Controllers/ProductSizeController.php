@@ -32,7 +32,11 @@ class ProductSizeController extends Controller
                 $request->validated(),
             );
             DB::commit();
-            return response()->json(['message' => 'Size added.'], 201);
+            $productSize = $this->getId($product->id, $sizeId);
+            return response()->json([
+                'message' => 'Size added.',
+                'productSizeId' => $productSize->id
+            ], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
@@ -41,9 +45,7 @@ class ProductSizeController extends Controller
 
     public function get(int $productId, int $sizeId): JsonResponse
     {
-        $productSize =  ProductSize::where('product_id', '=', $productId)
-            ->where('size_id', '=', $sizeId)
-            ->first();
+        $productSize = $this->getId($productId, $sizeId);
 
         if (!$productSize) {
             return response()->json(['message' => 'Product size not found'], 404);
@@ -87,5 +89,12 @@ class ProductSizeController extends Controller
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
         }
+    }
+
+    private function getId(int $productId, int $sizeId): ProductSize
+    {
+        return ProductSize::where('product_id', '=', $productId)
+            ->where('size_id', '=', $sizeId)
+            ->first();
     }
 }

@@ -13,9 +13,9 @@ class ProductService
         $this->modelService = $modelService;
     }
 
-    public function create(array $newProduct): void
+    public function create(array $newProduct): Product
     {
-        $this->modelService->create(new Product(), $newProduct);
+        return $this->modelService->create(new Product(), $newProduct);
     }
 
     public function delete(Product $product): void
