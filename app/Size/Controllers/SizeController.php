@@ -66,6 +66,12 @@ class SizeController extends Controller
         return response()->json(new SizeResource($sizeValidated));
     }
 
+    public function getAutocomplete(Size $size): JsonResponse
+    {
+        $sizeValidated = $this->sizeService->validate($size, 'Size');
+        return response()->json(new AutocompleteSizeResource($sizeValidated));
+    }
+
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
