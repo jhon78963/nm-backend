@@ -15,11 +15,15 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $totalStock = $this->sizes->sum(function($size) {
+            return $size->pivot ? $size->pivot->stock : 0;
+        });
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
-            'stock' => $this->stock,
+            'stock' =>  $totalStock,
             'purchasePrice' => $this->purchase_price,
             'salePrice' => $this->sale_price,
             'minSalePrice' => $this->min_sale_price,

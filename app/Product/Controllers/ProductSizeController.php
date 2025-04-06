@@ -48,9 +48,9 @@ class ProductSizeController extends Controller
         $productSize = $this->getId($productId, $sizeId);
 
         if (!$productSize) {
-            return response()->json(['message' => 'Product size not found'], 404);
+            return response()->json(['productSizeId' => null]);
         }
-        return response()->json(['productSizeId' => $productSize->id], 302);
+        return response()->json(['productSizeId' => $productSize->id]);
     }
 
     public function modify(
@@ -91,7 +91,7 @@ class ProductSizeController extends Controller
         }
     }
 
-    private function getId(int $productId, int $sizeId): ProductSize
+    private function getId(int $productId, int $sizeId): ProductSize|null
     {
         return ProductSize::where('product_id', '=', $productId)
             ->where('size_id', '=', $sizeId)

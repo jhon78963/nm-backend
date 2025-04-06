@@ -23,9 +23,9 @@ class ProductService
         $this->modelService->delete($product);
     }
 
-    public function update(Product $product, array $editProduct): void
+    public function update(Product $product, array $editProduct): Product
     {
-        $this->modelService->update($product, $editProduct);
+        return $this->modelService->update($product, $editProduct);
     }
 
     public function validate(Product $product, string $modelName): Product

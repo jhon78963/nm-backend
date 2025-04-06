@@ -18,8 +18,10 @@ class SizeResource extends JsonResource
     public function toArray(Request $request): array
     {
         return array_filter([
-            'id' => $this->id,
-            'description' => $this->description,
+            'size' => [
+                'id' => $this->id,
+                'value' => $this->description,
+            ],
             'stock' => isset($this->pivot) ? (int) $this->pivot->stock : null,
             'price' => isset($this->pivot) ? (float) $this->pivot->price : null,
             'colors' => isset($this->pivot) ? $this->getColorsForProductSize() : null,

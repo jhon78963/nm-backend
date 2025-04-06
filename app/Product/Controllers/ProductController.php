@@ -84,9 +84,12 @@ class ProductController extends Controller
         try {
             $editProduct = $this->sharedService->convertCamelToSnake($request->validated());
             $productValidated = $this->productService->validate($product, 'Product');
-            $this->productService->update($productValidated, $editProduct);
+            $product = $this->productService->update($productValidated, $editProduct);
             DB::commit();
-            return response()->json(['message' => 'Product updated.']);
+            return response()->json([
+                'message' => 'Product updated.',
+                'productId' => $product->id,
+            ]);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
