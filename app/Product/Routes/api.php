@@ -1,6 +1,7 @@
 <?php
 
 use App\Product\Controllers\ProductController;
+use App\Product\Controllers\ProductImageController;
 use App\Product\Controllers\ProductSizeColorController;
 use App\Product\Controllers\ProductSizeController;
 use Illuminate\Support\Facades\Route;
@@ -24,4 +25,9 @@ Route::controller(ProductSizeColorController::class)->group(function(): void {
     Route::post('/product-size/{productSize}/color/{colorId}', 'add');
     Route::patch('/product-size/{productSize}/color/{colorId}', 'modify');
     Route::delete('/product-size/{productSize}/color/{colorId}', 'remove');
+});
+
+Route::controller(ProductImageController::class)->group(function(): void {
+    Route::post('/products/{product}/image/{imageId}', 'add');
+    Route::delete('/products/{product}/image/{imageId}', 'remove');
 });

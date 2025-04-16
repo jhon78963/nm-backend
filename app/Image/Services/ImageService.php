@@ -13,6 +13,11 @@ class ImageService
         $this->modelService = $modelService;
     }
 
+    public function create(array $newImage): Image
+    {
+        return $this->modelService->create(new Image(), $newImage);
+    }
+
     public function validate(Image $image, string $modelName): Image
     {
         return $this->modelService->validate($image, $modelName);

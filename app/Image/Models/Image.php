@@ -18,8 +18,7 @@ class Image extends Model
      */
     protected $fillable = [
         'id',
-        'type',
-        'short_type',
+        'path'
     ];
 
     /**
