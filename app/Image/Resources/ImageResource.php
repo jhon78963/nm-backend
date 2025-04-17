@@ -17,6 +17,7 @@ class ImageResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'name' => $this->getFileName($this->path),
             'path' => $this->generateS3Url($this->path),
         ];
     }
@@ -27,5 +28,10 @@ class ImageResource extends JsonResource
         $baseUrl = rtrim($aws_url, '/');
         $cleanPath = ltrim($path, '/');
         return "$baseUrl/$cleanPath";
+    }
+
+    private function getFileName(string $path): string
+    {
+        return basename($path);
     }
 }
