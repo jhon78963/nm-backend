@@ -44,6 +44,11 @@ class ModelService
         return $model->where($column, '=', $data)->first();
     }
 
+    public function getAllRelation(Model $model, string $relation)
+    {
+        return $model->$relation()->orderBy('id', 'desc')->get();
+    }
+
     public function mergeModels(array $models): Collection
     {
         $collection = collect();

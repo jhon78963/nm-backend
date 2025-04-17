@@ -2,6 +2,7 @@
 
 namespace App\Product\Controllers;
 
+use App\Image\Resources\ImageResource;
 use App\Product\Models\Product;
 use App\Product\Services\ProductImageService;
 use App\Shared\Controllers\Controller;
@@ -33,6 +34,12 @@ class ProductImageController extends Controller
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
         }
+    }
+
+    public function getAll(Product $product)
+    {
+        $images = $this->productImageService->getAll($product);
+        return response()->json( ImageResource::collection($images));
     }
 
     public function remove(

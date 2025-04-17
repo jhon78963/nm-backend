@@ -24,6 +24,14 @@ class ProductImageService
         );
     }
 
+    public function getAll(Product $product)
+    {
+        return $this->modelService->getAllRelation(
+            $product,
+            'images'
+        );
+    }
+
 
     public function remove(Product $product, int $imageId): void
     {
