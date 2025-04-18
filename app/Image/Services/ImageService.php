@@ -18,6 +18,11 @@ class ImageService
         return $this->modelService->create(new Image(), $newImage);
     }
 
+    public function delete(Image $image): void
+    {
+        $this->modelService->delete($image);
+    }
+
     public function validate(Image $image, string $modelName): Image
     {
         return $this->modelService->validate($image, $modelName);

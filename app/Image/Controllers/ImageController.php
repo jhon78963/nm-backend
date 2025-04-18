@@ -41,6 +41,20 @@ class ImageController extends Controller
         }
     }
 
+    public function delete(Image $image): JsonResponse
+    {
+        DB::beginTransaction();
+        try {
+            $imageValidated = $this->imageService->validate($image, 'Image');
+            $this->imageService->delete($imageValidated);
+            DB::commit();
+            return response()->json(['message' => 'Product deleted.']);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' =>  $e->getMessage()]);
+        }
+    }
+
     public function get(Image $image): JsonResponse
     {
         $imageValidated = $this->imageService->validate($image, 'Image');
