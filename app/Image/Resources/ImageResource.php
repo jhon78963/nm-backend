@@ -20,6 +20,7 @@ class ImageResource extends JsonResource
             'name' => $this->getFileName($this->path),
             'path' => $this->generateS3Url($this->path),
             'data' => $this->generateS3Url($this->path),
+            'key' => $this->path,
             'isDB' => true,
         ];
     }
