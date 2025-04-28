@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('image_id');
             $table->foreign('image_id')->references('id')->on('images');
             $table->primary(['product_id', 'image_id']);
+            $table->boolean('status')->default(true);
         });
     }
 
