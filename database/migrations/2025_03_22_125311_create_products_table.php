@@ -26,9 +26,9 @@ return new class extends Migration
             $table->string('name');
             $table->string('description')->nullable();
             $table->integer('stock')->nullable()->default(0);
-            $table->float('purchase_price');
-            $table->float('sale_price');
-            $table->float('min_sale_price');
+            $table->float('purchase_price')->nullable();
+            $table->float('sale_price')->nullable();
+            $table->float('min_sale_price')->nullable();
             $table->string('percentage_discount')->nullable();
             $table->integer('cash_discount')->nullable()->default(0);
             $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])->default('AVAILABLE');

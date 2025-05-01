@@ -25,10 +25,10 @@ class ProductUpdateRequest extends FormRequest
             'name' => 'sometimes|string|max:50',
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
-            'purchase_price' => 'sometimes',
-            'sale_price' => 'sometimes',
-            'min_sale_price' => 'sometimes',
-            'status' => 'sometimes|string',
+            'purchase_price' => 'nullable',
+            'sale_price' => 'nullable',
+            'min_sale_price' => 'nullable',
+            'status' => 'nullable|string',
             'gender_id' => 'sometimes|integer',
         ];
     }
