@@ -6,6 +6,7 @@ use App\Color\Models\Color;
 use App\Product\Models\Product;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Size extends Model
@@ -47,7 +48,9 @@ class Size extends Model
         return $this->belongsToMany(
             Product::class,
             'product_size',
-        )->withPivot(['price', 'stock']);
+        )->withPivot([
+            'price', 'stock', 'purchase_price', 'sale_price', 'min_sale_price'
+        ]);
     }
 
     public function colors(): BelongsToMany
@@ -57,6 +60,10 @@ class Size extends Model
             'product_size_color',
             'product_size_id',
             'color_id'
-        )->withPivot(['price', 'stock']);
+        )->withPivot(['stock']);
+    }
+
+    public function sizeType(): BelongsTo {
+        return $this->belongsTo(SizeType::class);
     }
 }

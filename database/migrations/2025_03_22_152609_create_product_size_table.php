@@ -18,7 +18,9 @@ return new class extends Migration
             $table->unsignedBigInteger('size_id');
             $table->foreign('size_id')->references('id')->on('sizes')->onDelete('cascade');;
             $table->integer('stock');
-            $table->float('price');
+            $table->float('purchase_price')->nullable();
+            $table->float('sale_price')->nullable();
+            $table->float('min_sale_price')->nullable();
         });
     }
 

@@ -18,7 +18,6 @@ return new class extends Migration
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('cascade');
             $table->primary(['product_size_id', 'color_id']);
             $table->integer('stock');
-            $table->float('price');
         });
     }
 

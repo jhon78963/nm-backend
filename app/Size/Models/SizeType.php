@@ -1,14 +1,15 @@
 <?php
 
-namespace App\Color\Models;
+namespace App\Size\Models;
 
+use App\Color\Models\Color;
 use App\Product\Models\Product;
-use App\Product\Models\ProductSize;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Color extends Model
+class SizeType extends Model
 {
     use HasFactory;
 
@@ -43,10 +44,7 @@ class Color extends Model
      */
     public $timestamps = false;
 
-    public function productSizes(): BelongsToMany {
-        return $this->belongsToMany(
-            ProductSize::class,
-            'product_size_color',
-        )->withPivot(['stock']);
+    public function sizes(): HasMany {
+        return $this->hasMany(Size::class);
     }
 }

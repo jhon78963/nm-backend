@@ -24,10 +24,9 @@ class Product extends Model
         'id',
         'name',
         'description',
-        'purchase_price',
-        'sale_price',
-        'min_sale_price',
-        'stock',
+        'barcode',
+        'percentage_discount',
+        'cash_discount',
         'status',
         'gender_id'
     ];
@@ -99,6 +98,8 @@ class Product extends Model
         return $this->belongsToMany(
             Size::class,
             'product_size',
-        )->withPivot(['price', 'stock']);
+        )->withPivot([
+            'price', 'stock', 'purchase_price', 'sale_price', 'min_sale_price'
+        ]);
     }
 }

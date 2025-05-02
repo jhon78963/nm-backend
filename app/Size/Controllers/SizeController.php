@@ -3,10 +3,14 @@
 namespace App\Size\Controllers;
 
 use App\Size\Models\Size;
+use App\Size\Models\SizeType;
+use App\Size\Requests\GetAllSelectedRequest;
 use App\Size\Requests\SizeCreateRequest;
 use App\Size\Requests\SizeUpdateRequest;
 use App\Size\Resources\AutocompleteSizeResource;
 use App\Size\Resources\SizeResource;
+use App\Size\Resources\SizeSelectedResource;
+use App\Size\Resources\SizeTypeResource;
 use App\Size\Services\SizeService;
 use App\Shared\Controllers\Controller;
 use App\Shared\Requests\GetAllRequest;
@@ -72,6 +76,12 @@ class SizeController extends Controller
         return response()->json(new AutocompleteSizeResource($sizeValidated));
     }
 
+    public function getSizeType(): JsonResponse
+    {
+        $sizeType = SizeType::where('is_deleted', '=', false)->get();
+        return response()->json(SizeTypeResource::collection($sizeType));
+    }
+
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
@@ -85,6 +95,36 @@ class SizeController extends Controller
             $query['total'],
             $query['pages'],
         ));
+    }
+    public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productId = $request->input('productId');
+        $sizeTypeId = $request->input('sizeTypeId');
+        $productSizes = DB::table('product_size')
+            ->where('product_id', $productId)
+            ->get()
+            ->keyBy('size_id');
+
+            $sizes = Size::where('size_type_id', $sizeTypeId)->get()->map(function ($size) use ($productSizes): Size {
+                if ($productSizes->has($size->id)) {
+                    $size->isExists = true;
+                    $size->stock = $productSizes[$size->id]->stock;
+                    $size->purchasePrice = $productSizes[$size->id]->purchase_price;
+                    $size->salePrice = $productSizes[$size->id]->sale_price;
+                    $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
+                } else {
+                    $size->isExists = false;
+                    $size->stock = null;
+                    $size->purchasePrice = null;
+                    $size->salePrice = null;
+                    $size->minSalePrice = null;
+                }
+                return $size;
+            })->sortBy(
+                fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
+            )->values();
+
+        return response()->json(SizeSelectedResource::collection($sizes));
     }
 
     public function getAllAutocomplete(GetAllRequest $request): JsonResponse

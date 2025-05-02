@@ -32,6 +32,7 @@ class GetAllRequest extends FormRequest
             'endDate' => 'nullable|string',
             'schedule' => 'nullable|string',
             'dni' => 'nullable|string',
+            'productId' => 'nullable|integer'
         ];
     }
 }
