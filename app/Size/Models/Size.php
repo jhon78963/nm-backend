@@ -21,6 +21,7 @@ class Size extends Model
     protected $fillable = [
         'id',
         'description',
+        'size_type_id',
     ];
 
     /**

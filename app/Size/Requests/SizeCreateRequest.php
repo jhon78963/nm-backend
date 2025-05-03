@@ -23,6 +23,7 @@ class SizeCreateRequest extends FormRequest
     {
         return [
             'description' => 'required|string|max:25',
+            'sizeTypeId' => 'required|integer',
         ];
     }
 }

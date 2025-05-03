@@ -35,15 +35,9 @@ class SizeController extends Controller
         DB::beginTransaction();
         try {
             $newSize = $this->sharedService->convertCamelToSnake($request->validated());
-            $size = $this->sizeService->create($newSize);
+            $this->sizeService->create($newSize);
             DB::commit();
-            return response()->json([
-                'message' => 'Size created.',
-                'item' => [
-                    'id' => $size->id,
-                    'value' => $size->description,
-                ],
-            ], 201);
+            return response()->json(['message' => 'Size created.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);

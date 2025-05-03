@@ -23,6 +23,7 @@ class SizeUpdateRequest extends FormRequest
     {
         return [
             'description' => 'sometimes|string|max:25',
+            'sizeTypeId' => 'sometimes|integer',
         ];
     }
 }

@@ -20,6 +20,7 @@ class SizeSelectedResource extends JsonResource
         return [
             'id' => $this->id,
             'description' => $this->description,
+            'codebar' => $this->codebar,
             'isExists' => $this->isExists,
             'stock' => $this->stock,
             'purchasePrice' => $this->purchasePrice,

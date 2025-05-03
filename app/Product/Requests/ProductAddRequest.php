@@ -22,8 +22,11 @@ class ProductAddRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'codebar' => 'required',
             'stock' => 'required|integer',
-            'price' => 'required',
+            'purchase_price' => 'required',
+            'sale_price' => 'required',
+            'min_sale_price' => 'required',
         ];
     }
 }
