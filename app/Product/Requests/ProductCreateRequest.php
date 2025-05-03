@@ -23,6 +23,7 @@ class ProductCreateRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:50',
+            'barcode' => 'nullable|string',
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'purchasePrice' => 'nullable',

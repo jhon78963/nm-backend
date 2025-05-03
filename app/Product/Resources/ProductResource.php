@@ -14,13 +14,20 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $firstSize = $this->sizes()->with('sizeType')->first();
+        $totalStock = $this->sizes->sum(fn($size): mixed => $size->pivot ? $size->pivot->stock : 0);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'barcode' => $this->barcode,
+            'stock' =>  $totalStock,
             'description' => $this->description,
             'status' => $this->status,
             'genderId' => $this->gender_id,
             'gender' => $this->gender->name,
+            'filter' => !$this->sizes()->exists(),
+            'sizeTypeId' => $firstSize?->size_type_id,
         ];
     }
 }

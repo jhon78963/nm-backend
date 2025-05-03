@@ -67,7 +67,7 @@ class Product extends Model
         ];
     }
 
-      /**
+    /**
      * Get the gender associated with the product.
      *
      * @return BelongsTo
@@ -99,7 +99,7 @@ class Product extends Model
             Size::class,
             'product_size',
         )->withPivot([
-            'price', 'stock', 'purchase_price', 'sale_price', 'min_sale_price'
+            'stock', 'purchase_price', 'sale_price', 'min_sale_price'
         ]);
     }
 }

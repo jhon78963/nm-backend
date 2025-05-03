@@ -26,5 +26,10 @@ class GenderSeeder extends Seeder
         $gender->name = 'Niños';
         $gender->short_name = 'N';
         $gender->save();
+
+        $gender = new Gender();
+        $gender->name = 'Ofertas';
+        $gender->short_name = 'O';
+        $gender->save();
     }
 }

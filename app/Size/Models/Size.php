@@ -49,7 +49,7 @@ class Size extends Model
             Product::class,
             'product_size',
         )->withPivot([
-            'price', 'stock', 'purchase_price', 'sale_price', 'min_sale_price'
+           'stock', 'purchase_price', 'sale_price', 'min_sale_price'
         ]);
     }
 
