@@ -21,8 +21,11 @@ class ProductSizeService
             'sizes',
             $sizeId,
             [
+                'codebar' => $size['codebar'],
                 'stock' => $size['stock'],
-                'price' => $size['price'],
+                'purchase_price' => $size['purchasePrice'],
+                'sale_price' => $size['salePrice'],
+                'min_sale_price' => $size['minSalePrice'],
             ]
         );
     }
@@ -34,8 +37,11 @@ class ProductSizeService
             'sizes',
             $sizeId,
             [
+                'codebar' => $size['codebar'],
                 'stock' => $size['stock'],
-                'price' => $size['price'],
+                'purchase_price' => $size['purchasePrice'],
+                'sale_price' => $size['salePrice'],
+                'min_sale_price' => $size['minSalePrice'],
             ]
         );
     }

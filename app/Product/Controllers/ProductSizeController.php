@@ -32,11 +32,7 @@ class ProductSizeController extends Controller
                 $request->validated(),
             );
             DB::commit();
-            $productSize = $this->getId($product->id, $sizeId);
-            return response()->json([
-                'message' => 'Size added.',
-                'productSizeId' => $productSize->id
-            ], 201);
+            return response()->json(['message' => 'Size added.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
