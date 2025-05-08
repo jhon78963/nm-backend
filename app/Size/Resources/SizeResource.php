@@ -24,6 +24,7 @@ class SizeResource extends JsonResource
             ],
             'stock' => isset($this->pivot) ? (int) $this->pivot->stock : null,
             'price' => isset($this->pivot) ? (float) $this->pivot->price : null,
+            'barcode' => isset($this->pivot) ? (float) $this->pivot->barcode : null,
             'colors' => isset($this->pivot) ? $this->getColorsForProductSize() : null,
         ], fn($value) => $value !== null);
     }

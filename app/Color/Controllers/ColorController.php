@@ -7,11 +7,16 @@ use App\Color\Requests\ColorCreateRequest;
 use App\Color\Requests\ColorUpdateRequest;
 use App\Color\Resources\AutocompleteColorResource;
 use App\Color\Resources\ColorResource;
+use App\Color\Resources\ColorSelectedResource;
+use App\Color\Resources\SizeResource;
 use App\Color\Services\ColorService;
+use App\Product\Models\ProductSize;
 use App\Shared\Controllers\Controller;
 use App\Shared\Requests\GetAllRequest;
 use App\Shared\Resources\GetAllCollection;
 use App\Shared\Services\SharedService;
+use App\Size\Requests\GetAllSelectedRequest;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use DB;
 
@@ -31,15 +36,9 @@ class ColorController extends Controller
         DB::beginTransaction();
         try {
             $newColor = $this->sharedService->convertCamelToSnake($request->validated());
-            $color = $this->colorService->create($newColor);
+            $this->colorService->create($newColor);
             DB::commit();
-            return response()->json([
-                'message' => 'Color created.',
-                'item' => [
-                    'id' => $color->id,
-                    'value' => $color->description,
-                ],
-            ], 201);
+            return response()->json(['message' => 'Color created.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
@@ -64,6 +63,49 @@ class ColorController extends Controller
     {
         $colorValidated = $this->colorService->validate($color, 'Color');
         return response()->json(new ColorResource($colorValidated));
+    }
+
+    public function getSizes(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productId = $request->input('productId');
+        $size = $request->input('size');
+
+        $sizes = ProductSize::join('sizes as s', 'product_size.size_id', '=', 's.id')
+            ->where('product_size.product_id', $productId)
+            ->when($size, fn(Builder $query): Builder =>
+                $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
+            )
+            ->select('product_size.id', 's.description')
+            ->get();
+
+        return response()->json(SizeResource::collection($sizes));
+    }
+
+    public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productSizeId = $request->input('productSizeId');
+        $productSizeColors = DB::table('product_size_color')
+            ->where('product_size_id', '=', $productSizeId)
+            ->get()
+            ->keyBy('color_id');
+
+        $colors = Color::where('is_deleted', '=', false)->get()
+            ->map(function ( $color) use ($productSizeColors, $productSizeId): Color {
+            if ($productSizeColors->has($color->id)) {
+                $color->isExists = true;
+                $color->stock = $productSizeColors[$color->id]->stock;
+                $color->productSizeId = $productSizeId;
+            } else {
+                $color->isExists = false;
+                $color->stock = null;
+                $color->productSizeId = null;
+            }
+            return $color;
+        })->sortBy(
+            fn($color): mixed => $color->stock === null ? PHP_INT_MAX : $color->id
+        )->values();
+
+        return response()->json(ColorSelectedResource::collection($colors));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse

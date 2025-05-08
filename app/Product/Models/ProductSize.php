@@ -24,6 +24,7 @@ class ProductSize extends Model
         'size_id',
         'stock',
         'price',
+        'barcode',
     ];
 
     /**
@@ -46,7 +47,7 @@ class ProductSize extends Model
         ];
     }
 
-    public function colors(): BelongsToMany {
+    public function productSizeColors(): BelongsToMany {
         return $this->belongsToMany(
             Color::class,
             'product_size_color',

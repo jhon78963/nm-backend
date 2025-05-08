@@ -8,6 +8,8 @@ Route::controller(ColorController::class)->group(function() {
     Route::patch('/colors/{color}', 'update');
     Route::delete('/colors/{color}', 'delete');
     Route::get('/colors', 'getAll');
+    Route::get('/colors/selected', 'getAllSelected');
+    Route::get('/colors/sizes', 'getSizes');
     Route::get('/colors/autocomplete', 'getAllAutocomplete');
     Route::get('/colors/{color}', 'get');
 });

@@ -21,7 +21,7 @@ class ProductSizeService
             'sizes',
             $sizeId,
             [
-                'codebar' => $size['codebar'],
+                'barcode' => $size['barcode'],
                 'stock' => $size['stock'],
                 'purchase_price' => $size['purchasePrice'],
                 'sale_price' => $size['salePrice'],
@@ -37,7 +37,7 @@ class ProductSizeService
             'sizes',
             $sizeId,
             [
-                'codebar' => $size['codebar'],
+                'barcode' => $size['barcode'],
                 'stock' => $size['stock'],
                 'purchase_price' => $size['purchasePrice'],
                 'sale_price' => $size['salePrice'],

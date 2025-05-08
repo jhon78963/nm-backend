@@ -23,6 +23,7 @@ class ColorUpdateRequest extends FormRequest
     {
         return [
             'description' => 'sometimes|string|max:25',
+            'hash' => 'nullable|string|max:25',
         ];
     }
 }

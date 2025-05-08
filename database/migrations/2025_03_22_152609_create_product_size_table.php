@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');;
             $table->unsignedBigInteger('size_id');
             $table->foreign('size_id')->references('id')->on('sizes')->onDelete('cascade');;
-            $table->string('codebar')->nullable();
+            $table->string('barcode')->nullable();
             $table->integer('stock');
             $table->float('purchase_price')->nullable();
             $table->float('sale_price')->nullable();

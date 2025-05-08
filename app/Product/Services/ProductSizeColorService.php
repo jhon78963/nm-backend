@@ -18,11 +18,10 @@ class ProductSizeColorService
     {
         $this->modelService->attach(
             $productSize,
-            'colors',
+            'productSizeColors',
             $colorId,
             [
                 'stock' => $color['stock'],
-                'price' => $color['price'],
             ]
         );
     }
@@ -31,11 +30,10 @@ class ProductSizeColorService
     {
         $this->modelService->attach(
             $productSize,
-            'colors',
+            'productSizeColors',
             $colorId,
             [
                 'stock' => $color['stock'],
-                'price' => $color['price'],
             ]
         );
     }

@@ -23,7 +23,9 @@ class GetAllSelectedRequest extends FormRequest
     {
         return [
             'productId' => 'nullable|integer',
+            'sizeId' => 'nullable|integer',
             'sizeTypeId' => 'nullable|integer',
+            'productSizeId' => 'nullable|integer',
         ];
     }
 }

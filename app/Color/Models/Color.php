@@ -20,6 +20,7 @@ class Color extends Model
     protected $fillable = [
         'id',
         'description',
+        'hash',
     ];
 
     /**
@@ -43,7 +44,7 @@ class Color extends Model
      */
     public $timestamps = false;
 
-    public function productSizes(): BelongsToMany {
+    public function productSizeColors(): BelongsToMany {
         return $this->belongsToMany(
             ProductSize::class,
             'product_size_color',

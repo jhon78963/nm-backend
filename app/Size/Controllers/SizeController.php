@@ -99,24 +99,26 @@ class SizeController extends Controller
             ->get()
             ->keyBy('size_id');
 
-            $sizes = Size::where('size_type_id', $sizeTypeId)->get()->map(function ($size) use ($productSizes): Size {
-                if ($productSizes->has($size->id)) {
-                    $size->isExists = true;
-                    $size->stock = $productSizes[$size->id]->stock;
-                    $size->purchasePrice = $productSizes[$size->id]->purchase_price;
-                    $size->salePrice = $productSizes[$size->id]->sale_price;
-                    $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
-                } else {
-                    $size->isExists = false;
-                    $size->stock = null;
-                    $size->purchasePrice = null;
-                    $size->salePrice = null;
-                    $size->minSalePrice = null;
-                }
-                return $size;
-            })->sortBy(
-                fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
-            )->values();
+        $sizes = Size::where('size_type_id', $sizeTypeId)->get()->map(function ($size) use ($productSizes): Size {
+            if ($productSizes->has($size->id)) {
+                $size->isExists = true;
+                $size->barcode = $productSizes[$size->id]->barcode;
+                $size->stock = $productSizes[$size->id]->stock;
+                $size->purchasePrice = $productSizes[$size->id]->purchase_price;
+                $size->salePrice = $productSizes[$size->id]->sale_price;
+                $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
+            } else {
+                $size->isExists = false;
+                $size->barcode = null;
+                $size->stock = null;
+                $size->purchasePrice = null;
+                $size->salePrice = null;
+                $size->minSalePrice = null;
+            }
+            return $size;
+        })->sortBy(
+            fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
+        )->values();
 
         return response()->json(SizeSelectedResource::collection($sizes));
     }

@@ -23,6 +23,7 @@ class ColorCreateRequest extends FormRequest
     {
         return [
             'description' => 'required|string|max:25',
+            'hash' => 'nullable|string|max:25',
         ];
     }
 }

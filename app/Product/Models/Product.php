@@ -99,7 +99,7 @@ class Product extends Model
             Size::class,
             'product_size',
         )->withPivot([
-            'stock', 'purchase_price', 'sale_price', 'min_sale_price'
+            'stock', 'purchase_price', 'sale_price', 'min_sale_price', 'barcode'
         ]);
     }
 }
