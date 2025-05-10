@@ -75,7 +75,7 @@ class ColorController extends Controller
             ->when($size, fn(Builder $query): Builder =>
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
-            ->select('product_size.id', 's.description')
+            ->select('product_size.id', 's.description', 'product_size.stock')
             ->get();
 
         return response()->json(SizeResource::collection($sizes));

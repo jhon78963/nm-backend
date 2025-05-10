@@ -15,7 +15,8 @@ class ColorSelectedResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->productSizeId,
+            'id' => $this->id,
+            'productSizeId' => $this->productSizeId,
             'description' => $this->description,
             'hash' => $this->hash,
             'isExists' => $this->isExists,
