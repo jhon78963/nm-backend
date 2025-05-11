@@ -75,7 +75,7 @@ class ColorController extends Controller
             ->when($size, fn(Builder $query): Builder =>
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
-            ->select('product_size.id', 's.description', 'product_size.stock')
+            ->select('s.id', 'product_size.id as productSizeId', 's.description', 'product_size.stock')
             ->get();
 
         return response()->json(SizeResource::collection($sizes));
@@ -83,7 +83,14 @@ class ColorController extends Controller
 
     public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
     {
-        $productSizeId = $request->input('productSizeId');
+        $productId = $request->input('productId');
+        $sizeId = $request->input('sizeId');
+
+        $productSizeId = DB::table('product_size')
+            ->where('product_id', $productId)
+            ->where('size_id', $sizeId)
+            ->value('id');
+
         $productSizeColors = DB::table('product_size_color')
             ->where('product_size_id', '=', $productSizeId)
             ->get()
@@ -94,12 +101,11 @@ class ColorController extends Controller
             if ($productSizeColors->has($color->id)) {
                 $color->isExists = true;
                 $color->stock = $productSizeColors[$color->id]->stock;
-                $color->productSizeId = $productSizeId;
             } else {
                 $color->isExists = false;
                 $color->stock = null;
-                $color->productSizeId = null;
             }
+            $color->productSizeId = $productSizeId;
             return $color;
         })->sortBy(
             fn($color): mixed => $color->stock === null ? PHP_INT_MAX : $color->id

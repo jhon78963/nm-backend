@@ -42,7 +42,7 @@ class ProductSizeColorService
     {
         $this->modelService->detach(
             $productSize,
-            'colors',
+            'productSizeColors',
             $colorId,
         );
     }

@@ -16,6 +16,7 @@ class SizeResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'productSizeId' => $this->productSizeId,
             'description' => "Talla: $this->description - Stock: $this->stock",
             'stock' => $this->stock,
         ];

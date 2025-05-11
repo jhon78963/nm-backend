@@ -91,6 +91,18 @@ class ModelService
             ->exists();
     }
 
+    public function getPivoteId(
+        string $modelClass,   // Ej: App\Models\UserRole
+        string $firstIdName,
+        string $secondIdName,
+        int $firstId,
+        int $secondId
+    ): ?Model {
+        return $modelClass::where($firstIdName, '=', $firstId)
+            ->where($secondIdName, '=', $secondId)
+            ->first();
+    }
+
     private static function setCreationAuditFields(Model $model): void
     {
         $model->creator_user_id = Auth::id();
