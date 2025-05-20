@@ -29,7 +29,7 @@ class ProductImageController extends Controller
                 $imageId,
             );
             DB::commit();
-            return response()->json(['message' => 'Size added.'], 201);
+            return response()->json(['message' => 'Image added.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
