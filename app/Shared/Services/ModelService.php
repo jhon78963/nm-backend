@@ -20,6 +20,15 @@ class ModelService
         $model->$relation()->syncWithoutDetaching([$id => $attributes]);
     }
 
+    public function addImage(
+        Model $model,
+        string $relation,
+        string $path,
+        ?array $attributes = [],
+    ): void {
+        $model->$relation()->syncWithoutDetaching([$path => $attributes]);
+    }
+
     public function create(Model $model, array $data): Model
     {
         $this->setCreationAuditFields($model);

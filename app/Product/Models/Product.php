@@ -85,8 +85,8 @@ class Product extends Model
     {
         return $this->belongsToMany(
             Image::class,
-            'product_image'
-        );
+            'product_image',
+        )->withPivot(['status']);
     }
 
     /**

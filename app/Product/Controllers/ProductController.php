@@ -10,17 +10,21 @@ use App\Product\Services\ProductService;
 use App\Shared\Controllers\Controller;
 use App\Shared\Requests\GetAllRequest;
 use App\Shared\Resources\GetAllCollection;
+use App\Shared\Services\FileService;
 use App\Shared\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use DB;
 
 class ProductController extends Controller
 {
+
     protected ProductService $productService;
     protected SharedService $sharedService;
 
-    public function __construct(ProductService $productService, SharedService $sharedService)
-    {
+    public function __construct(
+        ProductService $productService,
+        SharedService $sharedService,
+    ) {
         $this->productService = $productService;
         $this->sharedService = $sharedService;
     }

@@ -14,9 +14,8 @@ return new class extends Migration
         Schema::create('product_image', function (Blueprint $table) {
             $table->unsignedBigInteger('product_id');
             $table->foreign('product_id')->references('id')->on('products');
-            $table->unsignedBigInteger('image_id');
-            $table->foreign('image_id')->references('id')->on('images');
-            $table->primary(['product_id', 'image_id']);
+            $table->string('path');
+            $table->primary(['product_id', 'path']);
             $table->boolean('status')->default(true);
         });
     }

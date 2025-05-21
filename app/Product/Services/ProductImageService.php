@@ -14,12 +14,22 @@ class ProductImageService
         $this->modelService = $modelService;
     }
 
-    public function add(Product $product, int $imageId): void
+    // public function add(Product $product, int $imageId): void
+    // {
+    //     $this->modelService->attach(
+    //         $product,
+    //         'images',
+    //         $imageId,
+    //         []
+    //     );
+    // }
+
+    public function add(Product $product, string $path): void
     {
-        $this->modelService->attach(
+        $this->modelService->addImage(
             $product,
             'images',
-            $imageId,
+            $path,
             []
         );
     }
