@@ -23,6 +23,8 @@ class ImagesRequest extends FormRequest
     {
         return [
             'image.*' => 'required',
+            'size.*' => 'required',
+            'name.*' => 'required',
         ];
     }
 }

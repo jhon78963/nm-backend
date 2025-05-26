@@ -16,13 +16,13 @@ class ProductImageService
     }
 
 
-    public function add(Product $product, string $path): void
+    public function add(Product $product, string $path, string $size, string $name): void
     {
         $this->modelService->addImage(
             $product,
             'images',
             $path,
-            []
+            ['size' => $size, 'name' => $name]
         );
     }
 

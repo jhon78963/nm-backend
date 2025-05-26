@@ -79,17 +79,4 @@ class SharedService {
             );
         });
     }
-
-    public function generateS3Url(string $path): string
-    {
-        $aws_url = Config::get('app.aws_url');
-        $baseUrl = rtrim($aws_url, '/');
-        $cleanPath = ltrim($path, '/');
-        return "$baseUrl/$cleanPath";
-    }
-
-    public function getFileName(string $path): string
-    {
-        return basename($path);
-    }
 }

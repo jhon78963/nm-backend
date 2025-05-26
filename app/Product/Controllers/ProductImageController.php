@@ -32,6 +32,8 @@ class ProductImageController extends Controller
             $this->productImageService->add(
                 $product,
                 $request->image,
+                $request->size,
+                $request->name,
             );
             DB::commit();
             return response()->json(['message' => 'Image uploaded.']);
@@ -44,10 +46,18 @@ class ProductImageController extends Controller
     {
         DB::beginTransaction();
         try {
-            foreach ($request->input('image') as $image) {
+            $images = $request->input('image', []);
+            $sizes = $request->input('size', []);
+            $names = $request->input('name', []);
+
+            foreach ($images as $index => $image) {
+                $size = $sizes[$index] ?? null;
+                $name = $names[$index] ?? null;
                 $this->productImageService->add(
                     $product,
                     $image,
+                    $size,
+                    $name,
                 );
             }
             DB::commit();
@@ -61,11 +71,10 @@ class ProductImageController extends Controller
     {
         $images = $this->productImageService->getAll($product);
         $formatted = collect($images)->map(fn($image): array => [
-            'name' => $this->sharedService->getFileName($image->path),
-            'path' => $this->sharedService->generateS3Url($image->path),
-            'size' => Storage::disk('s3')->exists($image->path)
-                        ? Storage::disk('s3')->size($image->path)
-                        : null,
+            'name' => $image->name,
+            'path' => $image->path,
+            'size' => $image->size,
+            'status' => $image->status,
             'isDB' => true,
         ]);
 

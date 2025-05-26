@@ -52,6 +52,6 @@ class Image extends Model
             'path',
             'id',
             'path',
-        )->withPivot(['status']);
+        )->withPivot(['status', 'size', 'name']);
     }
 }

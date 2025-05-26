@@ -90,7 +90,7 @@ class Product extends Model
             'path',
             'id',
             'id',
-        )->withPivot(['status']);
+        )->withPivot(['status', 'size', 'name']);
     }
 
     /**
