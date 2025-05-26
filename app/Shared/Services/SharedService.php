@@ -2,9 +2,10 @@
 namespace App\Shared\Services;
 
 use App\Shared\Requests\GetAllRequest;
+use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Config;
 use Arr;
 use Carbon\Carbon;
-use Illuminate\Contracts\Database\Eloquent\Builder;
 use Str;
 
 class SharedService {
@@ -77,5 +78,18 @@ class SharedService {
                 ["%$searchTerm%"]
             );
         });
+    }
+
+    public function generateS3Url(string $path): string
+    {
+        $aws_url = Config::get('app.aws_url');
+        $baseUrl = rtrim($aws_url, '/');
+        $cleanPath = ltrim($path, '/');
+        return "$baseUrl/$cleanPath";
+    }
+
+    public function getFileName(string $path): string
+    {
+        return basename($path);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Product\Services;
 
 use App\Product\Models\Product;
 use App\Shared\Services\ModelService;
+use DB;
 
 class ProductImageService
 {
@@ -14,15 +15,6 @@ class ProductImageService
         $this->modelService = $modelService;
     }
 
-    // public function add(Product $product, int $imageId): void
-    // {
-    //     $this->modelService->attach(
-    //         $product,
-    //         'images',
-    //         $imageId,
-    //         []
-    //     );
-    // }
 
     public function add(Product $product, string $path): void
     {
@@ -36,10 +28,9 @@ class ProductImageService
 
     public function getAll(Product $product)
     {
-        return $this->modelService->getAllRelation(
-            $product,
-            'images'
-        );
+        return DB::table('product_image')
+            ->where('product_id', '=', $product->id)
+            ->get();
     }
 
 

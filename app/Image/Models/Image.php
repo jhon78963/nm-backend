@@ -42,11 +42,16 @@ class Image extends Model
      */
     public $timestamps = false;
 
+
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(
             Product::class,
-            'product_image'
+            'product_image',
+            'product_id',
+            'path',
+            'id',
+            'path',
         )->withPivot(['status']);
     }
 }
