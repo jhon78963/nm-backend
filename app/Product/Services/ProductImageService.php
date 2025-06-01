@@ -3,22 +3,27 @@
 namespace App\Product\Services;
 
 use App\Product\Models\Product;
+use App\Shared\Requests\FileMultipleUploadRequest;
+use App\Shared\Services\FileService;
 use App\Shared\Services\ModelService;
 use DB;
+use Illuminate\Support\Facades\Http;
 
 class ProductImageService
 {
+    protected FileService $fileService;
     protected ModelService $modelService;
 
-    public function __construct(ModelService $modelService)
+    public function __construct(FileService $fileService, ModelService $modelService)
     {
+        $this->fileService = $fileService;
         $this->modelService = $modelService;
     }
 
 
     public function add(Product $product, string $path, string $size, string $name): void
     {
-        $this->modelService->addImage(
+        $this->fileService->attach(
             $product,
             'images',
             $path,
@@ -34,12 +39,29 @@ class ProductImageService
     }
 
 
-    public function remove(Product $product, int $imageId): void
+    public function remove(Product $product, string $path): void
     {
-        $this->modelService->detach(
+        $this->fileService->detach(
             $product,
             'images',
-            $imageId,
+            $path,
         );
+    }
+
+    public function removeAll(Product $product, FileMultipleUploadRequest $request)
+    {
+        $images = $request->input('path');
+        $token = config('zg.token');
+        $url = config('zg.url');
+        foreach($images as $path) {
+            $response = Http::withToken($token)->delete("$url/images/$path");
+            if ($response->ok()) {
+                $this->fileService->detach(
+                    $product,
+                    'images',
+                    $path,
+                );
+            }
+        }
     }
 }

@@ -30,6 +30,7 @@ Route::controller(ProductSizeColorController::class)->group(function(): void {
 Route::controller(ProductImageController::class)->group(function(): void {
     Route::post('/products/{product}/upload/image', 'add');
     Route::post('/products/{product}/upload/images', 'multipleAdd');
-    Route::delete('/products/{product}/image/{imageId}', 'remove');
+    Route::post('/products/{product}/remove/images', 'multipleRemove');
+    Route::delete('/products/{product}/image/{path}', 'remove')->where('path', '.*');
     Route::get('/products/{product}/images', 'getAll');
 });

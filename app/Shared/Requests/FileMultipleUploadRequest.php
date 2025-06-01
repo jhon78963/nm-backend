@@ -22,7 +22,8 @@ class FileMultipleUploadRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file.*' => 'required',
+            'file.*' => 'nullable',
+            'path.*' => 'nullable',
         ];
     }
 }

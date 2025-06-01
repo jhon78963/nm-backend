@@ -7,6 +7,7 @@ use App\Product\Requests\ImageRequest;
 use App\Product\Requests\ImagesRequest;
 use App\Product\Services\ProductImageService;
 use App\Shared\Controllers\Controller;
+use App\Shared\Requests\FileMultipleUploadRequest;
 use App\Shared\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use DB;
@@ -83,16 +84,34 @@ class ProductImageController extends Controller
 
     public function remove(
         Product $product,
-        int $imageId
+        string $path
     ): JsonResponse {
         DB::beginTransaction();
         try {
             $this->productImageService->remove(
                 $product,
-                $imageId,
+                $path,
             );
             DB::commit();
             return response()->json(['message' => 'Image removed.'], 200);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' =>  $e->getMessage()]);
+        }
+    }
+
+    public function multipleRemove(
+        Product $product,
+        FileMultipleUploadRequest $request
+    ): JsonResponse {
+        DB::beginTransaction();
+        try {
+            $this->productImageService->removeAll(
+                $product,
+                $request,
+            );
+            DB::commit();
+            return response()->json(['message' => 'Images removed.'], 200);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' =>  $e->getMessage()]);
