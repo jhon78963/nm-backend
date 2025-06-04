@@ -3,7 +3,6 @@ namespace App\Shared\Services;
 
 use App\Shared\Requests\GetAllRequest;
 use Illuminate\Contracts\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Config;
 use Arr;
 use Carbon\Carbon;
 use Str;

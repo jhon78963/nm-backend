@@ -2,8 +2,6 @@
 
 namespace App\Shared\Services;
 
-use Illuminate\Http\JsonResponse;
-
 class SunatService
 {
     public function dniConsultation($dni): mixed

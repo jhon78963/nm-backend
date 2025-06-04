@@ -2,12 +2,8 @@
 
 namespace App\Shared\Services;
 
-use App\User\Models\User;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Collection;
-use Auth;
-use DB;
+
 
 class FileService
 {

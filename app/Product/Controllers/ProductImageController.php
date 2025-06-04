@@ -11,7 +11,6 @@ use App\Shared\Requests\FileMultipleUploadRequest;
 use App\Shared\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use DB;
-use Storage;
 
 class ProductImageController extends Controller
 {

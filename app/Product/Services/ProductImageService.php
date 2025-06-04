@@ -6,8 +6,8 @@ use App\Product\Models\Product;
 use App\Shared\Requests\FileMultipleUploadRequest;
 use App\Shared\Services\FileService;
 use App\Shared\Services\ModelService;
-use DB;
 use Illuminate\Support\Facades\Http;
+use DB;
 
 class ProductImageService
 {

@@ -2,10 +2,7 @@
 
 namespace App\Size\Resources;
 
-use App\Color\Resources\ColorResource;
-use App\Product\Models\ProductSize;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class SizeSelectedResource extends JsonResource
