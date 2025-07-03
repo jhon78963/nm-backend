@@ -41,7 +41,7 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color created.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 
@@ -55,7 +55,7 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color deleted.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 
@@ -72,10 +72,14 @@ class ColorController extends Controller
 
         $sizes = ProductSize::join('sizes as s', 'product_size.size_id', '=', 's.id')
             ->where('product_size.product_id', $productId)
-            ->when($size, fn(Builder $query): Builder =>
+            ->when(
+                $size,
+                fn(Builder $query): Builder =>
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
             ->select('s.id', 'product_size.id as productSizeId', 's.description', 'product_size.stock')
+            ->orderByRaw('s.description::integer ASC')
+            ->orderBy('s.id', 'asc')
             ->get();
 
         return response()->json(SizeResource::collection($sizes));
@@ -97,19 +101,19 @@ class ColorController extends Controller
             ->keyBy('color_id');
 
         $colors = Color::where('is_deleted', '=', false)->get()
-            ->map(function ( $color) use ($productSizeColors, $productSizeId): Color {
-            if ($productSizeColors->has($color->id)) {
-                $color->isExists = true;
-                $color->stock = $productSizeColors[$color->id]->stock;
-            } else {
-                $color->isExists = false;
-                $color->stock = null;
-            }
-            $color->productSizeId = $productSizeId;
-            return $color;
-        })->sortBy(
-            fn($color): mixed => $color->stock === null ? PHP_INT_MAX : $color->id
-        )->values();
+            ->map(function ($color) use ($productSizeColors, $productSizeId): Color {
+                if ($productSizeColors->has($color->id)) {
+                    $color->isExists = true;
+                    $color->stock = $productSizeColors[$color->id]->stock;
+                } else {
+                    $color->isExists = false;
+                    $color->stock = null;
+                }
+                $color->productSizeId = $productSizeId;
+                return $color;
+            })->sortBy(
+                fn($color): mixed => $color->stock === null ? PHP_INT_MAX : $color->id
+            )->values();
 
         return response()->json(ColorSelectedResource::collection($colors));
     }
@@ -153,7 +157,7 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color updated.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 }
