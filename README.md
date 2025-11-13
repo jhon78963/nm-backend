@@ -28,7 +28,7 @@ php artisan serve
 # Comandos Bootstrap y Cache (Apache2)
 ```
 sudo a2enmod rewrite
-sudo chown -R www-data:www-data /var/www/html
+sudo chown -R www-data:www-data /var/www
 sudo chown -R $USER:www-data storage
 sudo chown -R $USER:www-data bootstrap/cache
 chmod -R 775 storage
