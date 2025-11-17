@@ -78,11 +78,17 @@ class SizeController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
+        $specificFilters = [];
+        $sizeTypeIdValue = $request->query('sizeTypeId');
+        if ($request->has('sizeTypeId') && $sizeTypeIdValue !== '') {
+            $specificFilters['size_type_id'] = $sizeTypeIdValue;
+        }
         $query = $this->sharedService->query(
             $request,
             'Size',
             'Size',
-            'description'
+            ['description'],
+            $specificFilters
         );
         return response()->json(new GetAllCollection(
             SizeResource::collection($query['collection']),

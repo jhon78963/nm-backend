@@ -25,14 +25,7 @@ class GetAllRequest extends FormRequest
             'limit' => 'nullable|integer|min:1',
             'page' => 'nullable|integer|min:1',
             'search' => 'nullable|string',
-            'gender' => 'nullable|string',
-            'status' => 'nullable|string',
-            'reservationType' => 'nullable|string',
-            'startDate' => 'nullable|string',
-            'endDate' => 'nullable|string',
-            'schedule' => 'nullable|string',
-            'dni' => 'nullable|string',
-            'productId' => 'nullable|integer'
+            'sizeTypeId' => 'nullable'
         ];
     }
 }
