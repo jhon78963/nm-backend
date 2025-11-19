@@ -68,11 +68,16 @@ class ProductController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
+        $stockSql = '(SELECT COALESCE(SUM(stock), 0) FROM product_size WHERE product_size.product_id = products.id)';
         $query = $this->sharedService->query(
-            $request,
-            'Product',
-            'Product',
-            'name'
+            request: $request,
+            entityName: 'Product',
+            modelName: 'Product',
+            columnSearch: ['id', 'name', 'gender.name', $stockSql],
+            filters: [],
+            extendQuery: function ($q) {
+                $q->withSum('sizes as sizes_sum_stock', 'product_size.stock');
+            },
         );
         return response()->json(new GetAllCollection(
             ProductResource::collection($query['collection']),

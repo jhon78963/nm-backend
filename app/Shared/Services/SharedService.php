@@ -41,6 +41,7 @@ class SharedService
      * @param string $modelName
      * @param array|string|null $columnSearch
      * @param array $filters
+     * @param callable|null $extendQuery
      * @return array
      */
     public function query(
@@ -48,7 +49,8 @@ class SharedService
         string $entityName,
         string $modelName,
         array|string $columnSearch = null,
-        array $filters = []
+        array $filters = [],
+        callable|null $extendQuery = null,
     ): array {
         $limit = $request->query('limit', $this->limit);
         $page = $request->query('page', $this->page);
@@ -57,6 +59,11 @@ class SharedService
         $modelClass = "App\\$entityName\\Models\\$modelName";
 
         $query = $modelClass::query();
+
+        if ($extendQuery) {
+            $extendQuery($query);
+        }
+
         $query->where('is_deleted', false);
         if (!empty($filters)) {
             foreach ($filters as $column => $value) {
@@ -118,6 +125,11 @@ class SharedService
 
         return $query->where(function ($q) use ($search, $columns) {
             foreach ($columns as $column) {
+                if (str_contains($column, '(')) {
+                    $q->orWhereRaw("CAST($column AS TEXT) ILIKE ?", ['%' . strtolower($search) . '%']);
+                    continue;
+                }
+
                 if (str_contains($column, '.')) {
                     [$relation, $field] = explode('.', $column, 2);
 

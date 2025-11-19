@@ -80,7 +80,7 @@ class UserController extends Controller
             $request,
             'User',
             'User',
-            'name'
+            ['username', 'email', 'name', 'surname']
         );
 
         return response()->json(new GetAllCollection(

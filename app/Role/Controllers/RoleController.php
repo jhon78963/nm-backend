@@ -66,7 +66,7 @@ class RoleController extends Controller
             $request,
             'Role',
             'Role',
-            'name'
+            ['id', 'name']
         );
 
         return response()->json(new GetAllCollection(
