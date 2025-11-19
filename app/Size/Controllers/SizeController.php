@@ -84,11 +84,11 @@ class SizeController extends Controller
             $specificFilters['size_type_id'] = $sizeTypeIdValue;
         }
         $query = $this->sharedService->query(
-            $request,
-            'Size',
-            'Size',
-            ['description'],
-            $specificFilters
+            request: $request,
+            entityName: 'Size',
+            modelName: 'Size',
+            columnSearch: ['description'],
+            filters: $specificFilters
         );
         return response()->json(new GetAllCollection(
             SizeResource::collection($query['collection']),

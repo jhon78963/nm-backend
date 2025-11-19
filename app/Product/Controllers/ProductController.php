@@ -68,13 +68,18 @@ class ProductController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
+        $specificFilters = [];
+        $genderIdValue = $request->query('genderId');
+        if ($request->has('genderId') && $genderIdValue !== '') {
+            $specificFilters['gender_id'] = $genderIdValue;
+        }
         $stockSql = '(SELECT COALESCE(SUM(stock), 0) FROM product_size WHERE product_size.product_id = products.id)';
         $query = $this->sharedService->query(
             request: $request,
             entityName: 'Product',
             modelName: 'Product',
             columnSearch: ['id', 'name', 'gender.name', $stockSql],
-            filters: [],
+            filters: $specificFilters,
             extendQuery: function ($q) {
                 $q->withSum('sizes as sizes_sum_stock', 'product_size.stock');
             },

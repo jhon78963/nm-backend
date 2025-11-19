@@ -27,7 +27,7 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->string('barcode')->nullable();
             $table->string('percentage_discount')->nullable();
-            $table->integer('cash_discount')->nullable()->default(0);
+            $table->integer('cash_discount')->nullable();
             $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])->default('AVAILABLE');
             $table->unsignedBigInteger('gender_id');
             $table->foreign('gender_id')->references('id')->on('genders');

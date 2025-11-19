@@ -25,7 +25,8 @@ class GetAllRequest extends FormRequest
             'limit' => 'nullable|integer|min:1',
             'page' => 'nullable|integer|min:1',
             'search' => 'nullable|string',
-            'sizeTypeId' => 'nullable'
+            'sizeTypeId' => 'nullable',
+            'genderId' => 'nullable',
         ];
     }
 }

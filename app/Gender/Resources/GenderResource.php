@@ -16,8 +16,8 @@ class GenderResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'gender' => $this->name,
-            'shortGender' => $this->short_name,
+            'description' => $this->name,
+            'shortDescription' => $this->short_name,
         ];
     }
 }
