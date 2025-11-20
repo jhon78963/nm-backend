@@ -17,6 +17,7 @@ class ColorResource extends JsonResource
         return array_filter([
             'id' => $this->id,
             'description' => $this->description,
+            'hash' => $this->hash,
             'stock' => isset($this->pivot) ? (int) $this->pivot->stock : null,
             'price' => isset($this->pivot) ? (float) $this->pivot->price : null,
         ], fn($value) => $value !== null);

@@ -87,7 +87,7 @@ class SizeController extends Controller
             request: $request,
             entityName: 'Size',
             modelName: 'Size',
-            columnSearch: ['description'],
+            columnSearch: ['id', 'description', 'sizeType.description'],
             filters: $specificFilters
         );
         return response()->json(new GetAllCollection(

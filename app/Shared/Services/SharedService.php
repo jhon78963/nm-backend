@@ -74,18 +74,16 @@ class SharedService
                     foreach ($values as $v) {
                         if (strtolower($v) === 'null') {
                             $includesNull = true;
-                        } elseif (!empty($v)) { // Evita strings vacíos (ej. "1,,2")
+                        } elseif (!empty($v)) {
                             $nonNullValues[] = $v;
                         }
                     }
 
                     $query->where(function ($q) use ($column, $nonNullValues, $includesNull) {
                         if (!empty($nonNullValues)) {
-                            // Aplica para "1", "2", etc.
                             $q->whereIn($column, $nonNullValues);
                         }
                         if ($includesNull) {
-                            // Aplica 'orWhereNull' si "null" estaba en la lista
                             $q->orWhereNull($column);
                         }
                     });
@@ -126,18 +124,18 @@ class SharedService
         return $query->where(function ($q) use ($search, $columns) {
             foreach ($columns as $column) {
                 if (str_contains($column, '(')) {
-                    $q->orWhereRaw("CAST($column AS TEXT) ILIKE ?", ['%' . strtolower($search) . '%']);
+                    $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     continue;
                 }
-
                 if (str_contains($column, '.')) {
                     [$relation, $field] = explode('.', $column, 2);
 
                     $q->orWhereHas($relation, function ($subQuery) use ($field, $search) {
-                        $subQuery->whereRaw("CAST($field AS TEXT) ILIKE ?", ['%' . strtolower($search) . '%']);
+                        $subQuery->whereRaw("unaccent(CAST($field AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     });
-                } else {
-                    $q->orWhereRaw("CAST($column AS TEXT) ILIKE ?", ['%' . strtolower($search) . '%']);
+                }
+                else {
+                    $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                 }
             }
         });

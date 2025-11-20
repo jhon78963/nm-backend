@@ -124,7 +124,7 @@ class ColorController extends Controller
             $request,
             'Color',
             'Color',
-            'description'
+            ['id', 'description', 'hash']
         );
         return response()->json(new GetAllCollection(
             ColorResource::collection($query['collection']),
