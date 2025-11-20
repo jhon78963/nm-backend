@@ -15,8 +15,6 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         $stock = $this->sizes_sum_stock ?? $this->sizes->sum('pivot.stock');
-        $firstSize = $this->sizes->first();
-
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -29,7 +27,11 @@ class ProductResource extends JsonResource
             'genderId' => $this->gender_id,
             'gender' => $this->gender->name,
             'filter' => !$this->sizes()->exists(),
-            'sizeTypeId' => $firstSize?->size_type_id,
+            'sizeTypeId' => $this->sizes->pluck('size_type_id')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all(),
         ];
     }
 }
