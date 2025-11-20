@@ -40,7 +40,7 @@ class SizeController extends Controller
             return response()->json(['message' => 'Size created.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 
@@ -54,7 +54,7 @@ class SizeController extends Controller
             return response()->json(['message' => 'Size deleted.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 
@@ -96,83 +96,43 @@ class SizeController extends Controller
             $query['pages'],
         ));
     }
-    // public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
-    // {
-    //     $productId = $request->input('productId');
-    //     $sizeTypeId = $request->input('sizeTypeId');
-    //     $productSizes = DB::table('product_size')
-    //         ->where('product_id', $productId)
-    //         ->get()
-    //         ->keyBy('size_id');
-
-    //     $sizes = Size::where('size_type_id', $sizeTypeId)->get()->map(function ($size) use ($productSizes): Size {
-    //         if ($productSizes->has($size->id)) {
-    //             $size->isExists = true;
-    //             $size->barcode = $productSizes[$size->id]->barcode;
-    //             $size->stock = $productSizes[$size->id]->stock;
-    //             $size->purchasePrice = $productSizes[$size->id]->purchase_price;
-    //             $size->salePrice = $productSizes[$size->id]->sale_price;
-    //             $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
-    //         } else {
-    //             $size->isExists = false;
-    //             $size->barcode = null;
-    //             $size->stock = null;
-    //             $size->purchasePrice = null;
-    //             $size->salePrice = null;
-    //             $size->minSalePrice = null;
-    //         }
-    //         return $size;
-    //     })->sortBy(
-    //         fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
-    //     )->values();
-
-    //     return response()->json(SizeSelectedResource::collection($sizes));
-    // }
-
-
 
     public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
-{
-    $productId = $request->input('productId');
+    {
+        $productId = $request->input('productId');
+        $sizeTypeIdRaw = $request->input('sizeTypeId');
+        $sizeTypeIds = $sizeTypeIdRaw ? explode(',', $sizeTypeIdRaw) : [];
+        $productSizes = DB::table('product_size')
+            ->where('product_id', $productId)
+            ->get()
+            ->keyBy('size_id');
 
-    // 1. Obtenemos el valor crudo "1,2"
-    $sizeTypeIdRaw = $request->input('sizeTypeId');
+        $sizes = Size::whereIn('size_type_id', $sizeTypeIds)
+            ->get()
+            ->map(function ($size) use ($productSizes): Size {
+                if ($productSizes->has($size->id)) {
+                    $size->isExists = true;
+                    $size->barcode = $productSizes[$size->id]->barcode;
+                    $size->stock = $productSizes[$size->id]->stock;
+                    $size->purchasePrice = $productSizes[$size->id]->purchase_price;
+                    $size->salePrice = $productSizes[$size->id]->sale_price;
+                    $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
+                } else {
+                    $size->isExists = false;
+                    $size->barcode = null;
+                    $size->stock = null;
+                    $size->purchasePrice = null;
+                    $size->salePrice = null;
+                    $size->minSalePrice = null;
+                }
+                return $size;
+            })->sortBy(
+                fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
+            )->values();
 
-    // 2. Convertimos el string "1,2" a un array [1, 2]
-    // Si viene vacío, nos aseguramos de tener un array vacío para evitar errores
-    $sizeTypeIds = $sizeTypeIdRaw ? explode(',', $sizeTypeIdRaw) : [];
+        return response()->json(SizeSelectedResource::collection($sizes));
+    }
 
-    $productSizes = DB::table('product_size')
-        ->where('product_id', $productId)
-        ->get()
-        ->keyBy('size_id');
-
-    // 3. Usamos whereIn en lugar de where simple
-    $sizes = Size::whereIn('size_type_id', $sizeTypeIds)
-        ->get()
-        ->map(function ($size) use ($productSizes): Size {
-            if ($productSizes->has($size->id)) {
-                $size->isExists = true;
-                $size->barcode = $productSizes[$size->id]->barcode;
-                $size->stock = $productSizes[$size->id]->stock;
-                $size->purchasePrice = $productSizes[$size->id]->purchase_price;
-                $size->salePrice = $productSizes[$size->id]->sale_price;
-                $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
-            } else {
-                $size->isExists = false;
-                $size->barcode = null;
-                $size->stock = null;
-                $size->purchasePrice = null;
-                $size->salePrice = null;
-                $size->minSalePrice = null;
-            }
-            return $size;
-        })->sortBy(
-            fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
-        )->values();
-
-    return response()->json(SizeSelectedResource::collection($sizes));
-}
     public function getAllAutocomplete(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
@@ -197,7 +157,7 @@ class SizeController extends Controller
             return response()->json(['message' => 'Size updated.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()]);
         }
     }
 }
