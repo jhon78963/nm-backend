@@ -2,8 +2,8 @@
 
 namespace App\Inventory\Product\Models;
 
-use App\Gender\Models\Gender;
-use App\Image\Models\Image;
+use App\Inventory\Gender\Models\Gender;
+use App\Shared\Image\Models\Image;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

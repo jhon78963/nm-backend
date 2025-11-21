@@ -10,7 +10,7 @@ use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
 use App\Auth\Resources\MeResource;
 use App\Auth\Services\AuthService;
-use App\Shared\Controllers\Controller;
+use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Auth;
 

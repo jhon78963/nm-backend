@@ -2,10 +2,10 @@
 
 namespace App\Administration\User\Controllers;
 
-use App\Shared\Controllers\Controller;
-use App\Shared\Requests\GetAllRequest;
-use App\Shared\Resources\GetAllCollection;
-use App\Shared\Services\SharedService;
+use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\GetAllRequest;
+use App\Shared\Foundation\Resources\GetAllCollection;
+use App\Shared\Foundation\Services\SharedService;
 use App\Administration\User\Models\User;
 use App\Administration\User\Requests\UserCreateRequest;
 use App\Administration\User\Requests\UserUpdateRequest;

@@ -3,9 +3,9 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\Product;
-use App\Shared\Requests\FileMultipleUploadRequest;
-use App\Shared\Services\FileService;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Requests\FileMultipleUploadRequest;
+use App\Shared\Foundation\Services\FileService;
+use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Support\Facades\Http;
 use DB;
 

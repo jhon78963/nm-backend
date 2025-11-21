@@ -3,7 +3,7 @@
 namespace App\Collection\Services;
 
 use App\Collection\Models\Collection;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Services\ModelService;
 
 class CollectionService
 {

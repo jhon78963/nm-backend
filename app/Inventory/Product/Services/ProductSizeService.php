@@ -3,7 +3,7 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\Product;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Services\ModelService;
 
 class ProductSizeService
 {

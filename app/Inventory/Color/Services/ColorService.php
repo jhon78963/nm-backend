@@ -2,7 +2,7 @@
 namespace App\Inventory\Color\Services;
 
 use App\Inventory\Color\Models\Color;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Services\ModelService;
 
 class ColorService
 {

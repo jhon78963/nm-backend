@@ -5,7 +5,7 @@ namespace App\Inventory\Product\Controllers;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Requests\ProductAddRequest;
 use App\Inventory\Product\Services\ProductSizeColorService;
-use App\Shared\Controllers\Controller;
+use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use DB;
 

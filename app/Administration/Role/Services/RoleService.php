@@ -3,7 +3,7 @@
 namespace App\Administration\Role\Services;
 
 use App\Administration\Role\Models\Role;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Services\ModelService;
 
 class RoleService
 {

@@ -2,7 +2,7 @@
 namespace App\Inventory\Size\Services;
 
 use App\Inventory\Size\Models\Size;
-use App\Shared\Services\ModelService;
+use App\Shared\Foundation\Services\ModelService;
 
 class SizeService
 {

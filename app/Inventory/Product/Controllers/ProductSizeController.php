@@ -6,7 +6,7 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Requests\ProductAddRequest;
 use App\Inventory\Product\Services\ProductSizeService;
-use App\Shared\Controllers\Controller;
+use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use DB;
 

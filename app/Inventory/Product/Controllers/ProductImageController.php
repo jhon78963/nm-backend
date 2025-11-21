@@ -6,9 +6,9 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Requests\ImageRequest;
 use App\Inventory\Product\Requests\ImagesRequest;
 use App\Inventory\Product\Services\ProductImageService;
-use App\Shared\Controllers\Controller;
-use App\Shared\Requests\FileMultipleUploadRequest;
-use App\Shared\Services\SharedService;
+use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\FileMultipleUploadRequest;
+use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use DB;
 

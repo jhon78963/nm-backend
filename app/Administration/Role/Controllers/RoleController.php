@@ -7,10 +7,10 @@ use App\Administration\Role\Requests\RoleCreateRequest;
 use App\Administration\Role\Requests\RoleUpdateRequest;
 use App\Administration\Role\Resources\RoleResource;
 use App\Administration\Role\Services\RoleService;
-use App\Shared\Controllers\Controller;
-use App\Shared\Requests\GetAllRequest;
-use App\Shared\Resources\GetAllCollection;
-use App\Shared\Services\SharedService;
+use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\GetAllRequest;
+use App\Shared\Foundation\Resources\GetAllCollection;
+use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use DB;
 
