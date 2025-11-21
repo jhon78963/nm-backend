@@ -2,6 +2,7 @@
 
 namespace App\Auth\Controllers;
 
+use App\Administration\User\Models\User;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\DeleteTokenRequest;
 use App\Auth\Requests\LoginRequest;
@@ -10,7 +11,6 @@ use App\Auth\Requests\UpdateMeRequest;
 use App\Auth\Resources\MeResource;
 use App\Auth\Services\AuthService;
 use App\Shared\Controllers\Controller;
-use App\User\Models\User;
 use Illuminate\Http\JsonResponse;
 use Auth;
 

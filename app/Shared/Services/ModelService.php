@@ -2,7 +2,7 @@
 
 namespace App\Shared\Services;
 
-use App\User\Models\User;
+use App\Administration\User\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;

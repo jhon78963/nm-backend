@@ -2,6 +2,7 @@
 
 namespace App\Auth\Services;
 
+use App\Administration\User\Models\User;
 use App\Auth\Enums\TokenAbility;
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Exceptions\InvalidUserCredentialsException;
@@ -9,7 +10,6 @@ use App\Auth\Models\PersonalAccessToken;
 use App\Auth\Requests\DeleteTokenRequest;
 use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
-use App\User\Models\User;
 use Carbon\Carbon;
 use Hash;
 
