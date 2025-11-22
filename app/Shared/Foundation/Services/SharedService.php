@@ -133,8 +133,7 @@ class SharedService
                     $q->orWhereHas($relation, function ($subQuery) use ($field, $search) {
                         $subQuery->whereRaw("unaccent(CAST($field AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     });
-                }
-                else {
+                } else {
                     $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                 }
             }
@@ -151,18 +150,16 @@ class SharedService
                 foreach ($values as $v) {
                     if (strtolower($v) === 'null') {
                         $includesNull = true;
-                    } elseif (!empty($v)) { // Evita strings vacíos (ej. "1,,2")
+                    } elseif (!empty($v)) {
                         $nonNullValues[] = $v;
                     }
                 }
 
                 $query->where(function ($q) use ($column, $nonNullValues, $includesNull) {
                     if (!empty($nonNullValues)) {
-                        // Aplica para "1", "2", etc.
                         $q->whereIn($column, $nonNullValues);
                     }
                     if ($includesNull) {
-                        // Aplica 'orWhereNull' si "null" estaba en la lista
                         $q->orWhereNull($column);
                     }
                 });

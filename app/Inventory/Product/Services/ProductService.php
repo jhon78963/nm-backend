@@ -4,32 +4,16 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Shared\Foundation\Services\ModelService;
 
-class ProductService
+class ProductService extends ModelService
 {
-    protected ModelService $modelService;
-
-    public function __construct(ModelService $modelService)
+    public function __construct(Product $product)
     {
-        $this->modelService = $modelService;
+        parent::__construct($product);
     }
 
-    public function create(array $newProduct): Product
+    public function discontinueAndDiscard(Product $product): void
     {
-        return $this->modelService->create(new Product(), $newProduct);
-    }
-
-    public function delete(Product $product): void
-    {
-        $this->modelService->delete($product);
-    }
-
-    public function update(Product $product, array $editProduct): Product
-    {
-        return $this->modelService->update($product, $editProduct);
-    }
-
-    public function validate(Product $product, string $modelName): Product
-    {
-        return $this->modelService->validate($product, $modelName);
+        $this->update($product, ['status' => 'DISCONTINUED']);
+        $this->delete($product);
     }
 }

@@ -3,55 +3,25 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\Product;
-use App\Shared\Foundation\Services\ModelService;
 
 class ProductSizeService
 {
-    protected ModelService $modelService;
+    public function set(Product $product, int $sizeId, array $data): void {
+        $pivotData = [
+            'barcode'        => $data['barcode'],
+            'stock'          => $data['stock'],
+            'purchase_price' => $data['purchasePrice'],
+            'sale_price'     => $data['salePrice'],
+            'min_sale_price' => $data['minSalePrice'],
+        ];
 
-    public function __construct(ModelService $modelService)
-    {
-        $this->modelService = $modelService;
-    }
-
-    public function add(Product $product, int $sizeId, array $size): void
-    {
-        $this->modelService->attach(
-            $product,
-            'sizes',
-            $sizeId,
-            [
-                'barcode' => $size['barcode'],
-                'stock' => $size['stock'],
-                'purchase_price' => $size['purchasePrice'],
-                'sale_price' => $size['salePrice'],
-                'min_sale_price' => $size['minSalePrice'],
-            ]
-        );
-    }
-
-    public function modify(Product $product, int $sizeId, array $size): void
-    {
-        $this->modelService->attach(
-            $product,
-            'sizes',
-            $sizeId,
-            [
-                'barcode' => $size['barcode'],
-                'stock' => $size['stock'],
-                'purchase_price' => $size['purchasePrice'],
-                'sale_price' => $size['salePrice'],
-                'min_sale_price' => $size['minSalePrice'],
-            ]
-        );
+        $product->sizes()->syncWithoutDetaching([
+            $sizeId => $pivotData
+        ]);
     }
 
     public function remove(Product $product, int $sizeId): void
     {
-        $this->modelService->detach(
-            $product,
-            'sizes',
-            $sizeId,
-        );
+        $product->sizes()->detach($sizeId);
     }
 }

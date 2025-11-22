@@ -5,54 +5,26 @@ namespace App\Administration\User\Services;
 use App\Shared\Foundation\Services\ModelService;
 use App\Administration\User\Models\User;
 
-class UserService
+class UserService extends ModelService
 {
-
-    protected ModelService $modelService;
-
-    public function __construct(ModelService $modelService)
+    public function __construct(User $user)
     {
-        $this->modelService = $modelService;
+        parent::__construct($user);
     }
 
-    public function create(array $newUser): void
+    public function checkUser(string $email, string $username): array
     {
-        $this->modelService->create(new User(), $newUser);
+        return [
+            'email'    => $this->existsBy('email', $email),
+            'username' => $this->existsBy('username', $username),
+        ];
     }
 
-    public function delete(User $user): void
+    private function existsBy(string $column, string $value): bool
     {
-        $this->modelService->delete($user);
-    }
-
-    public function update(User $user, array $editUser): void
-    {
-        $this->modelService->update($user, $editUser);
-    }
-
-    public function checkUser(string $email, string $username): ?array
-    {
-        $emailExists = $this->userExistsByEmail($email);
-        $usernameExists = $this->userExistsByUsername($username);
-        return [$emailExists, $usernameExists];
-    }
-
-    public function userExistsByEmail(string $email): bool
-    {
-        return User::where('email', $email)
+        return $this->model
+            ->where($column, $value)
             ->where('is_deleted', false)
             ->exists();
-    }
-
-    public function userExistsByUsername(string $username): bool
-    {
-        return User::where('username', $username)
-            ->where('is_deleted', false)
-            ->exists();
-    }
-
-    public function validate(User $user, string $modelName): User
-    {
-        return $this->modelService->validate($user, $modelName);
     }
 }

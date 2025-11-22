@@ -22,8 +22,8 @@ class UserUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'sometimes',
-            'surname' => 'sometimes',
+            'name' => 'sometimes|max:25',
+            'surname' => 'sometimes|max:25',
             'file' => 'sometimes|max:2048',
         ];
     }

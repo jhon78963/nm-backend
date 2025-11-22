@@ -17,79 +17,79 @@ use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class SizeController extends Controller
 {
-    protected SizeService $sizeService;
-    protected SharedService $sharedService;
-
-    public function __construct(SizeService $sizeService, SharedService $sharedService)
-    {
-        $this->sizeService = $sizeService;
-        $this->sharedService = $sharedService;
-    }
+    public function __construct(
+        protected SizeService $sizeService,
+        protected SharedService $sharedService,
+    ) {}
 
     public function create(SizeCreateRequest $request): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            $newSize = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->sizeService->create($newSize);
-            DB::commit();
-            return response()->json(['message' => 'Size created.'], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
-        }
+        return DB::transaction(function () use ($request) {
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $this->sizeService->create($data);
+
+            return response()->json(['message' => 'Size created successfully.'], 201);
+        });
+    }
+
+    public function update(SizeUpdateRequest $request, Size $size): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $size) {
+            $this->sizeService->validate($size, 'Size');
+
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $this->sizeService->update($size, $data);
+
+            return response()->json(['message' => 'Size updated successfully.']);
+        });
     }
 
     public function delete(Size $size): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            $sizeValidated = $this->sizeService->validate($size, 'Size');
-            $this->sizeService->delete($sizeValidated);
-            DB::commit();
-            return response()->json(['message' => 'Size deleted.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
-        }
+        return DB::transaction(function () use ($size): JsonResponse {
+            $this->sizeService->validate($size, 'Size');
+            $this->sizeService->delete($size);
+
+            return response()->json(['message' => 'Size deleted successfully.']);
+        });
     }
 
     public function get(Size $size): JsonResponse
     {
-        $sizeValidated = $this->sizeService->validate($size, 'Size');
-        return response()->json(new SizeResource($sizeValidated));
+        $this->sizeService->validate($size, 'Size');
+        return response()->json(new SizeResource($size));
     }
 
     public function getAutocomplete(Size $size): JsonResponse
     {
-        $sizeValidated = $this->sizeService->validate($size, 'Size');
-        return response()->json(new AutocompleteSizeResource($sizeValidated));
+        $this->sizeService->validate($size, 'Size');
+        return response()->json(new AutocompleteSizeResource($size));
     }
 
     public function getSizeType(): JsonResponse
     {
-        $sizeType = SizeType::where('is_deleted', '=', false)->get();
-        return response()->json(SizeTypeResource::collection($sizeType));
+        $sizeTypes = SizeType::where('is_deleted', false)->get();
+        return response()->json(SizeTypeResource::collection($sizeTypes));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $specificFilters = [];
-        $sizeTypeIdValue = $request->query('sizeTypeId');
-        if ($request->has('sizeTypeId') && $sizeTypeIdValue !== '') {
-            $specificFilters['size_type_id'] = $sizeTypeIdValue;
-        }
+        $filters = array_filter([
+            'size_type_id' => $request->input('sizeTypeId')
+        ]);
+
         $query = $this->sharedService->query(
-            request: $request,
-            entityName: 'Inventory\\Size',
-            modelName: 'Size',
+            request:      $request,
+            entityName:   'Inventory\\Size',
+            modelName:    'Size',
             columnSearch: ['id', 'description', 'sizeType.description'],
-            filters: $specificFilters
+            filters:      $filters
         );
+
         return response()->json(new GetAllCollection(
             SizeResource::collection($query['collection']),
             $query['total'],
@@ -100,35 +100,9 @@ class SizeController extends Controller
     public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
     {
         $productId = $request->input('productId');
-        $sizeTypeIdRaw = $request->input('sizeTypeId');
-        $sizeTypeIds = $sizeTypeIdRaw ? explode(',', $sizeTypeIdRaw) : [];
-        $productSizes = DB::table('product_size')
-            ->where('product_id', $productId)
-            ->get()
-            ->keyBy('size_id');
+        $sizeTypeIds = explode(',', $request->input('sizeTypeId', ''));
 
-        $sizes = Size::whereIn('size_type_id', $sizeTypeIds)
-            ->get()
-            ->map(function ($size) use ($productSizes): Size {
-                if ($productSizes->has($size->id)) {
-                    $size->isExists = true;
-                    $size->barcode = $productSizes[$size->id]->barcode;
-                    $size->stock = $productSizes[$size->id]->stock;
-                    $size->purchasePrice = $productSizes[$size->id]->purchase_price;
-                    $size->salePrice = $productSizes[$size->id]->sale_price;
-                    $size->minSalePrice = $productSizes[$size->id]->min_sale_price;
-                } else {
-                    $size->isExists = false;
-                    $size->barcode = null;
-                    $size->stock = null;
-                    $size->purchasePrice = null;
-                    $size->salePrice = null;
-                    $size->minSalePrice = null;
-                }
-                return $size;
-            })->sortBy(
-                fn($size): mixed => $size->stock === null ? PHP_INT_MAX : $size->id
-            )->values();
+        $sizes = $this->sizeService->getForProductSelection($productId, $sizeTypeIds);
 
         return response()->json(SizeSelectedResource::collection($sizes));
     }
@@ -136,28 +110,14 @@ class SizeController extends Controller
     public function getAllAutocomplete(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
-            $request,
-            'Inventory\\Size',
-            'Size',
-            'description'
+            request:      $request,
+            entityName:   'Inventory\\Size',
+            modelName:    'Size',
+            columnSearch: 'description'
         );
+
         return response()->json(
             AutocompleteSizeResource::collection($query['collection'])
         );
-    }
-
-    public function update(SizeUpdateRequest $request, Size $size): JsonResponse
-    {
-        DB::beginTransaction();
-        try {
-            $editSize = $this->sharedService->convertCamelToSnake($request->validated());
-            $sizeValidated = $this->sizeService->validate($size, 'Size');
-            $this->sizeService->update($sizeValidated, $editSize);
-            DB::commit();
-            return response()->json(['message' => 'Size updated.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
-        }
     }
 }

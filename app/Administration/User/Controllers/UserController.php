@@ -2,144 +2,80 @@
 
 namespace App\Administration\User\Controllers;
 
-use App\Shared\Foundation\Controllers\Controller;
-use App\Shared\Foundation\Requests\GetAllRequest;
-use App\Shared\Foundation\Resources\GetAllCollection;
-use App\Shared\Foundation\Services\SharedService;
 use App\Administration\User\Models\User;
 use App\Administration\User\Requests\UserCreateRequest;
 use App\Administration\User\Requests\UserUpdateRequest;
 use App\Administration\User\Resources\UserResource;
 use App\Administration\User\Services\UserService;
-use Arr;
+use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\GetAllRequest;
+use App\Shared\Foundation\Resources\GetAllCollection;
+use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
-use DB;
-use Hash;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    protected SharedService $sharedService;
-    protected UserService $userService;
-
+    // Constructor Property Promotion
     public function __construct(
-        SharedService $sharedService,
-        UserService $userService,
-    ) {
-        $this->sharedService = $sharedService;
-        $this->userService = $userService;
-    }
+        protected SharedService $sharedService,
+        protected UserService $userService,
+    ) {}
+
     public function create(UserCreateRequest $request): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            [$emailExists, $usernameExists] = $this->userService->checkUser(
-                $request->email,
-                $request->username,
-            );
+        return DB::transaction(function () use ($request): JsonResponse {
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $data['password'] = Hash::make('password');
+            $this->userService->create($data);
 
-            if ($errorResponse = $this->generateErrorResponse(
-                $emailExists,
-                $usernameExists)
-            ) {
-                return response()->json($errorResponse);
-            }
-
-            $newUser = $this->prepareNewUserData(
-                $request->validated(),
-            );
-            $this->userService->create($newUser);
-            DB::commit();
-            return response()->json(['message' => 'User created.'], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+            return response()->json(['message' => 'User created successfully.'], 201);
+        });
     }
 
-    public function delete(User $user): JsonResponse {
-        DB::beginTransaction();
-        try {
-            $userValidated = $this->userService->validate($user, 'User');
-            $this->userService->delete($userValidated);
-            DB::commit();
-            return response()->json(['message' => 'User deleted.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+    public function update(UserUpdateRequest $request, User $user): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $user): JsonResponse {
+            $this->userService->validate($user, 'User');
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $data = Arr::except($data, ['password', 'username']);
+            $this->userService->update($user, $data);
+
+            return response()->json(['message' => 'User updated successfully.']);
+        });
+    }
+
+    public function delete(User $user): JsonResponse
+    {
+        return DB::transaction(function () use ($user): JsonResponse {
+            $this->userService->validate($user, 'User');
+            $this->userService->delete($user);
+
+            return response()->json(['message' => 'User deleted successfully.']);
+        });
     }
 
     public function get(User $user): JsonResponse
     {
-        $userValidated = $this->userService->validate($user, 'User');
-        return response()->json(new UserResource($userValidated));
+        $this->userService->validate($user, 'User');
+        return response()->json(new UserResource($user));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
-            $request,
-            'Administration\\User',
-            'User',
-            ['username', 'email', 'name', 'surname']
+            request:      $request,
+            entityName:   'Administration\\User',
+            modelName:    'User',
+            columnSearch: ['username', 'email', 'name', 'surname']
         );
 
         return response()->json(new GetAllCollection(
-            UserResource::collection(resource: $query['collection']),
+            UserResource::collection($query['collection']),
             $query['total'],
-            $query['pages'],
+            $query['pages']
         ));
-    }
-
-    public function update(UserUpdateRequest $request, User $user): JsonResponse
-    {
-        DB::beginTransaction();
-        try {
-            $userValidated = $this->userService->validate($user, 'User');
-            $editUser = $this->prepareNewUserData(
-                $request->validated(),
-            );
-            $editUser = Arr::except($editUser, ['password']);
-            $this->userService->update($userValidated, $editUser);
-            DB::commit();
-            return response()->json(['message' => 'User updated.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
-    }
-
-    private function generateErrorResponse(bool $emailExists, bool $usernameExists): ?array
-    {
-        $errors = [];
-
-        if ($emailExists) {
-            $errors['email'] = 'El email ya existe.';
-        }
-
-        if ($usernameExists) {
-            $errors['username'] = 'El username ya existe.';
-        }
-
-        if (!empty($errors)) {
-            return [
-                'status' => 'error',
-                'message' => 'El email y/o username ya existen.',
-                'errors' => $errors
-            ];
-        }
-
-        return null;
-    }
-
-    private function prepareNewUserData(array $validatedData): array
-    {
-        $userData = array_merge(
-            $validatedData,
-            [
-                'password' => Hash::make('password'),
-            ],
-        );
-        return $this->sharedService->convertCamelToSnake($userData);
     }
 }

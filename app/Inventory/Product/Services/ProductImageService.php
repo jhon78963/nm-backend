@@ -5,21 +5,14 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Shared\Foundation\Requests\FileMultipleUploadRequest;
 use App\Shared\Foundation\Services\FileService;
-use App\Shared\Foundation\Services\ModelService;
-use Illuminate\Support\Facades\Http;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class ProductImageService
 {
-    protected FileService $fileService;
-    protected ModelService $modelService;
-
-    public function __construct(FileService $fileService, ModelService $modelService)
-    {
-        $this->fileService = $fileService;
-        $this->modelService = $modelService;
+    public function __construct(
+        protected FileService $fileService
+    ) {
     }
-
 
     public function add(Product $product, string $path, string $size, string $name): void
     {
@@ -38,30 +31,20 @@ class ProductImageService
             ->get();
     }
 
-
     public function remove(Product $product, string $path): void
     {
         $this->fileService->detach(
             $product,
             'images',
-            $path,
+            $path
         );
     }
 
-    public function removeAll(Product $product, FileMultipleUploadRequest $request)
+    public function removeAll(Product $product, FileMultipleUploadRequest $request): void
     {
-        $images = $request->input('path');
-        $token = config('zg.token');
-        $url = config('zg.url');
-        foreach($images as $path) {
-            $response = Http::withToken($token)->delete("$url/images/$path");
-            if ($response->ok()) {
-                $this->fileService->detach(
-                    $product,
-                    'images',
-                    $path,
-                );
-            }
+        $paths = $request->input('path', []);
+        foreach ($paths as $path) {
+            $this->remove($product, $path);
         }
     }
 }

@@ -3,47 +3,25 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\ProductSize;
-use App\Shared\Foundation\Services\ModelService;
 
 class ProductSizeColorService
 {
-    protected ModelService $modelService;
-
-    public function __construct(ModelService $modelService)
+    public function set(ProductSize $productSize, int $colorId, array $data): void
     {
-        $this->modelService = $modelService;
-    }
-
-    public function add(ProductSize $productSize, int $colorId, array $color): void
-    {
-        $this->modelService->attach(
-            $productSize,
-            'productSizeColors',
-            $colorId,
-            [
-                'stock' => $color['stock'],
-            ]
-        );
-    }
-
-    public function modify(ProductSize $productSize, int $colorId, array $color): void
-    {
-        $this->modelService->attach(
-            $productSize,
-            'productSizeColors',
-            $colorId,
-            [
-                'stock' => $color['stock'],
-            ]
-        );
+        $productSize->productSizeColors()->syncWithoutDetaching([
+            $colorId => ['stock' => $data['stock']]
+        ]);
     }
 
     public function remove(ProductSize $productSize, int $colorId): void
     {
-        $this->modelService->detach(
-            $productSize,
-            'productSizeColors',
-            $colorId,
-        );
+        $productSize->productSizeColors()->detach($colorId);
+    }
+
+    public function exists(ProductSize $productSize, int $colorId): bool
+    {
+        return $productSize->productSizeColors()
+            ->wherePivot('color_id', $colorId)
+            ->exists();
     }
 }

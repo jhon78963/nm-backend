@@ -12,100 +12,83 @@ use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-
-    protected ProductService $productService;
-    protected SharedService $sharedService;
-
     public function __construct(
-        ProductService $productService,
-        SharedService $sharedService,
-    ) {
-        $this->productService = $productService;
-        $this->sharedService = $sharedService;
-    }
+        protected ProductService $productService,
+        protected SharedService $sharedService,
+    ) {}
 
     public function create(ProductCreateRequest $request): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            $newProduct = $this->sharedService->convertCamelToSnake($request->validated());
-            $product = $this->productService->create($newProduct);
-            DB::commit();
+        return DB::transaction(function () use ($request) {
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $product = $this->productService->create($data);
+
             return response()->json([
-                'message' => 'Product created.',
+                'message'   => 'Product created successfully.',
                 'productId' => $product->id,
             ], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
-    }
-
-    public function delete(Product $product): JsonResponse
-    {
-        DB::beginTransaction();
-        try {
-            $productValidated = $this->productService->validate($product, 'Product');
-            $this->productService->update($productValidated, ['status' => 'DISCONTINUED']);
-            $this->productService->delete($productValidated);
-            DB::commit();
-            return response()->json(['message' => 'Product deleted.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
-    }
-
-    public function get(Product $product): JsonResponse
-    {
-        $productValidated = $this->productService->validate($product, 'Product');
-        return response()->json(new ProductResource($productValidated));
-    }
-
-    public function getAll(GetAllRequest $request): JsonResponse
-    {
-        $specificFilters = [];
-        $genderIdValue = $request->query('genderId');
-        if ($request->has('genderId') && $genderIdValue !== '') {
-            $specificFilters['gender_id'] = $genderIdValue;
-        }
-        $stockSql = '(SELECT COALESCE(SUM(stock), 0) FROM product_size WHERE product_size.product_id = products.id)';
-        $query = $this->sharedService->query(
-            request: $request,
-            entityName: 'Inventory\\Product',
-            modelName: 'Product',
-            columnSearch: ['id', 'name', 'gender.name', $stockSql],
-            filters: $specificFilters,
-            extendQuery: function ($q) {
-                $q->withSum('sizes as sizes_sum_stock', 'product_size.stock');
-            },
-        );
-        return response()->json(new GetAllCollection(
-            ProductResource::collection($query['collection']),
-            $query['total'],
-            $query['pages'],
-        ));
+        });
     }
 
     public function update(ProductUpdateRequest $request, Product $product): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            $editProduct = $this->sharedService->convertCamelToSnake($request->validated());
-            $productValidated = $this->productService->validate($product, 'Product');
-            $product = $this->productService->update($productValidated, $editProduct);
-            DB::commit();
+        return DB::transaction(function () use ($request, $product) {
+            $this->productService->validate($product, 'Product');
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $this->productService->update($product, $data);
+
             return response()->json([
-                'message' => 'Product updated.',
+                'message'   => 'Product updated successfully.',
                 'productId' => $product->id,
             ]);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+        });
+    }
+
+    public function delete(Product $product): JsonResponse
+    {
+        return DB::transaction(function () use ($product) {
+            $this->productService->validate($product, 'Product');
+            // Asumiendo que agregaste este método en el servicio como sugerí antes,
+            // si no, usa: $this->productService->update(...) y ->delete(...)
+            $this->productService->discontinueAndDiscard($product);
+
+            return response()->json(['message' => 'Product deleted.']);
+        });
+    }
+
+    public function get(Product $product): JsonResponse
+    {
+        $this->productService->validate($product, 'Product');
+
+        return response()->json(new ProductResource($product));
+    }
+
+    public function getAll(GetAllRequest $request): JsonResponse
+    {
+        $filters = array_filter([
+            'gender_id' => $request->input('genderId'),
+        ]);
+
+        $stockSubquery = '(SELECT COALESCE(SUM(stock), 0) FROM product_size WHERE product_size.product_id = products.id)';
+
+        $queryResult = $this->sharedService->query(
+            request:      $request,
+            entityName:   'Inventory\\Product',
+            modelName:    'Product',
+            columnSearch: ['id', 'name', 'gender.name', $stockSubquery],
+            filters:      $filters,
+            // CORRECCIÓN: Especificamos la tabla pivote 'product_size.stock'
+            extendQuery:  fn($q) => $q->withSum('sizes as sizes_sum_stock', 'product_size.stock'),
+        );
+
+        return response()->json(new GetAllCollection(
+            ProductResource::collection($queryResult['collection']),
+            $queryResult['total'],
+            $queryResult['pages'],
+        ));
     }
 }

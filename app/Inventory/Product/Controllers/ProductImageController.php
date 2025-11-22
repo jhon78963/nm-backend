@@ -10,63 +10,60 @@ use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\FileMultipleUploadRequest;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class ProductImageController extends Controller
 {
-    protected ProductImageService $productImageService;
-    protected SharedService $sharedService;
-
     public function __construct(
-        ProductImageService $productImageService,
-        SharedService $sharedService,
+        protected ProductImageService $productImageService,
+        protected SharedService $sharedService,
     ) {
-        $this->productImageService = $productImageService;
-        $this->sharedService = $sharedService;
     }
 
     public function add(Product $product, ImageRequest $request): JsonResponse
     {
-        DB::beginTransaction();
-        try {
-            $this->productImageService->add(
-                $product,
-                $request->image,
-                $request->size,
-                $request->name,
-            );
-            DB::commit();
-            return response()->json(['message' => 'Image uploaded.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json($e->getMessage());
-        }
-    }
-    public function multipleAdd(Product $product, ImagesRequest $request): JsonResponse
-    {
-        DB::beginTransaction();
-        try {
-            $images = $request->input('image', []);
-            $sizes = $request->input('size', []);
-            $names = $request->input('name', []);
-
-            foreach ($images as $index => $image) {
-                $size = $sizes[$index] ?? null;
-                $name = $names[$index] ?? null;
+        return DB::transaction(
+            function () use ($product, $request): JsonResponse {
                 $this->productImageService->add(
                     $product,
-                    $image,
-                    $size,
-                    $name,
+                    $request->image,
+                    $request->size,
+                    $request->name
+                );
+
+                return response()->json(
+                    ['message' => 'Image uploaded successfully.'],
+                    201,
                 );
             }
-            DB::commit();
-            return response()->json(['message' => 'Images uploaded.']);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json($e->getMessage());
-        }
+        );
     }
+
+    public function multipleAdd(Product $product, ImagesRequest $request): JsonResponse
+    {
+        return DB::transaction(
+            function () use ($product, $request): JsonResponse {
+                $images = $request->input('image', []);
+                $sizes = $request->input('size', []);
+                $names = $request->input('name', []);
+
+                foreach ($images as $index => $path) {
+                    $this->productImageService->add(
+                        $product,
+                        $path,
+                        $sizes[$index] ?? null,
+                        $names[$index] ?? null,
+                    );
+                }
+
+                return response()->json(
+                    ['message' => 'Images uploaded successfully.'],
+                    201,
+                );
+            }
+        );
+    }
+
     public function getAll(Product $product)
     {
         $images = $this->productImageService->getAll($product);
@@ -81,39 +78,37 @@ class ProductImageController extends Controller
         return response()->json($formatted);
     }
 
-    public function remove(
-        Product $product,
-        string $path
-    ): JsonResponse {
-        DB::beginTransaction();
-        try {
-            $this->productImageService->remove(
-                $product,
-                $path,
-            );
-            DB::commit();
-            return response()->json(['message' => 'Image removed.'], 200);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+    public function remove(Product $product, string $path): JsonResponse
+    {
+        return DB::transaction(
+            callback: function () use ($product, $path): JsonResponse {
+                $this->productImageService->remove(
+                    $product,
+                    $path
+                );
+
+                return response()->json(
+                    ['message' => 'Image removed successfully.']
+                );
+            }
+        );
     }
 
     public function multipleRemove(
         Product $product,
-        FileMultipleUploadRequest $request
+        FileMultipleUploadRequest $request,
     ): JsonResponse {
-        DB::beginTransaction();
-        try {
-            $this->productImageService->removeAll(
-                $product,
-                $request,
-            );
-            DB::commit();
-            return response()->json(['message' => 'Images removed.'], 200);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+        return DB::transaction(
+            callback: function () use ($product, $request): JsonResponse {
+                $this->productImageService->removeAll(
+                    $product,
+                    $request,
+                );
+
+                return response()->json(
+                    data: ['message' => 'Images removed successfully.']
+                );
+            }
+        );
     }
 }

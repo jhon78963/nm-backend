@@ -4,27 +4,10 @@ namespace App\Shared\Image\Services;
 use App\Shared\Image\Models\Image;
 use App\Shared\Foundation\Services\ModelService;
 
-class ImageService
+class ImageService extends ModelService
 {
-    protected ModelService $modelService;
-
-    public function __construct(ModelService $modelService)
+    public function __construct(Image $image)
     {
-        $this->modelService = $modelService;
-    }
-
-    public function create(array $newImage): Image
-    {
-        return $this->modelService->create(new Image(), $newImage);
-    }
-
-    public function delete(Image $image): void
-    {
-        $this->modelService->delete($image);
-    }
-
-    public function validate(Image $image, string $modelName): Image
-    {
-        return $this->modelService->validate($image, $modelName);
+        parent::__construct($image);
     }
 }

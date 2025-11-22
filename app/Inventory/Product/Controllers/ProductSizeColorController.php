@@ -7,35 +7,28 @@ use App\Inventory\Product\Requests\ProductAddRequest;
 use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-use DB;
+use Illuminate\Support\Facades\DB;
 
 class ProductSizeColorController extends Controller
 {
-    protected ProductSizeColorService $productSizeColorService;
-
-    public function __construct(ProductSizeColorService $productSizeColorService)
-    {
-        $this->productSizeColorService = $productSizeColorService;
-    }
+    public function __construct(
+        protected ProductSizeColorService $productSizeColorService
+    ) {}
 
     public function add(
         ProductAddRequest $request,
         ProductSize $productSize,
         int $colorId
     ): JsonResponse {
-        DB::beginTransaction();
-        try {
-            $this->productSizeColorService->add(
+        return DB::transaction(function () use ($request, $productSize, $colorId) {
+            $this->productSizeColorService->set(
                 $productSize,
                 $colorId,
-                $request->validated(),
+                $request->validated()
             );
-            DB::commit();
-            return response()->json(['message' => 'Color added.'], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+
+            return response()->json(['message' => 'Color added successfully.'], 201);
+        });
     }
 
     public function modify(
@@ -43,36 +36,28 @@ class ProductSizeColorController extends Controller
         ProductSize $productSize,
         int $colorId
     ): JsonResponse {
-        DB::beginTransaction();
-        try {
-            $this->productSizeColorService->modify(
+        return DB::transaction(function () use ($request, $productSize, $colorId) {
+            $this->productSizeColorService->set(
                 $productSize,
                 $colorId,
-                $request->validated(),
+                $request->validated()
             );
-            DB::commit();
-            return response()->json(['message' => 'Color modified.'], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+
+            return response()->json(['message' => 'Color modified successfully.'], 200);
+        });
     }
 
     public function remove(
         ProductSize $productSize,
         int $colorId
     ): JsonResponse {
-        DB::beginTransaction();
-        try {
+        return DB::transaction(function () use ($productSize, $colorId) {
             $this->productSizeColorService->remove(
                 $productSize,
-                $colorId,
+                $colorId
             );
-            DB::commit();
-            return response()->json(['message' => 'Color removed.'], 201);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' =>  $e->getMessage()]);
-        }
+
+            return response()->json(['message' => 'Color removed successfully.'], 200);
+        });
     }
 }
