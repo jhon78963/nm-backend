@@ -18,7 +18,7 @@ class RoleController extends Controller
 {
     public function __construct(
         protected RoleService $roleService,
-        protected SharedService $sharedService
+        protected SharedService $sharedService,
     ) {}
 
     public function create(RoleCreateRequest $request): JsonResponse

@@ -2,23 +2,23 @@
 
 namespace Database\Seeders;
 
-use App\Gender\Seeders\GenderSeeder;
-use App\Product\Seeders\Product2Seeder;
-use App\Product\Seeders\Product3Seeder;
-use App\Product\Seeders\Product4Seeder;
-use App\Product\Seeders\Product5Seeder;
-use App\Product\Seeders\Product6Seeder;
-use App\Product\Seeders\Product7Seeder;
-use App\Product\Seeders\Product8Seeder;
-use App\Product\Seeders\Product9Seeder;
-use App\Product\Seeders\Product10Seeder;
-use App\Product\Seeders\Product11Seeder;
-use App\Product\Seeders\Product12Seeder;
-use App\Product\Seeders\ProductSeeder;
-use App\Role\Seeders\RoleSeeder;
-use App\Size\Seeders\SizeSeeder;
-use App\Size\Seeders\SizeTypeSeeder;
-use App\User\Seeders\UserSeeder;
+use App\Administration\Role\Seeders\RoleSeeder;
+use App\Administration\User\Seeders\UserSeeder;
+use App\Inventory\Gender\Seeders\GenderSeeder;
+use App\Inventory\Product\Seeders\Product10Seeder;
+use App\Inventory\Product\Seeders\Product11Seeder;
+use App\Inventory\Product\Seeders\Product12Seeder;
+use App\Inventory\Product\Seeders\Product2Seeder;
+use App\Inventory\Product\Seeders\Product3Seeder;
+use App\Inventory\Product\Seeders\Product4Seeder;
+use App\Inventory\Product\Seeders\Product5Seeder;
+use App\Inventory\Product\Seeders\Product6Seeder;
+use App\Inventory\Product\Seeders\Product7Seeder;
+use App\Inventory\Product\Seeders\Product8Seeder;
+use App\Inventory\Product\Seeders\Product9Seeder;
+use App\Inventory\Product\Seeders\ProductSeeder;
+use App\Inventory\Size\Seeders\SizeSeeder;
+use App\Inventory\Size\Seeders\SizeTypeSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
