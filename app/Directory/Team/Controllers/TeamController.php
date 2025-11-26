@@ -65,7 +65,7 @@ class TeamController extends Controller
             request:      $request,
             entityName:   'Directory\\Team',
             modelName:    'Team',
-            columnSearch: ['id', 'name']
+            columnSearch: ['id', 'dni', 'name', 'surname', 'salary']
         );
 
         return response()->json(new GetAllCollection(

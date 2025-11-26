@@ -65,7 +65,7 @@ class CustomerController extends Controller
             request:      $request,
             entityName:   'Directory\\Customer',
             modelName:    'Customer',
-            columnSearch: ['id', 'name']
+            columnSearch: ['id', 'dni', 'name', 'surname']
         );
 
         return response()->json(new GetAllCollection(

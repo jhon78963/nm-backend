@@ -65,7 +65,7 @@ class VendorController extends Controller
             request:      $request,
             entityName:   'Directory\\Vendor',
             modelName:    'Vendor',
-            columnSearch: ['id', 'name']
+            columnSearch: ['id', 'name', 'address', 'local', 'balance', 'phone'],
         );
 
         return response()->json(new GetAllCollection(

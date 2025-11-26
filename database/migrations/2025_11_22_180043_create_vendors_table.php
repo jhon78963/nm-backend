@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->string('local')->nullable();
             $table->decimal('balance', 10, 2)->nullable();
+            $table->string('phone')->nullable();
         });
     }
 

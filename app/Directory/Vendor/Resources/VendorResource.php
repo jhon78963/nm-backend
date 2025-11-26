@@ -25,8 +25,9 @@ class VendorResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'address' => $this->address,
-            'local' => $this->local,
-            'balance' => $this->balance,
+            'local' => $this->local ?? '-',
+            'balance' => $this->balance ?? '-',
+            'phone' => $this->phone ?? '-',
         ];
     }
 }

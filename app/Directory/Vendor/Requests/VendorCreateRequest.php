@@ -26,6 +26,7 @@ class VendorCreateRequest extends FormRequest
             'address' => 'required|string|max:100',
             'local' => 'nullable|string|max:100',
             'balancy' => 'nullable|numeric',
+            'phone' => 'nullable|string',
         ];
     }
 }
