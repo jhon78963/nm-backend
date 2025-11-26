@@ -25,6 +25,7 @@ return new class extends Migration
             $table->datetime('deletion_time')->nullable();
             $table->string('name');
             $table->string('address')->nullable();
+            $table->string('local')->nullable();
             $table->decimal('balance', 10, 2)->nullable();
         });
     }

@@ -16,6 +16,7 @@ class Vendor extends Model
         'id',
         'name',
         'address',
+        'local',
         'balance',
     ];
 

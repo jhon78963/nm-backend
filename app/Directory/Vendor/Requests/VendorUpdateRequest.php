@@ -25,6 +25,7 @@ class VendorUpdateRequest extends FormRequest
         return [
             'name' => 'required|string|max:100',
             'address' => 'required|string|max:100',
+            'local' => 'nullable|string|max:100',
             'balance' => 'nullable|numeric',
         ];
     }

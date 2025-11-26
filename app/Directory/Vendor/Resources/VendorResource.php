@@ -9,6 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property int $id
  * @property string $name
  * @property string $address
+ * @property string $local
  * @property string $balance
  */
 class VendorResource extends JsonResource
@@ -24,6 +25,7 @@ class VendorResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'address' => $this->address,
+            'local' => $this->local,
             'balance' => $this->balance,
         ];
     }
