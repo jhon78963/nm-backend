@@ -23,9 +23,9 @@ return new class extends Migration
             $table->integer('deleter_user_id')->nullable();
             $table->foreign('deleter_user_id')->references('id')->on('users');
             $table->datetime('deletion_time')->nullable();
-            $table->string('dni')->unique();
+            $table->string('document_type');
+            $table->string('document_number')->unique();
             $table->string('name');
-            $table->string('surname');
         });
     }
 

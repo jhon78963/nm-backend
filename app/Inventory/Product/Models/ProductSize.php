@@ -3,8 +3,10 @@
 namespace App\Inventory\Product\Models;
 
 use App\Inventory\Color\Models\Color;
+use App\Inventory\Size\Models\Size;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ProductSize extends Model
@@ -22,9 +24,11 @@ class ProductSize extends Model
         'id',
         'product_id',
         'size_id',
-        'stock',
-        'price',
         'barcode',
+        'stock',
+        'purchase_price',
+        'sale_price',
+        'min_sale_price',
     ];
 
     /**
@@ -42,15 +46,22 @@ class ProductSize extends Model
     protected function casts(): array
     {
         return [
-            'stock' => 'float',
-            'price' => 'int',
+            'stock' => 'int',
+            'purchase_price' => 'float',
+            'sale_price' => 'float',
+            'min_sale_price' => 'float',
         ];
+    }
+
+    public function size(): BelongsTo
+    {
+        return $this->belongsTo(Size::class, 'size_id');
     }
 
     public function productSizeColors(): BelongsToMany {
         return $this->belongsToMany(
             Color::class,
             'product_size_color',
-        )->withPivot(['price', 'stock']);
+        )->withPivot(['stock']);
     }
 }

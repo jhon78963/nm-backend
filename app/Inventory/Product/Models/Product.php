@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -105,5 +106,10 @@ class Product extends Model
         )->withPivot([
             'stock', 'purchase_price', 'sale_price', 'min_sale_price', 'barcode'
         ]);
+    }
+
+    public function productSizes(): HasMany
+    {
+        return $this->hasMany(ProductSize::class, 'product_id');
     }
 }
