@@ -21,7 +21,7 @@ class SaleService extends ModelService
             $sale = $this->create([
                 'customer_id' => $data['customer_id'],
                 'total_amount' => $data['total'],
-                'payment_method' => 'CASH',
+                'payment_method' => $data['payment_method'] ?? 'CASH',
                 'status' => 'COMPLETED',
                 'code' => 'V-' . time(),
             ]);
