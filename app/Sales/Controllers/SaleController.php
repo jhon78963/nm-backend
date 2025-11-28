@@ -49,7 +49,7 @@ class SaleController extends Controller
     {
         // Validamos la estructura
         $data = $request->validate([
-            'customer.id' => 'required',
+            'customer.id' => 'nullable',
             'total'       => 'required|numeric',
             'items'       => 'required|array|min:1',
             // OJO AQUÍ: Validamos que el color traiga los IDs compuestos que mandamos en ProductService
@@ -63,7 +63,7 @@ class SaleController extends Controller
         try {
             // Preparamos la data plana para el servicio
             $serviceData = [
-                'customer_id' => $data['customer']['id'],
+                'customer_id' => $data['customer']['id'] ?? null,
                 'total'       => $data['total'],
                 'items'       => collect($data['items'])->map(function($i) {
                     return [
