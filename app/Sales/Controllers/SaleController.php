@@ -5,8 +5,10 @@ namespace App\Sales\Controllers;
 // ... imports anteriores ...
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
+use App\Sales\Models\Sale;
 use App\Sales\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -17,13 +19,15 @@ class SaleController extends Controller
         protected ProductService $productService,
         protected CustomerService $customerService,
         protected SaleService $saleService
-    ) {}
+    ) {
+    }
 
     // ... searchProduct y searchCustomer igual que antes ...
     public function searchProduct(Request $request): JsonResponse
     {
         $sku = $request->query('sku');
-        if (!$sku) return response()->json(['error' => 'SKU requerido'], 400);
+        if (!$sku)
+            return response()->json(['error' => 'SKU requerido'], 400);
 
         $product = $this->productService->findBySkuForPos($sku);
 
@@ -37,7 +41,8 @@ class SaleController extends Controller
     public function searchCustomer(Request $request): JsonResponse
     {
         $dni = $request->query('dni');
-        if (!$dni) return response()->json(['error' => 'DNI requerido'], 400);
+        if (!$dni)
+            return response()->json(['error' => 'DNI requerido'], 400);
 
         // Aquí asumo que tienes tu lógica
         $customer = $this->customerService->findOrCreateByDoc($dni);
@@ -50,29 +55,29 @@ class SaleController extends Controller
         // Validamos la estructura
         $data = $request->validate([
             'customer.id' => 'nullable',
-            'total'       => 'required|numeric',
-            'items'       => 'required|array|min:1',
+            'total' => 'required|numeric',
+            'items' => 'required|array|min:1',
             // OJO AQUÍ: Validamos que el color traiga los IDs compuestos que mandamos en ProductService
             'items.*.color.product_size_id' => 'required|integer',
-            'items.*.color.color_id'        => 'required|integer',
-            'items.*.quantity'              => 'required|integer|min:1',
-            'items.*.unitPrice'             => 'required|numeric',
-            'items.*.total'                 => 'required|numeric',
+            'items.*.color.color_id' => 'required|integer',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unitPrice' => 'required|numeric',
+            'items.*.total' => 'required|numeric',
         ]);
 
         try {
             // Preparamos la data plana para el servicio
             $serviceData = [
                 'customer_id' => $data['customer']['id'] ?? null,
-                'total'       => $data['total'],
-                'items'       => collect($data['items'])->map(function($i) {
+                'total' => $data['total'],
+                'items' => collect($data['items'])->map(function ($i) {
                     return [
                         // Extraemos los IDs que pusimos en el ProductService ('variantsMap')
                         'product_size_id' => $i['color']['product_size_id'],
-                        'color_id'        => $i['color']['color_id'],
-                        'quantity'        => $i['quantity'],
-                        'unit_price'      => $i['unitPrice'],
-                        'total'           => $i['total']
+                        'color_id' => $i['color']['color_id'],
+                        'quantity' => $i['quantity'],
+                        'unit_price' => $i['unitPrice'],
+                        'total' => $i['total']
                     ];
                 })->toArray()
             ];
@@ -88,5 +93,23 @@ class SaleController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    public function printTicket($saleId)
+    {
+        // 1. Cargamos la venta con la relación correcta: 'details' y 'customer'
+        $sale = Sale::with(['details', 'customer'])
+            ->where('id', $saleId)
+            ->firstOrFail();
+
+        // 2. Configuración para impresora térmica 80mm
+        // [0, 0, 226.77, 1000] => ancho 80mm, alto largo dinámico
+        $customPaper = [0, 0, 226.77, 1000];
+
+        // 3. Generamos el PDF
+        $pdf = Pdf::loadView('pos.ticket', compact('sale'))
+            ->setPaper($customPaper, 'portrait');
+
+        return $pdf->stream('ticket-' . $sale->code . '.pdf');
     }
 }
