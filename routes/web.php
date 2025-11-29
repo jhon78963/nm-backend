@@ -9,4 +9,4 @@ Route::get('/', function () {
 
 
 
-Route::get('/pos/sales/{saleId}/tickets', [SaleController::class, 'printTicket']);
+Route::get('/pos/sales/{saleId}/ticket', [SaleController::class, 'printTicket']);
