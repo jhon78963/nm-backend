@@ -112,4 +112,27 @@ class SaleController extends Controller
 
         return $pdf->stream('ticket-' . $sale->code . '.pdf');
     }
+
+    public function getTicketBase64($saleId)
+    {
+        $sale = Sale::with(['details', 'customer'])
+            ->where('id', $saleId)
+            ->firstOrFail();
+
+        $customPaper = [0, 0, 226.77, 1000]; // 80mm
+
+        // Generamos el PDF (sin stream, solo lo cargamos)
+        $pdf = Pdf::loadView('pos.ticket', compact('sale'))
+            ->setPaper($customPaper, 'portrait');
+
+        // Obtenemos el contenido binario y lo codificamos a Base64
+        $content = $pdf->output();
+        $base64 = base64_encode($content);
+
+        // Devolvemos JSON limpio
+        return response()->json([
+            'success' => true,
+            'data' => $base64
+        ]);
+    }
 }
