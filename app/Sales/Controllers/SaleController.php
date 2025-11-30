@@ -135,4 +135,20 @@ class SaleController extends Controller
             'data' => $base64
         ]);
     }
+
+    public function getTicketHtml($saleId)
+    {
+        // 1. Cargamos la venta
+        $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
+
+        // 2. Renderizamos la vista Blade a un String HTML
+        // OJO: No usamos DOMPDF aquí, solo el motor de vistas de Laravel.
+        $htmlContent = view('pos.ticket', compact('sale'))->render();
+
+        // 3. Devolvemos el HTML en el JSON
+        return response()->json([
+            'success' => true,
+            'data' => $htmlContent
+        ]);
+    }
 }
