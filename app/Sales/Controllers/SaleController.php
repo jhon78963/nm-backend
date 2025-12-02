@@ -151,4 +151,59 @@ class SaleController extends Controller
             'data' => $htmlContent
         ]);
     }
+
+    public function ticket($saleId)
+    {
+        $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
+
+        $line = str_repeat('-', 32);
+
+        $content = "";
+        $content .= "   NOVEDADES MARITEX\n";
+        $content .= "Mercado Mayorista C-74\n";
+        $content .= "Trujillo - La Libertad - Perú\n";
+        $content .= "RUC: 10000000000\n";
+        $content .= "$line\n";
+
+        $content .= "TICKET: {$sale->code}\n";
+        $content .= "FECHA: " . $sale->creation_time->format('d/m/Y H:i') . "\n\n";
+
+        if ($sale->customer) {
+            $content .= "CLIENTE: {$sale->customer->name} {$sale->customer->paternal_surname}\n";
+            $content .= "DOC: {$sale->customer->document_number}\n\n";
+        } else {
+            $content .= "CLIENTE: Publico General\n\n";
+        }
+
+        $content .= "CANT  DESCRIPCIÓN         IMP\n";
+        $content .= "$line\n";
+
+        foreach ($sale->details as $d) {
+            $desc = "{$d->product_name_snapshot} T{$d->size_name_snapshot} C{$d->color_name_snapshot}";
+            $price = number_format($d->subtotal, 2);
+
+            $content .= str_pad($d->quantity, 4, ' ', STR_PAD_RIGHT)
+                . " " . substr($desc, 0, 16)
+                . str_pad(" S/{$price}", 12, ' ', STR_PAD_LEFT)
+                . "\n";
+        }
+
+        $content .= "$line\n";
+
+        $content .= "TOTAL:          S/" . number_format($sale->total_amount, 2) . "\n";
+        $content .= "Método: {$sale->payment_method}\n";
+
+        if ($sale->tax_amount > 0) {
+            $content .= "Impuestos:      S/" . number_format($sale->tax_amount, 2) . "\n";
+        }
+
+        $content .= "$line\n";
+        $content .= "Gracias por su compra\n";
+        $content .= "NO SE ACEPTAN CAMBIOS\n";
+        $content .= "NI DEVOLUCIONES\n";
+        $content .= "***\n\n\n";
+
+        return response($content, 200)
+            ->header("Content-Type", "text/plain");
+    }
 }
