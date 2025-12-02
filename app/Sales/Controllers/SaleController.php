@@ -11,6 +11,9 @@ use App\Shared\Foundation\Controllers\Controller;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Mike42\Escpos\Printer;
+use Mike42\Escpos\EscposImage;
+use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 class SaleController extends Controller
 {
@@ -156,54 +159,51 @@ class SaleController extends Controller
     {
         $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
 
-        $line = str_repeat('-', 32);
+        // Usamos un buffer temporal
+        $connector = new FilePrintConnector("php://memory");
+        $printer = new Printer($connector);
 
-        $content = "";
-        $content .= "   NOVEDADES MARITEX\n";
-        $content .= "Mercado Mayorista C-74\n";
-        $content .= "Trujillo - La Libertad - Perú\n";
-        $content .= "RUC: 10000000000\n";
-        $content .= "$line\n";
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->text("NOVEDADES MARITEX\n");
+        $printer->text("Mercado Mayorista C-74\n");
+        $printer->text("Trujillo - Perú\n");
+        $printer->text("RUC: 10000000000\n");
+        $printer->feed();
 
-        $content .= "TICKET: {$sale->code}\n";
-        $content .= "FECHA: " . $sale->creation_time->format('d/m/Y H:i') . "\n\n";
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->text("TICKET: {$sale->code}\n");
+        $printer->text("FECHA: " . $sale->creation_time->format('d/m/Y H:i') . "\n");
 
         if ($sale->customer) {
-            $content .= "CLIENTE: {$sale->customer->name} {$sale->customer->paternal_surname}\n";
-            $content .= "DOC: {$sale->customer->document_number}\n\n";
+            $printer->text("CLIENTE: {$sale->customer->name} {$sale->customer->paternal_surname}\n");
         } else {
-            $content .= "CLIENTE: Publico General\n\n";
+            $printer->text("CLIENTE: Publico General\n");
         }
 
-        $content .= "CANT  DESCRIPCIÓN         IMP\n";
-        $content .= "$line\n";
+        $printer->feed();
+        $printer->text("--------------------------------\n");
+        $printer->text("CANT  DESCRIPCIÓN         IMP\n");
+        $printer->text("--------------------------------\n");
 
         foreach ($sale->details as $d) {
-            $desc = "{$d->product_name_snapshot} T{$d->size_name_snapshot} C{$d->color_name_snapshot}";
-            $price = number_format($d->subtotal, 2);
-
-            $content .= str_pad($d->quantity, 4, ' ', STR_PAD_RIGHT)
-                . " " . substr($desc, 0, 16)
-                . str_pad(" S/{$price}", 12, ' ', STR_PAD_LEFT)
-                . "\n";
+            $printer->text("{$d->quantity} {$d->product_name_snapshot} S/{$d->subtotal}\n");
         }
 
-        $content .= "$line\n";
+        $printer->text("--------------------------------\n");
+        $printer->text("TOTAL: S/{$sale->total_amount}\n");
+        $printer->feed(3);
 
-        $content .= "TOTAL:          S/" . number_format($sale->total_amount, 2) . "\n";
-        $content .= "Método: {$sale->payment_method}\n";
+        $printer->cut();
+        $printer->close();
 
-        if ($sale->tax_amount > 0) {
-            $content .= "Impuestos:      S/" . number_format($sale->tax_amount, 2) . "\n";
-        }
+        // Tomamos los bytes ESC/POS generados
+        $content = $connector->getData();
 
-        $content .= "$line\n";
-        $content .= "Gracias por su compra\n";
-        $content .= "NO SE ACEPTAN CAMBIOS\n";
-        $content .= "NI DEVOLUCIONES\n";
-        $content .= "***\n\n\n";
+        // Codificamos en Base64
+        $b64 = base64_encode($content);
 
-        return response($content, 200)
-            ->header("Content-Type", "text/plain");
+        return response()->json([
+            "rawbt" => "rawbt:base64," . $b64
+        ]);
     }
 }
