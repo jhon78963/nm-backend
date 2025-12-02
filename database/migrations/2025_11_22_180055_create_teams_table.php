@@ -14,15 +14,12 @@ return new class extends Migration
         Schema::create('teams', function (Blueprint $table) {
             $table->id();
             $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
-            $table->integer('creator_user_id')->nullable();
-            $table->foreign('creator_user_id')->references('id')->on('users');
+            $table->foreignId('creator_user_id')->nullable()->constrained('users');
             $table->datetime('last_modification_time')->nullable();
-            $table->integer('last_modifier_user_id')->nullable();
-            $table->foreign('last_modifier_user_id')->references('id')->on('users');
-            $table->boolean('is_deleted')->default(false);
-            $table->integer('deleter_user_id')->nullable();
-            $table->foreign('deleter_user_id')->references('id')->on('users');
+            $table->foreignId('last_modifier_user_id')->nullable()->constrained('users');
             $table->datetime('deletion_time')->nullable();
+            $table->foreignId('deleter_user_id')->nullable()->constrained('users');
+            $table->boolean('is_deleted')->default(false);
             $table->string('dni')->unique();
             $table->string('name');
             $table->string('surname');

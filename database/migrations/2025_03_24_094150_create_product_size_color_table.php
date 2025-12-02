@@ -12,10 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_size_color', function (Blueprint $table) {
-            $table->unsignedBigInteger('product_size_id');
-            $table->foreign('product_size_id')->references('id')->on('product_size')->onDelete('cascade');
-            $table->unsignedBigInteger('color_id');
-            $table->foreign('color_id')->references('id')->on('colors')->onDelete('cascade');
+            $table->foreignId('product_size_id')->constrained('product_size')->onDelete('cascade');
+            $table->foreignId('color_id')->constrained('colors')->onDelete('cascade');
             $table->primary(['product_size_id', 'color_id']);
             $table->integer('stock');
         });

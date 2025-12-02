@@ -12,10 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_collection', function (Blueprint $table) {
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
-            $table->unsignedBigInteger('collection_id');
-            $table->foreign('collection_id')->references('id')->on('collections')->onDelete('cascade');
+            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+            $table->foreignId('collection_id')->constrained('collections')->onDelete('cascade');
         });
     }
 

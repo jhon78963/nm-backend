@@ -17,11 +17,10 @@ return new class extends Migration
             $table->integer('creator_user_id')->nullable();
             $table->datetime('last_modification_time')->nullable();
             $table->integer('last_modifier_user_id')->nullable();
-            $table->boolean('is_deleted')->default(false);
-            $table->integer('deleter_user_id')->nullable();
             $table->datetime('deletion_time')->nullable();
-            $table->integer('role_id');
-            $table->foreign('role_id')->references('id')->on('roles');
+            $table->integer('deleter_user_id')->nullable();
+            $table->boolean('is_deleted')->default(false);
+            $table->foreignId('role_id')->constrained('roles');
             $table->string('username')->unique()->nullable();
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();

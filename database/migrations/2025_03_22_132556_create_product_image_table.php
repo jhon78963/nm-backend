@@ -12,8 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_image', function (Blueprint $table) {
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id')->references('id')->on('products');
+            $table->foreignId('product_id')->constrained('products');
             $table->string('path');
             $table->primary(['product_id', 'path']);
             $table->string('size');

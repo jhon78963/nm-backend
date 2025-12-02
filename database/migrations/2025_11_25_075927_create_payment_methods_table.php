@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('vendors', function (Blueprint $table) {
-            $table->id();
+        Schema::create('payment_methods', function (Blueprint $table) {
+           $table->id();
             $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
             $table->foreignId('creator_user_id')->nullable()->constrained('users');
             $table->datetime('last_modification_time')->nullable();
@@ -20,11 +20,7 @@ return new class extends Migration
             $table->datetime('deletion_time')->nullable();
             $table->foreignId('deleter_user_id')->nullable()->constrained('users');
             $table->boolean('is_deleted')->default(false);
-            $table->string('name');
-            $table->string('address')->nullable();
-            $table->string('local')->nullable();
-            $table->decimal('balance', 10, 2)->nullable();
-            $table->string('phone')->nullable();
+            $table->string('description');
         });
     }
 
@@ -33,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('vendors');
+        Schema::dropIfExists('payment_methods');
     }
 };

@@ -13,10 +13,8 @@ return new class extends Migration
     {
         Schema::create('product_size', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');;
-            $table->unsignedBigInteger('size_id');
-            $table->foreign('size_id')->references('id')->on('sizes')->onDelete('cascade');;
+            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+            $table->foreignId('size_id')->constrained('sizes')->onDelete('cascade');
             $table->string('barcode')->nullable();
             $table->integer('stock');
             $table->float('purchase_price')->nullable();
