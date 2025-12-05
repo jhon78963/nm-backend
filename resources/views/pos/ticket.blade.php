@@ -1,6 +1,5 @@
-@ -0,0 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
