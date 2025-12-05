@@ -158,6 +158,20 @@
         <p>***</p>
     </div>
 
+    <script type="text/javascript">
+        try {
+            // Esto abre el diálogo de impresión apenas carga la página
+            window.onload = function () {
+                window.print();
+
+                // Opcional: Cerrar la ventana automáticamente después de imprimir (funciona en algunos móviles)
+                // setTimeout(function() { window.close(); }, 1000);
+            }
+        } catch (e) {
+            // Ignorar errores
+        }
+    </script>
+
 </body>
 
 </html>
