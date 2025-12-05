@@ -118,21 +118,24 @@ class SaleController extends Controller
 
     public function getTicketBase64($saleId)
     {
-        $sale = Sale::with(['details', 'customer'])
-            ->where('id', $saleId)
-            ->firstOrFail();
+        $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
 
-        $customPaper = [0, 0, 226.77, 1000]; // 80mm
+        // --- CORRECCIÓN CLAVE ---
+        // 1. No generamos PDF (muy pesado). Renderizamos solo el HTML (muy ligero).
+        $htmlContent = view('pos.ticket', compact('sale'))->render();
 
-        // Generamos el PDF (sin stream, solo lo cargamos)
-        $pdf = Pdf::loadView('pos.ticket', compact('sale'))
-            ->setPaper($customPaper, 'portrait');
+        // 2. Limpiamos basura (BOM) para que RawBT no imprima código fuente
+        $htmlContent = str_replace("\xEF\xBB\xBF", '', $htmlContent);
+        $htmlContent = str_replace("data:", '', $htmlContent);
 
-        // Obtenemos el contenido binario y lo codificamos a Base64
-        $content = $pdf->output();
-        $base64 = base64_encode($content);
+        // 3. Aseguramos que tenga la etiqueta DOCTYPE
+        if (!str_starts_with(strtolower($htmlContent), '<!doctype html>')) {
+            $htmlContent = "<!DOCTYPE html>\n" . $htmlContent;
+        }
 
-        // Devolvemos JSON limpio
+        // 4. Codificamos el HTML a Base64
+        $base64 = base64_encode($htmlContent);
+
         return response()->json([
             'success' => true,
             'data' => $base64
@@ -141,14 +144,11 @@ class SaleController extends Controller
 
     public function getTicketHtml($saleId)
     {
-        // 1. Cargamos la venta
         $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
 
-        // 2. Renderizamos la vista Blade a un String HTML
-        // OJO: No usamos DOMPDF aquí, solo el motor de vistas de Laravel.
+        // Renderizamos la vista a string
         $htmlContent = view('pos.ticket', compact('sale'))->render();
 
-        // 3. Devolvemos el HTML en el JSON
         return response()->json([
             'success' => true,
             'data' => $htmlContent
