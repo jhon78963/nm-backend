@@ -107,13 +107,13 @@ class SaleController extends Controller
 
         // 2. Configuración para impresora térmica 80mm
         // [0, 0, 226.77, 1000] => ancho 80mm, alto largo dinámico
-        $customPaper = [0, 0, 226.77, 1000];
+        // $customPaper = [0, 0, 226.77, 1000];
 
-        // 3. Generamos el PDF
-        $pdf = Pdf::loadView('pos.ticket', compact('sale'))
-            ->setPaper($customPaper, 'portrait');
+        // // 3. Generamos el PDF
+        // $pdf = Pdf::loadView('pos.ticket', compact('sale'))
+        //     ->setPaper($customPaper, 'portrait');
 
-        return $pdf->stream('ticket-' . $sale->code . '.pdf');
+        return view('pos.ticket', compact('sale'));
     }
 
     public function getTicketBase64($saleId)
