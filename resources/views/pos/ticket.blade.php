@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <title>Ticket {{ $sale->code }}</title>
@@ -26,7 +25,7 @@
         }
 
         .font-bold {
-            font-weight: bold;
+            font-weight: 900;
         }
 
         .uppercase {
@@ -45,7 +44,7 @@
         }
 
         .info-tienda {
-            font-size: 10px;
+            font-size: 11px;
             margin-bottom: 4px;
         }
 
@@ -58,7 +57,7 @@
         th {
             text-align: left;
             border-bottom: 1px solid #000;
-            font-size: 9px;
+            font-size: 10px;
         }
 
         td {
@@ -74,7 +73,7 @@
 
         .footer {
             margin-top: 15px;
-            font-size: 10px;
+            font-size: 11px;
             text-align: center;
         }
     </style>
@@ -94,7 +93,7 @@
         </div>
     </div>
 
-    <div style="margin-bottom: 5px; font-size: 10px;">
+    <div style="margin-bottom: 5px; font-size: 11px;">
         @if($sale->customer)
             <strong>Cliente:</strong> {{ $sale->customer->name }} {{ $sale->customer->paternal_surname }}<br>
             <strong>DOC:</strong> {{ $sale->customer->document_number ?? '-' }}
@@ -136,15 +135,15 @@
                 </td>
             </tr>
             <tr>
-                <td class="text-right" style="font-size: 10px;">Método Pago:</td>
-                <td class="text-right" style="font-size: 10px;">
+                <td class="text-right" style="font-size: 11px;">Método Pago:</td>
+                <td class="text-right" style="font-size: 11px;">
                     {{ $sale->payment_method }}
                 </td>
             </tr>
             @if($sale->tax_amount > 0)
                 <tr>
-                    <td class="text-right" style="font-size: 9px;">Impuestos (Inc.):</td>
-                    <td class="text-right" style="font-size: 9px;">
+                    <td class="text-right" style="font-size: 10px;">Impuestos (Inc.):</td>
+                    <td class="text-right" style="font-size: 10px;">
                         S/ {{ number_format($sale->tax_amount, 2) }}
                     </td>
                 </tr>
@@ -160,10 +159,16 @@
 
     <script type="text/javascript">
         try {
-            window.onload = function () {
+            // Esto abre el diálogo de impresión apenas carga la página
+            window.onload = function() {
                 window.print();
+
+                // Opcional: Cerrar la ventana automáticamente después de imprimir (funciona en algunos móviles)
+                // setTimeout(function() { window.close(); }, 1000);
             }
-        } catch (e) { }
+        } catch (e) {
+            // Ignorar errores
+        }
     </script>
 
 </body>
