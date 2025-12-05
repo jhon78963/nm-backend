@@ -159,15 +159,11 @@
     </div>
 
     <script type="text/javascript">
-        window.onload = function () {
-            window.print();
-            setTimeout(function () {
-                window.close();
-            }, 1000);
-        };
-        window.onafterprint = function () {
-            window.close();
-        };
+        try {
+            window.onload = function () {
+                window.print();
+            }
+        } catch (e) { }
     </script>
 
 </body>
