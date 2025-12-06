@@ -27,7 +27,7 @@ return new class extends Migration {
 
             $table->decimal('total_amount', 10, 2);
             $table->decimal('tax_amount', 10, 2)->default(0);
-            $table->string('payment_method')->default('CASH'); // CASH, CARD, YAPE, PLIN
+            $table->string('payment_method')->default('Efectivo'); // CASH, CARD, YAPE, PLIN
             $table->enum('status', ['COMPLETED', 'CANCELED', 'PENDING'])->default('COMPLETED');
             $table->string('notes')->nullable();
         });

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Ticket {{ $sale->code }}</title>
@@ -85,8 +86,8 @@
         <h1 class="uppercase">Novedades Maritex</h1>
         <div class="info-tienda">
             Mercado Mayorista - Puesto C-74<br>
-            Trujillo, La Libertad, Perú<br>
-            RUC: 10000000000 </div>
+            Trujillo, La Libertad, Perú
+        </div>
         <div>
             <strong>Ticket: {{ $sale->code }}</strong><br>
             Fecha: {{ $sale->creation_time->format('d/m/Y H:i') }}
@@ -160,7 +161,7 @@
     <script type="text/javascript">
         try {
             // Esto abre el diálogo de impresión apenas carga la página
-            window.onload = function() {
+            window.onload = function () {
                 window.print();
 
                 // Opcional: Cerrar la ventana automáticamente después de imprimir (funciona en algunos móviles)

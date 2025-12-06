@@ -2,22 +2,16 @@
 
 namespace App\Sales\Controllers;
 
-// ... imports anteriores ...
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
 use App\Sales\Models\Sale;
 use App\Sales\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Mike42\Escpos\Printer;
-use Mike42\Escpos\EscposImage;
-use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 class SaleController extends Controller
 {
-    // ... constructor ...
     public function __construct(
         protected ProductService $productService,
         protected CustomerService $customerService,
@@ -25,7 +19,6 @@ class SaleController extends Controller
     ) {
     }
 
-    // ... searchProduct y searchCustomer igual que antes ...
     public function searchProduct(Request $request): JsonResponse
     {
         $sku = $request->query('sku');
@@ -100,58 +93,10 @@ class SaleController extends Controller
 
     public function printTicket($saleId)
     {
-        // 1. Cargamos la venta con la relación correcta: 'details' y 'customer'
         $sale = Sale::with(['details', 'customer'])
             ->where('id', $saleId)
             ->firstOrFail();
 
-        // 2. Configuración para impresora térmica 80mm
-        // [0, 0, 226.77, 1000] => ancho 80mm, alto largo dinámico
-        // $customPaper = [0, 0, 226.77, 1000];
-
-        // // 3. Generamos el PDF
-        // $pdf = Pdf::loadView('pos.ticket', compact('sale'))
-        //     ->setPaper($customPaper, 'portrait');
-
         return view('pos.ticket', compact('sale'));
-    }
-
-    public function getTicketBase64($saleId)
-    {
-        $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
-
-        // --- CORRECCIÓN CLAVE ---
-        // 1. No generamos PDF (muy pesado). Renderizamos solo el HTML (muy ligero).
-        $htmlContent = view('pos.ticket', compact('sale'))->render();
-
-        // 2. Limpiamos basura (BOM) para que RawBT no imprima código fuente
-        $htmlContent = str_replace("\xEF\xBB\xBF", '', $htmlContent);
-        $htmlContent = str_replace("data:", '', $htmlContent);
-
-        // 3. Aseguramos que tenga la etiqueta DOCTYPE
-        if (!str_starts_with(strtolower($htmlContent), '<!doctype html>')) {
-            $htmlContent = "<!DOCTYPE html>\n" . $htmlContent;
-        }
-
-        // 4. Codificamos el HTML a Base64
-        $base64 = base64_encode($htmlContent);
-
-        return response()->json([
-            'success' => true,
-            'data' => $base64
-        ]);
-    }
-
-    public function getTicketHtml($saleId)
-    {
-        $sale = Sale::with(['details', 'customer'])->findOrFail($saleId);
-
-        // Renderizamos la vista a string
-        $htmlContent = view('pos.ticket', compact('sale'))->render();
-
-        return response()->json([
-            'success' => true,
-            'data' => $htmlContent
-        ]);
     }
 }
