@@ -52,9 +52,7 @@ class ProductController extends Controller
     {
         return DB::transaction(function () use ($product) {
             $this->productService->validate($product, 'Product');
-            // Asumiendo que agregaste este método en el servicio como sugerí antes,
-            // si no, usa: $this->productService->update(...) y ->delete(...)
-            $this->productService->discontinueAndDiscard($product);
+            $this->productService->delete($product);
 
             return response()->json(['message' => 'Product deleted.']);
         });
@@ -63,7 +61,6 @@ class ProductController extends Controller
     public function get(Product $product): JsonResponse
     {
         $this->productService->validate($product, 'Product');
-
         return response()->json(new ProductResource($product));
     }
 
@@ -81,7 +78,6 @@ class ProductController extends Controller
             modelName:    'Product',
             columnSearch: ['id', 'name', 'gender.name', $stockSubquery],
             filters:      $filters,
-            // CORRECCIÓN: Especificamos la tabla pivote 'product_size.stock'
             extendQuery:  fn($q) => $q->withSum('sizes as sizes_sum_stock', 'product_size.stock'),
         );
 

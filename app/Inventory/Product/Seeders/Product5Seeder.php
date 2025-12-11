@@ -16,6 +16,7 @@ class Product5Seeder extends Seeder
         $product = new Product();
         $product->name = 'pantalones strech semi pitillo';
         $product->gender_id = 1;
+        $product->warehouse_id = 2;
         $product->save();
 
         $productSize = new ProductSize();

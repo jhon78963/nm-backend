@@ -10,7 +10,7 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('products', function (Blueprint $table) {
+        Schema::create('warehouses', function (Blueprint $table) {
             $table->id();
             $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
             $table->foreignId('creator_user_id')->nullable()->constrained('users');
@@ -19,15 +19,7 @@ return new class extends Migration {
             $table->datetime('deletion_time')->nullable();
             $table->foreignId('deleter_user_id')->nullable()->constrained('users');
             $table->boolean('is_deleted')->default(false);
-            $table->foreignId('warehouse_id')->constrained('warehouses');
-            $table->foreignId('gender_id')->constrained('genders');
-            $table->string('name');
-            $table->string('description')->nullable();
-            $table->string('barcode')->nullable();
-            $table->string('percentage_discount')->nullable();
-            $table->integer('cash_discount')->nullable();
-            $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])->default('AVAILABLE');
-
+             $table->string('name');
         });
     }
 
@@ -36,6 +28,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('products');
+        Schema::dropIfExists('warehouses');
     }
 };

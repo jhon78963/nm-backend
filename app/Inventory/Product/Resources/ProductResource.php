@@ -26,6 +26,8 @@ class ProductResource extends JsonResource
             'status' => $this->status,
             'genderId' => $this->gender_id,
             'gender' => $this->gender->name,
+            'warehouseId' => $this->warehouse_id,
+            'warehouse' => $this->warehouse->name,
             'filter' => !$this->sizes()->exists(),
             'sizeTypeId' => $this->sizes->pluck('size_type_id')
                 ->unique()

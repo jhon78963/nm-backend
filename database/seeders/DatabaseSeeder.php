@@ -19,6 +19,7 @@ use App\Inventory\Product\Seeders\Product9Seeder;
 use App\Inventory\Product\Seeders\ProductSeeder;
 use App\Inventory\Size\Seeders\SizeSeeder;
 use App\Inventory\Size\Seeders\SizeTypeSeeder;
+use App\Inventory\Warehouse\Seeders\WarehouseSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -34,6 +35,7 @@ class DatabaseSeeder extends Seeder
             GenderSeeder::class,
             SizeTypeSeeder::class,
             SizeSeeder::class,
+            WarehouseSeeder::class,
             ProductSeeder::class,
             Product2Seeder::class,
             Product3Seeder::class,

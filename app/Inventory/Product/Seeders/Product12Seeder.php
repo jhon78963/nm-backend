@@ -16,6 +16,7 @@ class Product12Seeder extends Seeder
         $product = new Product();
         $product->name = 'polos cuello redondo algodon estanpado';
         $product->gender_id = 1;
+        $product->warehouse_id = 2;
         $product->save();
 
         $productSize = new ProductSize();

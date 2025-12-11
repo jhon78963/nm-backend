@@ -7,14 +7,14 @@ use App\Inventory\Product\Services\ProductService;
 use App\Sales\Models\Sale;
 use App\Sales\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SaleController extends Controller
 {
     public function __construct(
-        protected ProductService $productService,
         protected CustomerService $customerService,
+        protected ProductService $productService,
         protected SaleService $saleService
     ) {
     }
@@ -24,13 +24,10 @@ class SaleController extends Controller
         $sku = $request->query('sku');
         if (!$sku)
             return response()->json(['error' => 'SKU requerido'], 400);
-
         $product = $this->productService->findBySkuForPos($sku);
-
         if (!$product) {
             return response()->json(['message' => 'Producto no encontrado'], 404);
         }
-
         return response()->json($product);
     }
 
@@ -39,10 +36,7 @@ class SaleController extends Controller
         $dni = $request->query('dni');
         if (!$dni)
             return response()->json(['error' => 'DNI requerido'], 400);
-
-        // Aquí asumo que tienes tu lógica
         $customer = $this->customerService->findOrCreateByDoc($dni);
-        // Retornar mock por ahora si no tienes customerService implementado
         return response()->json($customer);
     }
 
@@ -53,7 +47,6 @@ class SaleController extends Controller
             'customer.id' => 'nullable',
             'total' => 'required|numeric',
             'items' => 'required|array|min:1',
-            // OJO AQUÍ: Validamos que el color traiga los IDs compuestos que mandamos en ProductService
             'items.*.color.product_size_id' => 'required|integer',
             'items.*.color.color_id' => 'required|integer',
             'items.*.quantity' => 'required|integer|min:1',
@@ -68,7 +61,6 @@ class SaleController extends Controller
                 'total' => $data['total'],
                 'items' => collect($data['items'])->map(function ($i) {
                     return [
-                        // Extraemos los IDs que pusimos en el ProductService ('variantsMap')
                         'product_size_id' => $i['color']['product_size_id'],
                         'color_id' => $i['color']['color_id'],
                         'quantity' => $i['quantity'],
@@ -96,7 +88,6 @@ class SaleController extends Controller
         $sale = Sale::with(['details', 'customer'])
             ->where('id', $saleId)
             ->firstOrFail();
-
         return view('pos.ticket', compact('sale'));
     }
 }

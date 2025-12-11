@@ -16,6 +16,7 @@ class Product3Seeder extends Seeder
         $product = new Product();
         $product->name = 'conjuntos deportivos de niños';
         $product->gender_id = 3;
+        $product->warehouse_id = 2;
         $product->save();
 
         $productSize = new ProductSize();

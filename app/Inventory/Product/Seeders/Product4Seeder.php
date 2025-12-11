@@ -16,6 +16,7 @@ class Product4Seeder extends Seeder
         $product = new Product();
         $product->name = 'ofertas caja';
         $product->gender_id = 4;
+        $product->warehouse_id = 2;
         $product->save();
 
         $productSize = new ProductSize();

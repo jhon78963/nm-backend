@@ -30,7 +30,13 @@ class GenderController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $query = $this->sharedService->query($request, 'Inventory\\Gender', 'Gender', 'name');
+        $query = $this->sharedService->query(
+            request: $request,
+            entityName: 'Inventory\\Gender',
+            modelName: 'Gender',
+            columnSearch: 'name'
+        );
+
         return response()->json(new GetAllCollection(
             GenderResource::collection($query['collection']),
             $query['total'],

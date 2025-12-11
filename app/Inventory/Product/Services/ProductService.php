@@ -5,7 +5,7 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Shared\Foundation\Services\ModelService;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ProductService extends ModelService
 {

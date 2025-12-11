@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Models;
 
 use App\Inventory\Gender\Models\Gender;
+use App\Inventory\Warehouse\Model\Warehouse;
 use App\Shared\Image\Models\Image;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
@@ -78,6 +79,15 @@ class Product extends Model
     }
 
     /**
+     * Get the warehouse associated with the product.
+     *
+     * @return BelongsTo
+     */
+    public function warehouse(): BelongsTo {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
      * Get the images associated with the product.
      *
      * @return BelongsToMany
@@ -108,6 +118,11 @@ class Product extends Model
         ]);
     }
 
+    /**
+     * Get the productSizes associated with the product.
+     *
+     * @return HasMany
+     */
     public function productSizes(): HasMany
     {
         return $this->hasMany(ProductSize::class, 'product_id');
