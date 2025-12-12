@@ -17,7 +17,7 @@ class ProductResource extends JsonResource
         $stock = $this->sizes_sum_stock ?? $this->sizes->sum('pivot.stock');
         return [
             'id' => $this->id,
-            'name' => $this->name,
+            'name' => $this->name ?? '',
             'barcode' => $this->barcode,
             'stock' => $stock,
             'cashDiscount' => $this->cash_discount,
