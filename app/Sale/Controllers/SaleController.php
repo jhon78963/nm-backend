@@ -1,12 +1,16 @@
 <?php
 
-namespace App\Sales\Controllers;
+namespace App\Sale\Controllers;
 
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
-use App\Sales\Models\Sale;
-use App\Sales\Services\SaleService;
+use App\Sale\Models\Sale;
+use App\Sale\Resources\SaleResource;
+use App\Sale\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\GetAllRequest;
+use App\Shared\Foundation\Resources\GetAllCollection;
+use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +19,8 @@ class SaleController extends Controller
     public function __construct(
         protected CustomerService $customerService,
         protected ProductService $productService,
-        protected SaleService $saleService
+        protected SaleService $saleService,
+        protected SharedService $sharedService,
     ) {
     }
 
@@ -89,5 +94,21 @@ class SaleController extends Controller
             ->where('id', $saleId)
             ->firstOrFail();
         return view('pos.ticket', compact('sale'));
+    }
+
+    public function getAll(GetAllRequest $request): JsonResponse
+    {
+        $query = $this->sharedService->query(
+            request: $request,
+            entityName: 'Sale',
+            modelName: 'Sale',
+            columnSearch: 'name'
+        );
+
+        return response()->json(new GetAllCollection(
+            SaleResource::collection($query['collection']),
+            $query['total'],
+            $query['pages'],
+        ));
     }
 }

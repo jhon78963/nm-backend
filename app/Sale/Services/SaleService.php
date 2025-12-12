@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Sales\Services;
+namespace App\Sale\Services;
 
-use App\Sales\Models\Sale;
+use App\Sale\Models\Sale;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Support\Facades\DB;
 use Exception;

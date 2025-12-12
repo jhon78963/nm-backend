@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Sales\Models;
+namespace App\Sale\Models;
 
 use App\Administration\User\Models\User;
 use App\Directory\Customer\Models\Customer;
@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Sale extends Model
 {
-    // Desactivamos timestamps automáticos porque usas nombres personalizados y lógica en ModelService
     public $timestamps = false;
 
     protected $table = 'sales';
@@ -23,14 +22,21 @@ class Sale extends Model
         'payment_method',
         'status',
         'notes',
-        // Campos de auditoría (llenados por ModelService)
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
         'creator_user_id',
         'creation_time',
-        'last_modifier_user_id',
         'last_modification_time',
+        'last_modifier_user_id',
         'is_deleted',
         'deleter_user_id',
-        'deletion_time'
+        'deletion_time',
     ];
 
     protected $casts = [
