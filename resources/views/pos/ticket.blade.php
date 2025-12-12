@@ -7,48 +7,44 @@
     <style>
         @page {
             margin: 0;
-            size: 80mm 297mm;
+            size: 80mm auto; /* Cambiado a auto para que no corte si es largo */
         }
 
         body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            margin: 4px;
-            color: #000;
+            /* Usamos sans-serif o monospace que suelen renderizar mejor en térmicas */
+            font-family: sans-serif, system-ui, -apple-system, BlinkMacSystemFont;
+            font-size: 12px; /* Un pelín más grande para legibilidad */
+            margin: 2mm;
+            color: #000000; /* Negro puro */
+            background-color: #ffffff;
+            font-weight: 900; /* Negrita FUERTE para todo */
+            -webkit-print-color-adjust: exact; /* Fuerza la impresión de colores exactos */
         }
 
-        .text-center {
-            text-align: center;
-        }
+        /* Clases utilitarias */
+        .text-center { text-align: center; font-weight: bold; }
+        .text-right { text-align: right; font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
 
-        .text-right {
-            text-align: right;
-        }
-
-        .font-bold {
-            font-weight: 900;
-        }
-
-        .uppercase {
-            text-transform: uppercase;
-        }
-
+        /* Encabezado */
         .header {
-            margin-bottom: 8px;
-            border-bottom: 1px dashed #000;
+            margin-bottom: 10px;
+            border-bottom: 2px dashed #000; /* Borde más grueso */
             padding-bottom: 5px;
         }
 
         .header h1 {
-            font-size: 14px;
+            font-size: 16px;
             margin: 0;
+            font-weight: 900;
         }
 
         .info-tienda {
-            font-size: 11px;
-            margin-bottom: 4px;
+            font-size: 12px;
+            margin-bottom: 5px;
         }
 
+        /* Tablas */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -57,30 +53,47 @@
 
         th {
             text-align: left;
-            border-bottom: 1px solid #000;
-            font-size: 10px;
+            border-bottom: 2px solid #000; /* Línea más gruesa */
+            font-size: 11px;
+            font-weight: 900;
+            padding-bottom: 2px;
         }
 
         td {
-            padding: 3px 0;
+            padding: 4px 0;
             vertical-align: top;
+            font-weight: 900; /* Asegura que las celdas sean negritas */
         }
 
+        /* Totales */
         .totals {
             margin-top: 10px;
-            border-top: 1px dashed #000;
+            border-top: 2px dashed #000; /* Línea más gruesa */
             padding-top: 5px;
+        }
+
+        .total-big {
+            font-size: 16px;
+            font-weight: 900;
         }
 
         .footer {
             margin-top: 15px;
             font-size: 11px;
             text-align: center;
+            font-weight: 900;
+        }
+
+        /* Ocultar la etiqueta drawer para que no ocupe espacio visual */
+        drawer {
+            display: none;
         }
     </style>
 </head>
 
-<body>
+<body style="font-weight: bold;">
+
+    <drawer></drawer>
 
     <div class="header text-center">
         <h1 class="uppercase">Novedades Maritex</h1>
@@ -89,26 +102,26 @@
             Trujillo, La Libertad, Perú
         </div>
         <div>
-            <strong>Ticket: {{ $sale->code }}</strong><br>
+            Ticket: {{ $sale->code }}<br>
             Fecha: {{ $sale->creation_time->format('d/m/Y H:i') }}
         </div>
     </div>
 
-    <div style="margin-bottom: 5px; font-size: 11px;">
+    <div style="margin-bottom: 5px; font-size: 12px;">
         @if($sale->customer)
-            <strong>Cliente:</strong> {{ $sale->customer->name }} {{ $sale->customer->paternal_surname }}<br>
-            <strong>DOC:</strong> {{ $sale->customer->document_number ?? '-' }}
+            CLIENTE: {{ $sale->customer->name }} {{ $sale->customer->paternal_surname }}<br>
+            DOC: {{ $sale->customer->document_number ?? '-' }}
         @else
-            <strong>Cliente:</strong> Público General
+            CLIENTE: PÚBLICO GENERAL
         @endif
     </div>
 
     <table>
         <thead>
             <tr>
-                <th width="10%">Cant.</th>
-                <th width="55%">Desc.</th>
-                <th width="35%" class="text-right">Total</th>
+                <th width="15%">CANT</th>
+                <th width="50%">DESC</th>
+                <th width="35%" class="text-right">TOTAL</th>
             </tr>
         </thead>
         <tbody>
@@ -116,11 +129,11 @@
                 <tr>
                     <td class="text-center">{{ $detail->quantity }}</td>
                     <td>
-                        {{ $detail->product_name_snapshot }} | T{{ $detail->size_name_snapshot }} |
-                        C{{ $detail->color_name_snapshot }}
+                        {{ $detail->product_name_snapshot }}<br>
+                        <small>T:{{ $detail->size_name_snapshot }} C:{{ $detail->color_name_snapshot }}</small>
                     </td>
                     <td class="text-right">
-                        S/ {{ number_format($detail->subtotal, 2) }}
+                        {{ number_format($detail->subtotal, 2) }}
                     </td>
                 </tr>
             @endforeach
@@ -130,15 +143,15 @@
     <div class="totals">
         <table style="width: 100%">
             <tr>
-                <td class="text-right font-bold">TOTAL:</td>
-                <td class="text-right font-bold" style="font-size: 14px;">
+                <td class="text-right">TOTAL:</td>
+                <td class="text-right total-big">
                     S/ {{ number_format($sale->total_amount, 2) }}
                 </td>
             </tr>
             <tr>
-                <td class="text-right" style="font-size: 11px;">Método Pago:</td>
+                <td class="text-right" style="font-size: 11px;">MÉTODO PAGO:</td>
                 <td class="text-right" style="font-size: 11px;">
-                    {{ $sale->payment_method }}
+                    {{ strtoupper($sale->payment_method) }}
                 </td>
             </tr>
             @if($sale->tax_amount > 0)
@@ -153,25 +166,18 @@
     </div>
 
     <div class="footer">
-        <p>¡Gracias por su compra!</p>
-        <p>NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES</p>
-        <p>***</p>
+        <p><strong>¡GRACIAS POR SU COMPRA!</strong></p>
+        <p><strong>NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES</strong></p>
+        <p><strong>***</strong></p>
     </div>
 
     <script type="text/javascript">
         try {
-            // Esto abre el diálogo de impresión apenas carga la página
             window.onload = function () {
                 window.print();
-
-                // Opcional: Cerrar la ventana automáticamente después de imprimir (funciona en algunos móviles)
-                // setTimeout(function() { window.close(); }, 1000);
             }
-        } catch (e) {
-            // Ignorar errores
-        }
+        } catch (e) {}
     </script>
 
 </body>
-
 </html>
