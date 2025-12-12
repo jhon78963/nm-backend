@@ -7,34 +7,35 @@
     <style>
         @page {
             margin: 0;
-            size: 80mm auto; /* Cambiado a auto para que no corte si es largo */
+            size: 80mm auto;
         }
 
         body {
-            /* Usamos sans-serif o monospace que suelen renderizar mejor en térmicas */
+            /* Sans-serif se lee mejor en térmicas que Courier */
             font-family: sans-serif, system-ui, -apple-system, BlinkMacSystemFont;
-            font-size: 12px; /* Un pelín más grande para legibilidad */
-            margin: 2mm;
-            color: #000000; /* Negro puro */
+            font-size: 13px; /* Tamaño ideal para 80mm */
+            margin: 1mm 2mm;
+            color: #000000;
             background-color: #ffffff;
-            font-weight: 900; /* Negrita FUERTE para todo */
-            -webkit-print-color-adjust: exact; /* Fuerza la impresión de colores exactos */
+            font-weight: 900; /* Negrita extrema para nitidez */
+            -webkit-print-color-adjust: exact;
         }
 
-        /* Clases utilitarias */
-        .text-center { text-align: center; font-weight: bold; }
-        .text-right { text-align: right; font-weight: bold; }
+        /* Utilidades */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
         .uppercase { text-transform: uppercase; }
+        .bold { font-weight: 900; }
 
         /* Encabezado */
         .header {
             margin-bottom: 10px;
-            border-bottom: 2px dashed #000; /* Borde más grueso */
+            border-bottom: 2px dashed #000;
             padding-bottom: 5px;
         }
 
         .header h1 {
-            font-size: 16px;
+            font-size: 18px; /* Título más grande */
             margin: 0;
             font-weight: 900;
         }
@@ -42,6 +43,7 @@
         .info-tienda {
             font-size: 12px;
             margin-bottom: 5px;
+            line-height: 1.2;
         }
 
         /* Tablas */
@@ -53,7 +55,7 @@
 
         th {
             text-align: left;
-            border-bottom: 2px solid #000; /* Línea más gruesa */
+            border-bottom: 2px solid #000;
             font-size: 11px;
             font-weight: 900;
             padding-bottom: 2px;
@@ -62,18 +64,18 @@
         td {
             padding: 4px 0;
             vertical-align: top;
-            font-weight: 900; /* Asegura que las celdas sean negritas */
+            font-weight: 900;
         }
 
         /* Totales */
         .totals {
             margin-top: 10px;
-            border-top: 2px dashed #000; /* Línea más gruesa */
+            border-top: 2px dashed #000;
             padding-top: 5px;
         }
 
-        .total-big {
-            font-size: 16px;
+        .total-row {
+            font-size: 18px;
             font-weight: 900;
         }
 
@@ -82,18 +84,12 @@
             font-size: 11px;
             text-align: center;
             font-weight: 900;
-        }
-
-        /* Ocultar la etiqueta drawer para que no ocupe espacio visual */
-        drawer {
-            display: none;
+            margin-bottom: 20px; /* Espacio extra al final para el corte */
         }
     </style>
 </head>
 
-<body style="font-weight: bold;">
-
-    <drawer></drawer>
+<body>
 
     <div class="header text-center">
         <h1 class="uppercase">Novedades Maritex</h1>
@@ -143,8 +139,8 @@
     <div class="totals">
         <table style="width: 100%">
             <tr>
-                <td class="text-right">TOTAL:</td>
-                <td class="text-right total-big">
+                <td class="text-right bold">TOTAL:</td>
+                <td class="text-right total-row">
                     S/ {{ number_format($sale->total_amount, 2) }}
                 </td>
             </tr>
@@ -154,22 +150,25 @@
                     {{ strtoupper($sale->payment_method) }}
                 </td>
             </tr>
-            @if($sale->tax_amount > 0)
-                <tr>
-                    <td class="text-right" style="font-size: 10px;">Impuestos (Inc.):</td>
-                    <td class="text-right" style="font-size: 10px;">
-                        S/ {{ number_format($sale->tax_amount, 2) }}
-                    </td>
-                </tr>
-            @endif
         </table>
     </div>
 
     <div class="footer">
-        <p><strong>¡GRACIAS POR SU COMPRA!</strong></p>
-        <p><strong>NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES</strong></p>
-        <p><strong>***</strong></p>
+        <p>¡GRACIAS POR SU COMPRA!</p>
+        <p>NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES</p>
     </div>
+
+    {{--
+      BLOQUE DE APERTURA DE GAVETA (SOLUCIÓN HÍBRIDA)
+      1. Enviamos el código HEX directo con PHP.
+      2. Agregamos un texto oculto por si la app necesita leer texto.
+    --}}
+
+    <div style="height:0px; overflow:hidden;">
+        {!! chr(27).chr(112).chr(0).chr(25).chr(250) !!}
+    </div>
+
+    <div style="font-size: 1px; color: #ffffff;">##CAJA##</div>
 
     <script type="text/javascript">
         try {
