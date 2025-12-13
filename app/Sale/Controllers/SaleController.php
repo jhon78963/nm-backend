@@ -5,6 +5,7 @@ namespace App\Sale\Controllers;
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
 use App\Sale\Models\Sale;
+use App\Sale\Resources\SaleDetailResource;
 use App\Sale\Resources\SaleResource;
 use App\Sale\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
@@ -13,6 +14,7 @@ use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SaleController extends Controller
 {
@@ -96,13 +98,29 @@ class SaleController extends Controller
         return view('pos.ticket', compact('sale'));
     }
 
+    public function delete(Sale $sale): JsonResponse
+    {
+        return DB::transaction(function () use ($sale): JsonResponse {
+            $this->saleService->validate($sale, 'Sale');
+            $this->saleService->delete($sale);
+
+            return response()->json(['message' => 'Sale deleted successfully.']);
+        });
+    }
+
+    public function get(Sale $sale): JsonResponse
+    {
+        $this->saleService->validate($sale, 'Sale');
+        return response()->json(new SaleDetailResource($sale));
+    }
+
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
             request: $request,
             entityName: 'Sale',
             modelName: 'Sale',
-            columnSearch: 'name'
+            columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name']
         );
 
         return response()->json(new GetAllCollection(
