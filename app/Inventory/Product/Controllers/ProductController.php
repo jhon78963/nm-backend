@@ -25,6 +25,7 @@ class ProductController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $data['warehouse_id'] = 1;
             $product = $this->productService->create($data);
 
             return response()->json([
