@@ -19,7 +19,7 @@ return new class extends Migration {
             $table->datetime('deletion_time')->nullable();
             $table->foreignId('deleter_user_id')->nullable()->constrained('users');
             $table->boolean('is_deleted')->default(false);
-            $table->foreignId('warehouse_id')->constrained('warehouses');
+            $table->foreignId('warehouse_id')->constrained('warehouses')->default(1);
             $table->foreignId('gender_id')->constrained('genders');
             $table->string('name');
             $table->string('description')->nullable();

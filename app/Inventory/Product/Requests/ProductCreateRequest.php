@@ -31,7 +31,7 @@ class ProductCreateRequest extends FormRequest
             'minSalePrice' => 'nullable',
             'status' => 'nullable|string',
             'genderId' => 'required|integer',
-            'warehouseId' => 'required|integer',
+            'warehouseId' => 'nullable|integer',
         ];
     }
 }
