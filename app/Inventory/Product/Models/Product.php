@@ -30,7 +30,8 @@ class Product extends Model
         'percentage_discount',
         'cash_discount',
         'status',
-        'gender_id'
+        'gender_id',
+        'warehouse_id',
     ];
 
     /**
