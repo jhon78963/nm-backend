@@ -5,6 +5,7 @@ namespace App\Sale\Controllers;
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
 use App\Sale\Models\Sale;
+use App\Sale\Requests\SaleUpdateRequest;
 use App\Sale\Resources\SaleDetailResource;
 use App\Sale\Resources\SaleResource;
 use App\Sale\Services\SaleService;
@@ -128,5 +129,16 @@ class SaleController extends Controller
             $query['total'],
             $query['pages'],
         ));
+    }
+
+        public function update(SaleUpdateRequest $request, Sale $sale): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $sale): JsonResponse {
+            $this->saleService->validate($sale, 'Sale');
+            $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $this->saleService->update($sale, $data);
+
+            return response()->json(['message' => 'Sale updated.'], 200);
+        });
     }
 }
