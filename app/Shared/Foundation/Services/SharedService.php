@@ -42,6 +42,8 @@ class SharedService
      * @param array|string|null $columnSearch
      * @param array $filters
      * @param callable|null $extendQuery
+     * @param string $orderBy Campo por el cual ordenar
+     * @param string $orderDir Dirección del ordenamiento (asc/desc)
      * @return array
      */
     public function query(
@@ -51,6 +53,8 @@ class SharedService
         array|string $columnSearch = null,
         array $filters = [],
         callable|null $extendQuery = null,
+        string $orderBy = 'id',
+        string $orderDir = 'asc'
     ): array {
         $limit = $request->query('limit', $this->limit);
         $page = $request->query('page', $this->page);
@@ -107,7 +111,7 @@ class SharedService
 
         $models = $query->skip(($page - 1) * $limit)
             ->take($limit)
-            ->orderBy('id', 'asc')
+            ->orderBy($orderBy, $orderDir)
             ->get();
 
         return [

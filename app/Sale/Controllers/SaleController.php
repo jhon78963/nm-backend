@@ -178,7 +178,9 @@ class SaleController extends Controller
             request: $request,
             entityName: 'Sale',
             modelName: 'Sale',
-            columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name']
+            columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name'],
+            orderBy: 'creation_time',
+            orderDir: 'desc',
         );
 
         return response()->json(new GetAllCollection(
