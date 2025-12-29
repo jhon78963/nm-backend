@@ -7,12 +7,58 @@ use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Exception;
+use Illuminate\Support\Collection;
 
 class SaleService extends ModelService
 {
     public function __construct(Sale $sale)
     {
         parent::__construct($sale);
+    }
+
+    /**
+     * Reporte de Ventas vs Costos Agrupado por Mes
+     */
+    public function getMonthlyStats(): Collection
+    {
+        // 1. INGRESOS: Sacamos directamente de 'sales' sumando 'total_amount'
+        // Esto evita duplicidad de montos al no hacer join con detalles aquí.
+        $revenues = DB::table('sales')
+            ->selectRaw("
+                TO_CHAR(creation_time, 'MM-YYYY') as month_year,
+                TO_CHAR(creation_time, 'YYYY-MM') as sort_key,
+                SUM(total_amount) as total_revenue
+            ")
+            ->where('is_deleted', false)
+            ->where('status', 'COMPLETED')
+            ->groupByRaw("TO_CHAR(creation_time, 'MM-YYYY'), TO_CHAR(creation_time, 'YYYY-MM')")
+            ->orderBy('sort_key', 'desc')
+            ->get()
+            ->keyBy('month_year');
+
+        // 2. COSTOS: Calculamos en base al precio de compra del producto (product_size)
+        // Aquí sí necesitamos el detalle para saber qué productos se vendieron.
+        $costs = DB::table('sales as s')
+            ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
+            ->leftJoin('product_size as ps', function ($join) {
+                $join->on('sd.product_id', '=', 'ps.product_id')
+                    ->on('sd.size_id', '=', 'ps.size_id');
+            })
+            ->selectRaw("
+                TO_CHAR(s.creation_time, 'MM-YYYY') as month_year,
+                SUM(sd.quantity * COALESCE(ps.purchase_price, 0)) as total_cost
+            ")
+            ->where('s.is_deleted', false)
+            ->where('s.status', 'COMPLETED')
+            ->groupByRaw("TO_CHAR(s.creation_time, 'MM-YYYY')")
+            ->pluck('total_cost', 'month_year');
+
+        // 3. FUSIÓN: Unimos ambos datos en una sola colección
+        return $revenues->map(function ($item) use ($costs) {
+            // Asignamos el costo correspondiente al mes, o 0 si no hay datos
+            $item->total_cost = $costs[$item->month_year] ?? 0;
+            return $item;
+        })->values();
     }
 
     public function update(Model $model, array $data): Model

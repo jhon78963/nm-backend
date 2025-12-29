@@ -27,7 +27,6 @@ return new class extends Migration {
             $table->string('percentage_discount')->nullable();
             $table->integer('cash_discount')->nullable();
             $table->enum('status', ['AVAILABLE', 'LIMITED_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED'])->default('AVAILABLE');
-
         });
     }
 

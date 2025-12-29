@@ -39,6 +39,12 @@ class SaleController extends Controller
         return response()->json($product);
     }
 
+    public function getMonthlyStats(): JsonResponse
+    {
+        $stats = $this->saleService->getMonthlyStats();
+        return response()->json($stats);
+    }
+
     public function searchCustomer(Request $request): JsonResponse
     {
         $dni = $request->query('dni');
@@ -47,6 +53,7 @@ class SaleController extends Controller
         $customer = $this->customerService->findOrCreateByDoc($dni);
         return response()->json($customer);
     }
+
     public function checkout(Request $request): JsonResponse
     {
         // 1. Validamos la estructura (Esto estaba bien, lo mantenemos)
