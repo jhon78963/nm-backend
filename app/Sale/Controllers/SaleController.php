@@ -47,54 +47,6 @@ class SaleController extends Controller
         $customer = $this->customerService->findOrCreateByDoc($dni);
         return response()->json($customer);
     }
-
-    // public function checkout(Request $request): JsonResponse
-    // {
-    //     // Validamos la estructura
-    //     $data = $request->validate([
-    //         'customer.id' => 'nullable',
-    //         'total' => 'required|numeric',
-    //         'items' => 'required|array|min:1',
-    //         'items.*.color.product_size_id' => 'required|integer',
-    //         'items.*.color.color_id' => 'required|integer',
-    //         'items.*.quantity' => 'required|integer|min:1',
-    //         'items.*.unitPrice' => 'required|numeric',
-    //         'items.*.total' => 'required|numeric',
-    //         'payments' => 'required|array|min:1',
-    //         'payments.*.method' => 'required|string',
-    //         'payments.*.amount' => 'required|numeric',
-    //         'payments.*.reference' => 'nullable|string',
-    //     ]);
-
-    //     try {
-    //         // Preparamos la data plana para el servicio
-    //         $serviceData = [
-    //             'customer_id' => $data['customer']['id'] ?? null,
-    //             'total' => $data['total'],
-    //             'items' => collect($data['items'])->map(function ($i) {
-    //                 return [
-    //                     'product_size_id' => $i['color']['product_size_id'],
-    //                     'color_id' => $i['color']['color_id'],
-    //                     'quantity' => $i['quantity'],
-    //                     'unit_price' => $i['unitPrice'],
-    //                     'total' => $i['total']
-    //                 ];
-    //             })->toArray()
-    //         ];
-
-    //         $sale = $this->saleService->processPosSale($serviceData);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'sale_id' => $sale->id,
-    //             'message' => 'Venta registrada correctamente'
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-    //     }
-    // }
-
     public function checkout(Request $request): JsonResponse
     {
         // 1. Validamos la estructura (Esto estaba bien, lo mantenemos)

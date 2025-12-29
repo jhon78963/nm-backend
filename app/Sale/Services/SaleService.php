@@ -4,6 +4,7 @@ namespace App\Sale\Services;
 
 use App\Sale\Models\Sale;
 use App\Shared\Foundation\Services\ModelService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -14,112 +15,79 @@ class SaleService extends ModelService
         parent::__construct($sale);
     }
 
-    // public function processPosSale(array $data): Sale
+    public function update(Model $model, array $data): Model
+    {
+        return DB::transaction(function () use ($model, $data) {
+
+            // 1. Actualizar campos base (fecha)
+            parent::update($model, $data);
+
+            // 2. Actualizar Precios de Ítems (Si vienen en el request)
+            if (!empty($data['items']) && is_array($data['items'])) {
+
+                foreach ($data['items'] as $itemData) {
+                    $detail = $model->details()->where('id', $itemData['id'])->first();
+
+                    if ($detail) {
+                        $newPrice = (float) $itemData['unit_price'];
+                        $quantity = (int) $detail->quantity;
+                        $newSubtotal = $newPrice * $quantity;
+
+                        $detail->update([
+                            'unit_price' => $newPrice,
+                            'subtotal' => $newSubtotal
+                        ]);
+                    }
+                }
+
+                // 3. Recalcular el Total General
+                $newGrandTotal = $model->details()->sum('subtotal');
+
+                $model->update([
+                    'total_amount' => $newGrandTotal
+                ]);
+
+                // --- CORRECCIÓN: SINCRONIZAR PAGO ÚNICO ---
+                // Si la venta tiene exactamente 1 pago registrado, lo actualizamos
+                // para que coincida con el nuevo total.
+                if ($model->payments()->count() === 1) {
+                    $model->payments()->first()->update([
+                        'amount' => $newGrandTotal
+                    ]);
+                }
+            }
+
+            return $model->fresh(['details', 'payments']);
+        });
+    }
+
+    // public function update(Model $model, array $data): Model
     // {
-    //     return DB::transaction(function () use ($data) {
-    //         // 1. Crear Cabecera
-    //         $sale = $this->create([
-    //             'customer_id' => $data['customer_id'],
-    //             'total_amount' => $data['total'],
-    //             'payment_method' => $data['payment_method'] ?? 'CASH',
-    //             'status' => 'COMPLETED',
-    //             'code' => 'V-' . time(),
-    //         ]);
+    //     return DB::transaction(function () use ($model, $data) {
 
-    //         // 2. Procesar Ítems
-    //         foreach ($data['items'] as $item) {
+    //         parent::update($model, $data);
+    //         if (!empty($data['items']) && is_array($data['items'])) {
 
-    //             $productSizeId = $item['product_size_id'];
-    //             $colorId = $item['color_id'];
-    //             $qty = $item['quantity'];
-
-    //             // =========================================================
-    //             // PASO A: DESCONTAR STOCK MAESTRO (Tabla product_size)
-    //             // =========================================================
-    //             // Siempre restamos de aquí porque representa la existencia física de la talla,
-    //             // tenga color o no.
-
-    //             $masterInventory = DB::table('product_size')
-    //                 ->where('id', $productSizeId)
-    //                 ->lockForUpdate()
-    //                 ->first();
-
-    //             if (!$masterInventory) {
-    //                 throw new Exception("La talla seleccionada no existe en la base de datos.");
-    //             }
-
-    //             // Opcional: Validar stock maestro.
-    //             // A veces el stock maestro se descuadra del detalle, pero es bueno validar.
-    //             if ($masterInventory->stock < $qty) {
-    //                 throw new Exception("Stock general insuficiente para esta talla (Quedan: {$masterInventory->stock}).");
-    //             }
-
-    //             DB::table('product_size')
-    //                 ->where('id', $productSizeId)
-    //                 ->decrement('stock', $qty);
-
-
-    //             // =========================================================
-    //             // PASO B: DESCONTAR STOCK DETALLADO (Tabla product_size_color)
-    //             // =========================================================
-    //             // Solo si se seleccionó un color específico (ID > 0)
-
-    //             if ($colorId > 0) {
-    //                 $colorInventory = DB::table('product_size_color')
-    //                     ->where('product_size_id', $productSizeId)
-    //                     ->where('color_id', $colorId)
-    //                     ->lockForUpdate()
-    //                     ->first();
-
-    //                 // Validación estricta del detalle
-    //                 if (!$colorInventory) {
-    //                     // Si llegamos aquí, es un error de integridad (hay talla, pero no la relación con el color)
-    //                     throw new Exception("Error crítico: No existe la relación Talla-Color para el ID: {$colorId}");
+    //             foreach ($data['items'] as $itemData) {
+    //                 $detail = $model->details()->where('id', $itemData['id'])->first();
+    //                 if ($detail) {
+    //                     $newPrice = (float) $itemData['unit_price'];
+    //                     $quantity = (int) $detail->quantity;
+    //                     $newSubtotal = $newPrice * $quantity;
+    //                     $detail->update([
+    //                         'unit_price' => $newPrice,
+    //                         'subtotal' => $newSubtotal
+    //                     ]);
     //                 }
-
-    //                 if ($colorInventory->stock < $qty) {
-    //                     throw new Exception("Stock insuficiente para el color seleccionado (Quedan: {$colorInventory->stock}).");
-    //                 }
-
-    //                 DB::table('product_size_color')
-    //                     ->where('product_size_id', $productSizeId)
-    //                     ->where('color_id', $colorId)
-    //                     ->decrement('stock', $qty);
     //             }
 
-    //             // =========================================================
-    //             // PASO C: GUARDAR HISTÓRICO (SNAPSHOTS)
-    //             // =========================================================
-
-    //             // Recuperamos nombres para la constancia
-    //             $sizeInfo = DB::table('product_size')
-    //                 ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
-    //                 ->join('products', 'product_size.product_id', '=', 'products.id')
-    //                 ->where('product_size.id', $productSizeId)
-    //                 ->select('products.id as pid', 'products.name as pname', 'sizes.description as sname', 'sizes.id as sid')
-    //                 ->first();
-
-    //             $colorName = 'Único';
-    //             if ($colorId > 0) {
-    //                 $colorName = DB::table('colors')->where('id', $colorId)->value('description') ?? 'Desconocido';
-    //             }
-
-    //             $sale->details()->create([
-    //                 'product_id' => $sizeInfo->pid,
-    //                 'size_id' => $sizeInfo->sid,
-    //                 'color_id' => $colorId > 0 ? $colorId : null,
-
-    //                 'product_name_snapshot' => $sizeInfo->pname,
-    //                 'size_name_snapshot' => $sizeInfo->sname,
-    //                 'color_name_snapshot' => $colorName,
-
-    //                 'quantity' => $qty,
-    //                 'unit_price' => $item['unit_price'],
-    //                 'subtotal' => $item['total']
+    //             $newGrandTotal = $model->details()->sum('subtotal');
+    //             $model->update([
+    //                 'total_amount' => $newGrandTotal
     //             ]);
     //         }
 
-    //         return $sale;
+    //         return $model->fresh(['details']);
     //     });
     // }
 

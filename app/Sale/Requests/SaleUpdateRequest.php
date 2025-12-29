@@ -23,6 +23,9 @@ class SaleUpdateRequest extends FormRequest
     {
         return [
             'creationTime' => 'nullable',
+            'items' => 'nullable|array',
+            'items.*.id' => 'required|integer|exists:sale_details,id',
+            'items.*.unit_price' => 'required|numeric|min:0',
         ];
     }
 }
