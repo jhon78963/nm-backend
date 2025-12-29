@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Sale\Services;
+namespace App\Finance\Sale\Services;
 
-use App\Sale\Models\Sale;
+use App\Finance\Sale\Models\Sale;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;

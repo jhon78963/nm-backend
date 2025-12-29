@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Sale\Controllers;
+namespace App\Finance\Sale\Controllers;
 
 use App\Directory\Customer\Services\CustomerService;
 use App\Inventory\Product\Services\ProductService;
-use App\Sale\Models\Sale;
-use App\Sale\Requests\SaleUpdateRequest;
-use App\Sale\Resources\SaleDetailResource;
-use App\Sale\Resources\SaleResource;
-use App\Sale\Services\SaleService;
+use App\Finance\Sale\Models\Sale;
+use App\Finance\Sale\Requests\SaleUpdateRequest;
+use App\Finance\Sale\Resources\SaleDetailResource;
+use App\Finance\Sale\Resources\SaleResource;
+use App\Finance\Sale\Services\SaleService;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
@@ -135,7 +135,7 @@ class SaleController extends Controller
     {
         $query = $this->sharedService->query(
             request: $request,
-            entityName: 'Sale',
+            entityName: 'Finance\\Sale',
             modelName: 'Sale',
             columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name'],
             orderBy: 'creation_time',

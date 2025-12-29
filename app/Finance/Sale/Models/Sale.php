@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Sale\Models;
+namespace App\Finance\Sale\Models;
 
 use App\Administration\User\Models\User;
 use App\Directory\Customer\Models\Customer;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Sale\Models;
+namespace App\Finance\Sale\Models;
 
 use App\Inventory\Color\Models\Color;
 use App\Inventory\Product\Models\Product;
