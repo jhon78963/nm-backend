@@ -16,9 +16,6 @@ class SaleService extends ModelService
         parent::__construct($sale);
     }
 
-    /**
-     * Reporte de Ventas vs Costos Agrupado por Mes
-     */
     public function getMonthlyStats(): Collection
     {
         // 1. INGRESOS: Sacamos directamente de 'sales' sumando 'total_amount'
@@ -53,10 +50,14 @@ class SaleService extends ModelService
             ->groupByRaw("TO_CHAR(s.creation_time, 'MM-YYYY')")
             ->pluck('total_cost', 'month_year');
 
-        // 3. FUSIÓN: Unimos ambos datos en una sola colección
+        // 3. FUSIÓN: Unimos ambos datos y calculamos la GANANCIA
         return $revenues->map(function ($item) use ($costs) {
             // Asignamos el costo correspondiente al mes, o 0 si no hay datos
             $item->total_cost = $costs[$item->month_year] ?? 0;
+
+            // Calculamos la Ganancia (Ingreso - Costo)
+            $item->profit = $item->total_revenue - $item->total_cost;
+
             return $item;
         })->values();
     }
