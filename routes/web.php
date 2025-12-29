@@ -1,6 +1,6 @@
 <?php
 
-use App\Sale\Controllers\SaleController;
+use App\Finance\Sale\Controllers\SaleController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
