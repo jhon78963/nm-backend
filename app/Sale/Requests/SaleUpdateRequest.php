@@ -26,6 +26,10 @@ class SaleUpdateRequest extends FormRequest
             'items' => 'nullable|array',
             'items.*.id' => 'required|integer|exists:sale_details,id',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'payments' => 'nullable|array',
+            'payments.*.method' => 'required|string', // CASH, YAPE, PLIN...
+            'payments.*.amount' => 'required|numeric|min:0',
+            'payments.*.reference' => 'nullable|string',
         ];
     }
 }

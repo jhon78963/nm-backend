@@ -17,43 +17,44 @@ class SaleService extends ModelService
 
     public function update(Model $model, array $data): Model
     {
-        return DB::transaction(function () use ($model, $data) {
+        return DB::transaction(function () use ($model, $data): Model|null {
+            $model->fill($data);
+            $model->save();
 
-            // 1. Actualizar campos base (fecha)
-            parent::update($model, $data);
-
-            // 2. Actualizar Precios de Ítems (Si vienen en el request)
             if (!empty($data['items']) && is_array($data['items'])) {
-
                 foreach ($data['items'] as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
-
                     if ($detail) {
                         $newPrice = (float) $itemData['unit_price'];
                         $quantity = (int) $detail->quantity;
-                        $newSubtotal = $newPrice * $quantity;
 
                         $detail->update([
                             'unit_price' => $newPrice,
-                            'subtotal' => $newSubtotal
+                            'subtotal' => $newPrice * $quantity
                         ]);
                     }
                 }
 
-                // 3. Recalcular el Total General
                 $newGrandTotal = $model->details()->sum('subtotal');
+                $model->update(['total_amount' => $newGrandTotal]);
+            }
 
-                $model->update([
-                    'total_amount' => $newGrandTotal
-                ]);
-
-                // --- CORRECCIÓN: SINCRONIZAR PAGO ÚNICO ---
-                // Si la venta tiene exactamente 1 pago registrado, lo actualizamos
-                // para que coincida con el nuevo total.
-                if ($model->payments()->count() === 1) {
-                    $model->payments()->first()->update([
-                        'amount' => $newGrandTotal
+            if (isset($data['payments']) && is_array($data['payments'])) {
+                $model->payments()->delete();
+                foreach ($data['payments'] as $payment) {
+                    $model->payments()->create([
+                        'method' => $payment['method'],
+                        'amount' => $payment['amount'],
+                        'reference' => $payment['reference'] ?? null,
                     ]);
+                }
+
+                $mainMethod = count($data['payments']) > 1 ? 'MIXTO' : $data['payments'][0]['method'];
+                $model->update(['payment_method' => $mainMethod]);
+
+            } else {
+                if ($model->payments()->count() === 1) {
+                    $model->payments()->first()->update(['amount' => $model->total_amount]);
                 }
             }
 
@@ -61,45 +62,11 @@ class SaleService extends ModelService
         });
     }
 
-    // public function update(Model $model, array $data): Model
-    // {
-    //     return DB::transaction(function () use ($model, $data) {
-
-    //         parent::update($model, $data);
-    //         if (!empty($data['items']) && is_array($data['items'])) {
-
-    //             foreach ($data['items'] as $itemData) {
-    //                 $detail = $model->details()->where('id', $itemData['id'])->first();
-    //                 if ($detail) {
-    //                     $newPrice = (float) $itemData['unit_price'];
-    //                     $quantity = (int) $detail->quantity;
-    //                     $newSubtotal = $newPrice * $quantity;
-    //                     $detail->update([
-    //                         'unit_price' => $newPrice,
-    //                         'subtotal' => $newSubtotal
-    //                     ]);
-    //                 }
-    //             }
-
-    //             $newGrandTotal = $model->details()->sum('subtotal');
-    //             $model->update([
-    //                 'total_amount' => $newGrandTotal
-    //             ]);
-    //         }
-
-    //         return $model->fresh(['details']);
-    //     });
-    // }
-
     public function processPosSale(array $data): Sale
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data): Model {
 
-            // 1. RECUPERAR PAGOS
-            // Si validaste en el controller, $data['payments'] tendrá tus 2 pagos (Yape/Efectivo).
-            // Si no, entrará al fallback de CASH.
             $payments = $data['payments'] ?? [];
-
             if (empty($payments)) {
                 $payments = [
                     [
@@ -110,10 +77,7 @@ class SaleService extends ModelService
                 ];
             }
 
-            // 2. DEFINIR MÉTODO PRINCIPAL (Para la cabecera)
             $mainMethod = count($payments) > 1 ? 'MIXTO' : $payments[0]['method'];
-
-            // 3. CREAR VENTA (Cabecera)
             $sale = $this->create([
                 'customer_id' => $data['customer_id'] ?? null, // Usamos null coalescing por si viene plano
                 'total_amount' => $data['total'],
@@ -123,34 +87,18 @@ class SaleService extends ModelService
                 'creation_time' => now(),
             ]);
 
-            // 4. GUARDAR LOS PAGOS DETALLADOS
-            // Aquí es donde se guardan los 6 de Efectivo y 7 de Yape
             foreach ($payments as $payment) {
-                // Opción A: Usando relación (Si definiste hasMany en Sale)
                 $sale->payments()->create([
                     'method' => $payment['method'],
                     'amount' => $payment['amount'],
                     'reference' => $payment['reference'] ?? null,
                 ]);
-
-                // Opción B: Directo (Si te da error de relación, usa esta)
-                /*
-                \App\Sales\Models\SalePayment::create([
-                    'sale_id'   => $sale->id,
-                    'method'    => $payment['method'],
-                    'amount'    => $payment['amount'],
-                    'reference' => $payment['reference'] ?? null,
-                ]);
-                */
             }
 
-            // 5. PROCESAR ÍTEMS E INVENTARIO
             foreach ($data['items'] as $item) {
                 $productSizeId = $item['product_size_id'];
                 $colorId = $item['color_id'];
                 $qty = $item['quantity'];
-
-                // --- DESCUENTO DE STOCK ---
                 $masterInventory = DB::table('product_size')
                     ->where('id', $productSizeId)
                     ->lockForUpdate()
@@ -179,7 +127,6 @@ class SaleService extends ModelService
                         ->decrement('stock', $qty);
                 }
 
-                // --- SNAPSHOTS PARA EL TICKET ---
                 $sizeInfo = DB::table('product_size')
                     ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
                     ->join('products', 'product_size.product_id', '=', 'products.id')
