@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -13,7 +12,17 @@ return new class extends Migration
     {
         Schema::create('cash_movements', function (Blueprint $table) {
             $table->id();
-            $table->timestamps();
+            $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
+            $table->foreignId('creator_user_id')->nullable()->constrained('users');
+            $table->datetime('last_modification_time')->nullable();
+            $table->foreignId('last_modifier_user_id')->nullable()->constrained('users');
+            $table->datetime('deletion_time')->nullable();
+            $table->foreignId('deleter_user_id')->nullable()->constrained('users');
+            $table->boolean('is_deleted')->default(false);
+            $table->enum('type', ['INCOME', 'EXPENSE']);
+            $table->decimal('amount', 10, 2);
+            $table->string('description');
+            $table->string('payment_method')->default('CASH'); // CASH, YAPE, CARD.
         });
     }
 
