@@ -159,4 +159,24 @@ class SaleController extends Controller
             return response()->json(['message' => 'Sale updated.'], 200);
         });
     }
+
+    public function exchange(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'returned_detail_id' => 'required|integer|exists:sale_details,id',
+            'difference_amount' => 'required|numeric|min:0',
+            'payment_method' => 'nullable|string',
+            // Datos del nuevo producto seleccionado
+            'new_item.product_size_id' => 'required|integer',
+            'new_item.color_id' => 'required|integer',
+            // 'new_item.quantity' => 'required|integer' // Opcional si es 1 a 1
+        ]);
+
+        try {
+            $this->saleService->processExchange($data);
+            return response()->json(['success' => true, 'message' => 'Cambio registrado correctamente']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }

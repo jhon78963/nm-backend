@@ -38,7 +38,7 @@ class CashflowService
                     'time' => $sale->creation_time->format('H:i A'),
 
                     // FORMATO FINAL: Venta Ropa #Code | Detalles
-                    'description' => "Venta Ropa #{$sale->code} | {$itemsDescription}",
+                    'description' => "{$sale->code} | {$itemsDescription}",
 
                     'method' => $sale->payment_method,
                     'amount' => (float) $sale->total_amount,
