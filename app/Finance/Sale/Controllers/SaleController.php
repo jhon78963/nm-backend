@@ -169,6 +169,8 @@ class SaleController extends Controller
             // Datos del nuevo producto seleccionado
             'new_item.product_size_id' => 'required|integer',
             'new_item.color_id' => 'required|integer',
+            'new_item.final_price' => 'required|integer',
+
             // 'new_item.quantity' => 'required|integer' // Opcional si es 1 a 1
         ]);
 

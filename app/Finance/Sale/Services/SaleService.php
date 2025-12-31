@@ -209,7 +209,7 @@ class SaleService extends ModelService
         });
     }
 
-    public function processExchange(array $data)
+        public function processExchange(array $data)
     {
         return DB::transaction(function () use ($data) {
             // A. ITEM QUE ENTRA (DEVOLUCIÓN)
@@ -239,15 +239,14 @@ class SaleService extends ModelService
 
             // PRIORIDAD: Usar final_price del payload. Si no existe, buscar en BD.
             $newPrice = isset($newItemData['final_price'])
-                ? (float) $newItemData['final_price']
+                ? (float)$newItemData['final_price']
                 : (DB::table('product_size')->where('id', $newPsId)->value('sale_price') ?? 0);
 
             $qty = 1;
 
             // 2. Descontar Stock Nuevo
             $masterInventory = DB::table('product_size')->where('id', $newPsId)->lockForUpdate()->first();
-            if (!$masterInventory)
-                throw new Exception("Talla nueva no encontrada.");
+            if (!$masterInventory) throw new Exception("Talla nueva no encontrada.");
 
             DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
 
@@ -271,15 +270,15 @@ class SaleService extends ModelService
                 : 'Único';
 
             $originalSale->details()->create([
-                'product_id' => $sizeInfo->pid,
-                'size_id' => $sizeInfo->sid,
-                'color_id' => $newColorId > 0 ? $newColorId : null,
+                'product_id'            => $sizeInfo->pid,
+                'size_id'               => $sizeInfo->sid,
+                'color_id'              => $newColorId > 0 ? $newColorId : null,
                 'product_name_snapshot' => $sizeInfo->pname,
-                'size_name_snapshot' => $sizeInfo->sname,
-                'color_name_snapshot' => $colorName,
-                'quantity' => $qty,
-                'unit_price' => $newPrice,
-                'subtotal' => $newPrice * $qty
+                'size_name_snapshot'    => $sizeInfo->sname,
+                'color_name_snapshot'   => $colorName,
+                'quantity'              => $qty,
+                'unit_price'            => $newPrice,
+                'subtotal'              => $newPrice * $qty
             ]);
 
             // 4. Eliminar Detalle Antiguo
@@ -320,12 +319,141 @@ class SaleService extends ModelService
                 ]);
             }
 
-            // 8. Notas
+            // 8. Notas (Con control de longitud)
             $note = "CAMBIO: Entregó {$returnedDetail->product_name_snapshot}, Llevó {$sizeInfo->pname} (S/ {$newPrice}).";
-            $originalSale->notes = trim(($originalSale->notes ?? '') . " | " . $note);
+            $currentNotes = $originalSale->notes ?? '';
+            $combinedNotes = $currentNotes . " | " . $note;
+
+            // Cortamos si excede 255 caracteres para evitar error SQL
+            if (strlen($combinedNotes) > 255) {
+                // Mantenemos la parte final (lo más reciente)
+                $combinedNotes = substr($combinedNotes, -255);
+            }
+
+            $originalSale->notes = trim($combinedNotes, " |");
             $originalSale->save();
 
             return true;
         });
     }
+
+    // public function processExchange(array $data)
+    // {
+    //     return DB::transaction(function () use ($data) {
+    //         // A. ITEM QUE ENTRA (DEVOLUCIÓN)
+    //         $returnedDetail = SaleDetail::with('sale')->findOrFail($data['returned_detail_id']);
+    //         $originalSale = $returnedDetail->sale;
+
+    //         // 1. Restaurar Stock
+    //         $returnedPsId = DB::table('product_size')
+    //             ->where('product_id', $returnedDetail->product_id)
+    //             ->where('size_id', $returnedDetail->size_id)
+    //             ->value('id');
+
+    //         if ($returnedPsId) {
+    //             DB::table('product_size')->where('id', $returnedPsId)->increment('stock', $returnedDetail->quantity);
+    //             if ($returnedDetail->color_id) {
+    //                 DB::table('product_size_color')
+    //                     ->where('product_size_id', $returnedPsId)
+    //                     ->where('color_id', $returnedDetail->color_id)
+    //                     ->increment('stock', $returnedDetail->quantity);
+    //             }
+    //         }
+
+    //         // B. ITEM QUE SALE (NUEVO)
+    //         $newItemData = $data['new_item'];
+    //         $newPsId = $newItemData['product_size_id'];
+    //         $newColorId = $newItemData['color_id'];
+
+    //         // PRIORIDAD: Usar final_price del payload. Si no existe, buscar en BD.
+    //         $newPrice = isset($newItemData['final_price'])
+    //             ? (float) $newItemData['final_price']
+    //             : (DB::table('product_size')->where('id', $newPsId)->value('sale_price') ?? 0);
+
+    //         $qty = 1;
+
+    //         // 2. Descontar Stock Nuevo
+    //         $masterInventory = DB::table('product_size')->where('id', $newPsId)->lockForUpdate()->first();
+    //         if (!$masterInventory)
+    //             throw new Exception("Talla nueva no encontrada.");
+
+    //         DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
+
+    //         if ($newColorId > 0) {
+    //             DB::table('product_size_color')
+    //                 ->where('product_size_id', $newPsId)
+    //                 ->where('color_id', $newColorId)
+    //                 ->decrement('stock', $qty);
+    //         }
+
+    //         // 3. Crear Detalle Nuevo
+    //         $sizeInfo = DB::table('product_size')
+    //             ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
+    //             ->join('products', 'product_size.product_id', '=', 'products.id')
+    //             ->where('product_size.id', $newPsId)
+    //             ->select('products.id as pid', 'products.name as pname', 'sizes.description as sname', 'sizes.id as sid')
+    //             ->first();
+
+    //         $colorName = $newColorId > 0
+    //             ? (DB::table('colors')->where('id', $newColorId)->value('description') ?? 'Desconocido')
+    //             : 'Único';
+
+    //         $originalSale->details()->create([
+    //             'product_id' => $sizeInfo->pid,
+    //             'size_id' => $sizeInfo->sid,
+    //             'color_id' => $newColorId > 0 ? $newColorId : null,
+    //             'product_name_snapshot' => $sizeInfo->pname,
+    //             'size_name_snapshot' => $sizeInfo->sname,
+    //             'color_name_snapshot' => $colorName,
+    //             'quantity' => $qty,
+    //             'unit_price' => $newPrice,
+    //             'subtotal' => $newPrice * $qty
+    //         ]);
+
+    //         // 4. Eliminar Detalle Antiguo
+    //         $returnedDetail->delete();
+
+    //         // 5. Actualizar Total Venta
+    //         $newTotal = $originalSale->details()->sum('subtotal');
+    //         $originalSale->update(['total_amount' => $newTotal]);
+
+    //         // 6. ACTUALIZAR PAGOS (SALE PAYMENTS) - REEMPLAZO TOTAL
+    //         // Borramos historial antiguo de pagos de esta venta
+    //         $originalSale->payments()->delete();
+
+    //         // Creamos UN solo pago nuevo con el total actual y la fecha de hoy
+    //         // Usando el método de pago especificado en el cambio
+    //         $newPaymentMethod = $data['payment_method'] ?? 'CASH';
+
+    //         $originalSale->payments()->create([
+    //             'method' => $newPaymentMethod,
+    //             'amount' => $newTotal, // El total de la venta actual (ej. 20)
+    //             'reference' => 'CAMBIO MERCADERÍA',
+    //             'created_at' => now() // Fecha actual del cambio
+    //         ]);
+
+    //         // Actualizamos la cabecera con el nuevo método único
+    //         $originalSale->update(['payment_method' => $newPaymentMethod]);
+
+    //         // 7. REGISTRAR EN CAJA CHICA (Solo la diferencia real que entra hoy)
+    //         $difference = $data['difference_amount'];
+    //         if ($difference > 0) {
+    //             CashMovement::create([
+    //                 'type' => 'INCOME',
+    //                 'amount' => $difference,
+    //                 'description' => "Cambio Mercadería #{$originalSale->code} (Diferencia)",
+    //                 'payment_method' => $newPaymentMethod,
+    //                 'creation_time' => now(),
+    //                 'creator_user_id' => auth()->id()
+    //             ]);
+    //         }
+
+    //         // 8. Notas
+    //         $note = "CAMBIO: Entregó {$returnedDetail->product_name_snapshot}, Llevó {$sizeInfo->pname} (S/ {$newPrice}).";
+    //         $originalSale->notes = trim(($originalSale->notes ?? '') . " | " . $note);
+    //         $originalSale->save();
+
+    //         return true;
+    //     });
+    // }
 }
