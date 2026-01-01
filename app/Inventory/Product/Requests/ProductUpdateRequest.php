@@ -32,7 +32,7 @@ class ProductUpdateRequest extends FormRequest
             'sale_price' => 'nullable',
             'min_sale_price' => 'nullable',
             'status' => 'nullable|string',
-            'gender_id' => 'sometimes|integer',
+            'genderId' => 'sometimes|integer',
             'warehouseId' => 'sometimes|integer',
         ];
     }
