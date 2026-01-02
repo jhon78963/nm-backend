@@ -5,13 +5,72 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Shared\Foundation\Services\ModelService;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
 
 class ProductService extends ModelService
 {
-    public function __construct(Product $product)
-    {
+    protected ProductHistoryService $historyService;
+    public function __construct(
+        Product $product,
+        ProductHistoryService $historyService,
+    ) {
         parent::__construct($product);
+        $this->historyService = $historyService;
+    }
+
+
+    public function create(array $data): Model
+    {
+        $product = parent::create($data);
+
+        $this->historyService->logChange(
+            $product,
+            'PRODUCT',
+            $product->id,
+            'CREATED',
+            null,
+            $product->toArray()
+        );
+
+        return $product;
+    }
+
+    public function update(Model $model, array $data): Model
+    {
+        // Guardamos el estado original antes de actualizar
+        $oldData = $model->toArray();
+
+        $product = parent::update($model, $data);
+
+        // Obtenemos el estado nuevo
+        $newData = $product->fresh()->toArray();
+
+        $this->historyService->logChange(
+            $product,
+            'PRODUCT',
+            $product->id,
+            'UPDATED',
+            $oldData,
+            $newData
+        );
+
+        return $product;
+    }
+
+    public function delete(Model $model): void
+    {
+        $oldData = $model->toArray();
+
+        parent::delete($model);
+
+        $this->historyService->logChange(
+            $model,
+            'PRODUCT',
+            $model->id,
+            'DELETED',
+            $oldData,
+            null
+        );
     }
 
     public function findBySkuForPos(string $barcode): ?array

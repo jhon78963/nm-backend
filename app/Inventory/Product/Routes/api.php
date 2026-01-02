@@ -1,6 +1,7 @@
 <?php
 
 use App\Inventory\Product\Controllers\ProductController;
+use App\Inventory\Product\Controllers\ProductHistoryController;
 use App\Inventory\Product\Controllers\ProductImageController;
 use App\Inventory\Product\Controllers\ProductSizeColorController;
 use App\Inventory\Product\Controllers\ProductSizeController;
@@ -34,3 +35,5 @@ Route::controller(ProductImageController::class)->group(function(): void {
     Route::delete('/products/{product}/image/{path}', 'remove')->where('path', '.*');
     Route::get('/products/{product}/images', 'getAll');
 });
+
+Route::get('/products/{id}/history', [ProductHistoryController::class, 'index']);
