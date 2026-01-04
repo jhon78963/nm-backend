@@ -3,6 +3,7 @@
 namespace App\Finance\CashMovement\Controllers;
 
 use App\Finance\CashMovement\Services\CashflowService;
+use App\Finance\FinancialSummary\Requests\StoreTransactionRequest;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -29,16 +30,16 @@ class CashflowController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreTransactionRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'type' => 'required|in:INCOME,EXPENSE',
-            'amount' => 'required|numeric|min:0.1',
-            'description' => 'required|string|max:255',
-            'payment_method' => 'nullable|string'
-        ]);
+        // $data = $request->validate([
+        //     'type' => 'required|in:INCOME,EXPENSE',
+        //     'amount' => 'required|numeric|min:0.1',
+        //     'description' => 'required|string|max:255',
+        //     'payment_method' => 'nullable|string'
+        // ]);
 
-        $this->cashflowService->registerMovement($data);
+        $this->cashflowService->registerMovement($request->validated());
 
         return response()->json(['success' => true, 'message' => 'Movimiento registrado']);
     }
