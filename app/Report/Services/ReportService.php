@@ -14,38 +14,38 @@ class ReportService
      */
     public function getSalesTotals(?string $referenceDate = null)
     {
-        $date = ($referenceDate && trim($referenceDate) !== '')
-            ? Carbon::parse($referenceDate)
-            : Carbon::now();
+        try {
+            $date = ($referenceDate && trim($referenceDate) !== '')
+                ? Carbon::parse($referenceDate)
+                : Carbon::now();
+        } catch (\Exception $e) {
+            $date = Carbon::now();
+        }
 
-        // 1. Diario (Día específico)
+        // 1. Diario (Ventas del día de referencia)
         $daily = Sale::whereDate('creation_time', $date->toDateString())
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // 2. Semanal (CORREGIDO: Limitado al mes actual)
-        // Calculamos el inicio y fin de la semana natural
+        // 2. Semanal (Lunes a Domingo de la semana de referencia)
+        // Forzamos el límite al mes actual para no arrastrar ventas de otros meses
         $weekStart = $date->copy()->startOfWeek();
         $weekEnd = $date->copy()->endOfWeek();
 
-        // TRUCO: Si el inicio de la semana cae en el mes anterior, lo forzamos al día 1 del mes actual.
-        // Así el "Semanal" nunca traerá ventas del mes pasado.
         if ($weekStart->month !== $date->month) {
             $weekStart = $date->copy()->startOfMonth();
         }
-
-        // Lo mismo para el final (aunque startOfWeek suele ser el problema al inicio de mes)
         if ($weekEnd->month !== $date->month) {
             $weekEnd = $date->copy()->endOfMonth();
         }
 
-        $weekly = Sale::whereBetween('creation_time', [$weekStart, $weekEnd])
+        $weekly = Sale::whereBetween('creation_time', [$weekStart->startOfDay(), $weekEnd->endOfDay()])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // 3. Mensual
+        // 3. Mensual (Mes completo de la fecha de referencia)
         $monthly = Sale::whereMonth('creation_time', $date->month)
             ->whereYear('creation_time', $date->year)
             ->where('status', 'COMPLETED')
@@ -53,18 +53,18 @@ class ReportService
             ->sum('total_amount');
 
         return [
-            'daily' => (float) $daily,
-            'weekly' => (float) $weekly,
-            'monthly' => (float) $monthly
+            'daily' => (float)$daily,
+            'weekly' => (float)$weekly,
+            'monthly' => (float)$monthly
         ];
     }
 
     /**
-     * Top Productos Más Vendidos
+     * Top Productos Más Vendidos (RANKING GENERAL HISTÓRICO)
+     * No filtra por fechas, muestra los "best sellers" de siempre.
      */
     public function getTopProducts(int $limit = 20)
     {
-        // Eliminamos $startDate y $endDate para que sea global
         return DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
             ->selectRaw('
@@ -76,7 +76,6 @@ class ReportService
             ')
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false)
-            // ->whereBetween(...) <--- ELIMINADO: Ahora es histórico total
             ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
             ->orderByDesc('total_sold')
             ->limit($limit)
@@ -88,8 +87,9 @@ class ReportService
      */
     public function getFinancialReport(?string $startDate = null, ?string $endDate = null)
     {
-        $start = $startDate ? Carbon::parse($startDate) : Carbon::now()->startOfMonth();
-        $end = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
+        // CORRECCIÓN CLAVE: Usar startOfDay() y endOfDay() para incluir todas las horas
+        $start = $startDate ? Carbon::parse($startDate)->startOfDay() : Carbon::now()->startOfMonth();
+        $end = $endDate ? Carbon::parse($endDate)->endOfDay() : Carbon::now()->endOfMonth();
 
         // 1. VENTAS BRUTAS
         $salesRevenue = Sale::whereBetween('creation_time', [$start, $end])
@@ -100,9 +100,9 @@ class ReportService
         // 2. COSTO DE MERCADERÍA
         $costOfGoods = DB::table('sales as s')
             ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
-            ->leftJoin('product_size as ps', function ($join) {
-                $join->on('sd.product_id', '=', 'ps.product_id')
-                    ->on('sd.size_id', '=', 'ps.size_id');
+            ->leftJoin('product_size as ps', function($join) {
+                 $join->on('sd.product_id', '=', 'ps.product_id')
+                      ->on('sd.size_id', '=', 'ps.size_id');
             })
             ->whereBetween('s.creation_time', [$start, $end])
             ->where('s.status', 'COMPLETED')
@@ -123,11 +123,11 @@ class ReportService
 
         return [
             'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
-            'sales_revenue' => (float) $salesRevenue,
-            'cost_of_goods' => (float) $costOfGoods,
-            'gross_profit' => (float) $grossProfit,
-            'operating_expenses' => (float) $operatingExpenses,
-            'net_utility' => (float) $netUtility,
+            'sales_revenue' => (float)$salesRevenue,
+            'cost_of_goods' => (float)$costOfGoods,
+            'gross_profit' => (float)$grossProfit,
+            'operating_expenses' => (float)$operatingExpenses,
+            'net_utility' => (float)$netUtility,
             'chart_data' => $this->getDailyChartData($start, $end)
         ];
     }
@@ -150,11 +150,13 @@ class ReportService
         $dataSales = [];
         $dataExpenses = [];
 
+        // Iteramos día por día para llenar huecos con 0
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
-            $dataSales[] = isset($sales[$dateStr]) ? (float) $sales[$dateStr] : 0;
-            $dataExpenses[] = isset($expenses[$dateStr]) ? (float) $expenses[$dateStr] : 0;
+
+            $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
+            $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
         }
 
         return [
