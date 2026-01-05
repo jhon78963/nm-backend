@@ -12,27 +12,29 @@ class ProductHistoryController extends Controller
 {
     public function index(int $productId): JsonResponse
     {
-        $history = ProductHistory::with('creator:id,name,surname')
-            ->where('product_id', $productId)
-            ->orderByDesc('creation_time')
+        $history = ProductHistory::where('product_id', $productId)
+            ->orderBy('creation_time', 'desc')
             ->get()
             ->map(function ($log) {
-
-                $fullName = trim(
-                    ($log->creator->name ?? '') . ' ' . ($log->creator->surname ?? '')
-                );
-
-                $dateTime = Carbon::parse($log->creation_time);
+                // Resolver usuario
+                $user = DB::table('users')->where('id', $log->user_id)->first();
+                $fullName = 'Sistema';
+                if ($user) {
+                    $surname = $user->paternal_surname ?? $user->surname ?? '';
+                    $fullName = trim($user->name . ' ' . $surname);
+                } elseif (!empty($log->user_name)) {
+                    $fullName = $log->user_name;
+                }
 
                 return [
                     'id' => $log->id,
-                    'date' => $dateTime->format('d/m/Y'),
-                    'time' => $dateTime->format('h:i A'),
-                    'user' => $fullName !== '' ? $fullName : 'Sistema',
+                    'date' => Carbon::parse($log->creation_time)->format('d/m/Y'),
+                    'time' => Carbon::parse($log->creation_time)->format('h:i A'),
+                    'user' => $fullName,
                     'action_title' => $this->getActionTitle($log),
-                    'changes' => $this->formatChanges($log->old_values, $log->new_values),
+                    'changes' => $this->formatChanges($log->old_values, $log->new_values, $log->entity_type),
                     'severity' => $this->getSeverity($log->event_type),
-                    'icon' => $this->getIcon($log->event_type, $log->entity_type),
+                    'icon' => $this->getIcon($log->event_type, $log->entity_type)
                 ];
             });
 
@@ -44,46 +46,50 @@ class ProductHistoryController extends Controller
 
     private function getActionTitle($log): string
     {
-        // 1. Construimos el contexto (Nombre Talla / Color) para el título
-        $extraInfo = '';
+        // CASOS ESPECIALES: VENTAS Y CAMBIOS
+        if ($log->entity_type === 'SALE') {
+            $code = $log->new_values['sale_code'] ?? '---';
+            return "Venta Registrada ($code)";
+        }
+        if ($log->entity_type === 'EXCHANGE') {
+            $code = $log->new_values['sale_code'] ?? '---';
+            $type = $log->event_type === 'RETURNED' ? 'Devolución' : 'Salida por Cambio';
 
+            $note = $log->new_values['exchange_note'] ?? $log->old_values['exchange_note'] ?? '';
+
+            if ($note) {
+                return "$type en Venta ($code) | $note";
+            }
+
+            return "$type en Venta ($code)";
+        }
+
+        // LÓGICA ESTÁNDAR (INVENTARIO)
+        $extraInfo = '';
         if ($log->entity_type === 'SIZE') {
-            // Buscamos el nombre de la talla
             $name = DB::table('sizes')->where('id', $log->entity_id)->value('description');
-            if ($name)
-                $extraInfo = " ($name)";
+            if ($name) $extraInfo = " ($name)";
         } elseif ($log->entity_type === 'COLOR') {
-            // A. Nombre del Color
             $colorName = $log->old_values['color_name']
                 ?? $log->new_values['color_name']
                 ?? DB::table('colors')->where('id', $log->entity_id)->value('description');
-
             $extraInfo = $colorName ? " ($colorName)" : '';
 
-            // B. Nombre de la Talla Padre
-            // Intento 1: Buscar referencia explícita guardada
             $sizeId = $log->new_values['size_id_ref'] ?? $log->old_values['size_id_ref'] ?? null;
-
-            // Intento 2 (Fallback para Eliminaciones): Buscar a través del product_size_id
             if (!$sizeId) {
                 $psId = $log->new_values['product_size_id'] ?? $log->old_values['product_size_id'] ?? null;
-                if ($psId) {
-                    $sizeId = DB::table('product_size')->where('id', $psId)->value('size_id');
-                }
+                if ($psId) $sizeId = DB::table('product_size')->where('id', $psId)->value('size_id');
             }
-
-            // Si encontramos el ID de la talla, buscamos su nombre
             if ($sizeId) {
                 $sizeName = DB::table('sizes')->where('id', $sizeId)->value('description');
-                if ($sizeName)
-                    $extraInfo .= " en Talla $sizeName";
+                if ($sizeName) $extraInfo .= " en Talla $sizeName";
             }
         }
 
         $entity = match ($log->entity_type) {
             'PRODUCT' => 'Producto',
             'SIZE' => 'Talla' . $extraInfo,
-            'COLOR' => 'Stock/Color' . $extraInfo, // Ej: Stock/Color (Rojo) en Talla M
+            'COLOR' => 'Stock/Color' . $extraInfo,
             default => 'Item'
         };
 
@@ -103,26 +109,55 @@ class ProductHistoryController extends Controller
             'CREATED' => 'success',
             'UPDATED' => 'info',
             'DELETED' => 'danger',
+            'RETURNED' => 'warning',
+            'TAKEN' => 'success',
             default => 'secondary'
         };
     }
 
     private function getIcon($eventType, $entityType): string
     {
-        if ($eventType === 'DELETED')
-            return 'pi pi-trash';
-        if ($eventType === 'CREATED')
-            return 'pi pi-plus';
+        if ($entityType === 'SALE') return 'pi pi-shopping-cart';
+        if ($entityType === 'EXCHANGE') return 'pi pi-sync';
+
+        if ($eventType === 'DELETED') return 'pi pi-trash';
+        if ($eventType === 'CREATED') return 'pi pi-plus';
         return 'pi pi-pencil';
     }
 
-    private function formatChanges($old, $new): array
+    private function formatChanges($old, $new, $entityType): array
     {
         $changes = [];
+
+        // FORMATO ESPECIAL PARA VENTAS/CAMBIOS
+        if ($entityType === 'SALE' || $entityType === 'EXCHANGE') {
+
+            // 1. Mostrar cambio de STOCK (Lo que faltaba)
+            if (isset($old['stock']) && isset($new['stock'])) {
+                $changes[] = [
+                    'field' => 'Stock',
+                    'from' => $old['stock'],
+                    'to' => $new['stock']
+                ];
+            }
+
+            // 2. Mostrar Detalles de la Operación
+            $qty = $new['quantity'] ?? 0;
+            $price = $new['unit_price'] ?? 0;
+            $size = $new['size_name'] ?? '-';
+            $color = $new['color_name'] ?? '-';
+
+            $changes[] = ['field' => 'Cantidad', 'from' => '-', 'to' => $qty];
+            if ($price > 0) $changes[] = ['field' => 'Precio Unit.', 'from' => '-', 'to' => "S/ $price"];
+            $changes[] = ['field' => 'Detalle', 'from' => '-', 'to' => "$size / $color"];
+
+            return $changes;
+        }
+
+        // LÓGICA ESTÁNDAR (INVENTARIO)
         $old = $old ?? [];
         $new = $new ?? [];
 
-        // Mapeo de nombres técnicos a amigables
         $labels = [
             'name' => 'Nombre',
             'stock' => 'Stock',
@@ -130,92 +165,33 @@ class ProductHistoryController extends Controller
             'purchase_price' => 'Precio Compra',
             'status' => 'Estado',
             'barcode' => 'Código Barras',
-            // Mapeos nuevos
-            'warehouse_id' => 'Almacén',
-            'gender_id' => 'Género',
-            'product_size_id' => 'Talla',
-            'size_id_ref' => 'Talla',
-            'color_id' => 'Color',
-            'color_name' => 'Color'
         ];
 
-        // Helper para resolver valores
-        $resolveValue = function ($key, $value) use ($old) {
-            // Resolver Almacén
-            if ($key === 'warehouse_id') {
-                $name = DB::table('warehouses')->where('id', $value)->value('name');
-                return $name ? "$name" : "#$value";
-            }
+        // Helper
+        $resolveValue = function($key, $value) { return $value; };
 
-            // Resolver Género
-            if ($key === 'gender_id') {
-                $name = DB::table('genders')->where('id', $value)->value('name');
-                return $name ? "$name" : "#$value";
-            }
-
-            // Si es ID de Talla (Referencia directa a tabla sizes)
-            if ($key === 'size_id_ref') {
-                $name = DB::table('sizes')->where('id', $value)->value('description');
-                return $name ? "$name" : "#$value";
-            }
-
-            // Si es ID de ProductSize (Tabla intermedia)
-            if ($key === 'product_size_id') {
-                $name = DB::table('product_size')
-                    ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
-                    ->where('product_size.id', $value)
-                    ->value('sizes.description');
-                return $name ? "$name" : "#$value (Eliminado)";
-            }
-
-            // Si es ID de Color
-            if ($key === 'color_id') {
-                if (!empty($old['color_name']))
-                    return null; // Preferimos usar el nombre guardado
-                $name = DB::table('colors')->where('id', $value)->value('description');
-                return $name ? "$name" : "#$value";
-            }
-            return $value;
-        };
-
-        // CASO 1: ELIMINACIÓN (New vacío)
+        // Eliminación
         if (empty($new) && !empty($old)) {
             foreach ($old as $key => $value) {
-                // Filtramos todo lo que ya está en el título
-                if ($this->shouldSkip($key))
-                    continue;
-
-                $resolvedValue = $resolveValue($key, $value);
-                if ($resolvedValue === null)
-                    continue;
-
+                if ($this->shouldSkip($key)) continue;
                 $changes[] = [
                     'field' => $labels[$key] ?? ucfirst($key),
-                    'from' => $resolvedValue,
+                    'from' => $value,
                     'to' => 'ELIMINADO'
                 ];
             }
             return $changes;
         }
 
-        // CASO 2: CREACIÓN/EDICIÓN
+        // Creación/Edición
         foreach ($new as $key => $value) {
-            if ($this->shouldSkip($key))
-                continue;
-
-            $oldRaw = $old[$key] ?? '-';
-
-            if ($oldRaw != $value) {
-                $resolvedOld = $oldRaw !== '-' ? $resolveValue($key, $oldRaw) : '-';
-                $resolvedNew = $resolveValue($key, $value);
-
-                if ($resolvedNew === null)
-                    continue;
-
+            if ($this->shouldSkip($key)) continue;
+            $oldValue = $old[$key] ?? '-';
+            if ($oldValue != $value) {
                 $changes[] = [
                     'field' => $labels[$key] ?? ucfirst($key),
-                    'from' => $resolvedOld,
-                    'to' => $resolvedNew
+                    'from' => $oldValue,
+                    'to' => $value
                 ];
             }
         }
@@ -225,15 +201,10 @@ class ProductHistoryController extends Controller
 
     private function shouldSkip($key): bool
     {
-        // Ocultamos campos que ya se explican en el título para limpiar la vista
         return in_array($key, [
-            'id',
-            'product_id',
-            'size_id',
-            'size_id_ref',
-            'color_id',
-            'color_name',
-            'product_size_id'
+            'id', 'product_id', 'size_id', 'size_id_ref',
+            'color_id', 'color_name', 'product_size_id',
+            'sale_code', 'exchange_note'
         ]);
     }
 }

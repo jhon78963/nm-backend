@@ -16,13 +16,14 @@ class ProductHistory extends Model
         'event_type',  // 'CREATED', 'UPDATED', 'DELETED'
         'old_values',
         'new_values',
+        'creation_time',
         'creator_user_id'
     ];
 
     protected $casts = [
         'old_values' => 'array',
         'new_values' => 'array',
-        'created_at' => 'datetime'
+        'creation_time' => 'datetime'
     ];
 
     public function product()
