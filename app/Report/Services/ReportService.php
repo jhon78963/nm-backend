@@ -14,28 +14,38 @@ class ReportService
      */
     public function getSalesTotals(?string $referenceDate = null)
     {
-        // Validación robusta: Si es null o string vacío, usa HOY.
         $date = ($referenceDate && trim($referenceDate) !== '')
             ? Carbon::parse($referenceDate)
             : Carbon::now();
 
-        // 1. Diario (Ventas del día seleccionado)
+        // 1. Diario (Día específico)
         $daily = Sale::whereDate('creation_time', $date->toDateString())
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // 2. Semanal (Ventas de la semana de la fecha seleccionada)
-        // Usamos copy() para no modificar la instancia original de $date
-        $weekly = Sale::whereBetween('creation_time', [
-                $date->copy()->startOfWeek(),
-                $date->copy()->endOfWeek()
-            ])
+        // 2. Semanal (CORREGIDO: Limitado al mes actual)
+        // Calculamos el inicio y fin de la semana natural
+        $weekStart = $date->copy()->startOfWeek();
+        $weekEnd = $date->copy()->endOfWeek();
+
+        // TRUCO: Si el inicio de la semana cae en el mes anterior, lo forzamos al día 1 del mes actual.
+        // Así el "Semanal" nunca traerá ventas del mes pasado.
+        if ($weekStart->month !== $date->month) {
+            $weekStart = $date->copy()->startOfMonth();
+        }
+
+        // Lo mismo para el final (aunque startOfWeek suele ser el problema al inicio de mes)
+        if ($weekEnd->month !== $date->month) {
+            $weekEnd = $date->copy()->endOfMonth();
+        }
+
+        $weekly = Sale::whereBetween('creation_time', [$weekStart, $weekEnd])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // 3. Mensual (Ventas del mes de la fecha seleccionada)
+        // 3. Mensual
         $monthly = Sale::whereMonth('creation_time', $date->month)
             ->whereYear('creation_time', $date->year)
             ->where('status', 'COMPLETED')
@@ -50,7 +60,7 @@ class ReportService
     }
 
     /**
-     * Top Productos Más Vendidos (Filtrado por fecha)
+     * Top Productos Más Vendidos
      */
     public function getTopProducts(int $limit = 20, ?string $startDate = null, ?string $endDate = null)
     {
@@ -68,7 +78,6 @@ class ReportService
             ')
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false)
-            // IMPORTANTE: Filtramos por el rango de fechas seleccionado
             ->whereBetween('s.creation_time', [$start, $end])
             ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
             ->orderByDesc('total_sold')
@@ -146,8 +155,6 @@ class ReportService
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
-
-            // Casting explícito a float para corregir el error del gráfico
             $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
             $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
         }
