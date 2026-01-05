@@ -10,54 +10,66 @@ use Carbon\Carbon;
 class ReportService
 {
     /**
-     * Obtiene los totales de ventas (Diario, Semanal, Mensual)
+     * Obtiene los totales de ventas basados en una fecha de referencia.
      */
-    public function getSalesTotals()
+    public function getSalesTotals(?string $referenceDate = null)
     {
-        $now = Carbon::now();
+        // Validación robusta: Si es null o string vacío, usa HOY.
+        $date = ($referenceDate && trim($referenceDate) !== '')
+            ? Carbon::parse($referenceDate)
+            : Carbon::now();
 
-        // Diario (Hoy)
-        $daily = Sale::whereDate('creation_time', $now->toDateString())
+        // 1. Diario (Ventas del día seleccionado)
+        $daily = Sale::whereDate('creation_time', $date->toDateString())
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // Semanal (Lunes a Domingo actual)
-        $weekly = Sale::whereBetween('creation_time', [$now->startOfWeek(), $now->endOfWeek()])
+        // 2. Semanal (Ventas de la semana de la fecha seleccionada)
+        // Usamos copy() para no modificar la instancia original de $date
+        $weekly = Sale::whereBetween('creation_time', [
+                $date->copy()->startOfWeek(),
+                $date->copy()->endOfWeek()
+            ])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // Mensual (Mes actual)
-        $monthly = Sale::whereMonth('creation_time', $now->month)
-            ->whereYear('creation_time', $now->year)
+        // 3. Mensual (Ventas del mes de la fecha seleccionada)
+        $monthly = Sale::whereMonth('creation_time', $date->month)
+            ->whereYear('creation_time', $date->year)
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
         return [
-            'daily' => $daily,
-            'weekly' => $weekly,
-            'monthly' => $monthly
+            'daily' => (float)$daily,
+            'weekly' => (float)$weekly,
+            'monthly' => (float)$monthly
         ];
     }
 
     /**
-     * Top Productos Más Vendidos (Ranking)
+     * Top Productos Más Vendidos (Filtrado por fecha)
      */
-    public function getTopProducts(int $limit = 20)
+    public function getTopProducts(int $limit = 20, ?string $startDate = null, ?string $endDate = null)
     {
+        $start = $startDate ? Carbon::parse($startDate) : Carbon::now()->startOfMonth();
+        $end = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
+
         return DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
             ->selectRaw('
                 sd.product_name_snapshot as name,
                 sd.size_name_snapshot as size,
                 sd.color_name_snapshot as color,
-                SUM(sd.quantity) as total_sold,
-                SUM(sd.subtotal) as total_revenue
+                CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
+                CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
             ')
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false)
+            // IMPORTANTE: Filtramos por el rango de fechas seleccionado
+            ->whereBetween('s.creation_time', [$start, $end])
             ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
             ->orderByDesc('total_sold')
             ->limit($limit)
@@ -65,60 +77,54 @@ class ReportService
     }
 
     /**
-     * Reporte Financiero Completo (Ingresos, Costos, Utilidad Neta)
-     * Rango: Mes Actual por defecto
+     * Reporte Financiero Completo
      */
     public function getFinancialReport(?string $startDate = null, ?string $endDate = null)
     {
         $start = $startDate ? Carbon::parse($startDate) : Carbon::now()->startOfMonth();
         $end = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
 
-        // 1. VENTAS BRUTAS (Ingreso por Ventas)
+        // 1. VENTAS BRUTAS
         $salesRevenue = Sale::whereBetween('creation_time', [$start, $end])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->sum('total_amount');
 
-        // 2. COSTO DE MERCADERÍA VENDIDA (CMV)
-        // Calculamos cuánto nos costaron los productos que vendimos
+        // 2. COSTO DE MERCADERÍA
         $costOfGoods = DB::table('sales as s')
             ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
-            ->leftJoin('product_size as ps', function ($join) {
-                $join->on('sd.product_id', '=', 'ps.product_id')
-                    ->on('sd.size_id', '=', 'ps.size_id');
+            ->leftJoin('product_size as ps', function($join) {
+                 $join->on('sd.product_id', '=', 'ps.product_id')
+                      ->on('sd.size_id', '=', 'ps.size_id');
             })
             ->whereBetween('s.creation_time', [$start, $end])
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false)
             ->sum(DB::raw('sd.quantity * COALESCE(ps.purchase_price, 0)'));
 
-        // 3. GANANCIA BRUTA (Ventas - Costo Producto)
+        // 3. GANANCIA BRUTA
         $grossProfit = $salesRevenue - $costOfGoods;
 
-        // 4. GASTOS OPERATIVOS (Luz, Agua, Pasajes...)
+        // 4. GASTOS OPERATIVOS
         $operatingExpenses = CashMovement::whereBetween('creation_time', [$start, $end])
             ->where('type', 'EXPENSE')
             ->where('is_deleted', false)
             ->sum('amount');
 
-        // 5. UTILIDAD NETA (Ganancia Bruta - Gastos)
+        // 5. UTILIDAD NETA
         $netUtility = $grossProfit - $operatingExpenses;
 
         return [
             'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
-            'sales_revenue' => $salesRevenue,
-            'cost_of_goods' => $costOfGoods,
-            'gross_profit' => $grossProfit,
-            'operating_expenses' => $operatingExpenses,
-            'net_utility' => $netUtility,
-            // Datos para gráfica diaria (Ventas vs Gastos)
+            'sales_revenue' => (float)$salesRevenue,
+            'cost_of_goods' => (float)$costOfGoods,
+            'gross_profit' => (float)$grossProfit,
+            'operating_expenses' => (float)$operatingExpenses,
+            'net_utility' => (float)$netUtility,
             'chart_data' => $this->getDailyChartData($start, $end)
         ];
     }
 
-    /**
-     * Datos para el Gráfico (Día a día)
-     */
     private function getDailyChartData($start, $end)
     {
         $sales = Sale::selectRaw("TO_CHAR(creation_time, 'YYYY-MM-DD') as date, SUM(total_amount) as total")
@@ -133,7 +139,6 @@ class ReportService
             ->groupBy('date')
             ->pluck('total', 'date');
 
-        // Llenar huecos de fechas
         $dates = [];
         $dataSales = [];
         $dataExpenses = [];
@@ -141,8 +146,10 @@ class ReportService
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
-            $dataSales[] = $sales[$dateStr] ?? 0;
-            $dataExpenses[] = $expenses[$dateStr] ?? 0;
+
+            // Casting explícito a float para corregir el error del gráfico
+            $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
+            $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
         }
 
         return [

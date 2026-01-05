@@ -18,15 +18,19 @@ class ReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // Totales Rápidos
-        $salesTotals = $this->reportsService->getSalesTotals();
-
-        // Top Productos
-        $topProducts = $this->reportsService->getTopProducts(20);
-
-        // Reporte Financiero (Por defecto mes actual si no envían fechas)
+        // 1. Recibimos las fechas PRIMERO
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
+
+        // 2. Totales Rápidos
+        // Pasamos $startDate para que sepa de qué mes/día calcular
+        $salesTotals = $this->reportsService->getSalesTotals($startDate);
+
+        // 3. Top Productos
+        // Pasamos el rango completo para que filtre los más vendidos de ESE periodo
+        $topProducts = $this->reportsService->getTopProducts(20, $startDate, $endDate);
+
+        // 4. Reporte Financiero
         $financials = $this->reportsService->getFinancialReport($startDate, $endDate);
 
         return response()->json([
