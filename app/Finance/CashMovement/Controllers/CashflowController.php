@@ -30,17 +30,16 @@ class CashflowController extends Controller
         ]);
     }
 
-    public function store(StoreTransactionRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        // $data = $request->validate([
-        //     'type' => 'required|in:INCOME,EXPENSE',
-        //     'amount' => 'required|numeric|min:0.1',
-        //     'description' => 'required|string|max:255',
-        //     'payment_method' => 'nullable|string'
-        // ]);
+        $data = $request->validate([
+            'type' => 'required|in:INCOME,EXPENSE',
+            'amount' => 'required|numeric|min:0.1',
+            'description' => 'required|string|max:255',
+            'payment_method' => 'nullable|string'
+        ]);
 
-        $this->cashflowService->registerMovement($request->validated());
-
+        $this->cashflowService->registerMovement($data);
         return response()->json(['success' => true, 'message' => 'Movimiento registrado']);
     }
 }
