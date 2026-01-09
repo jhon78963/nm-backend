@@ -16,8 +16,8 @@ class StoreTransactionRequest extends FormRequest
         return [
             'type' => 'required|in:INGRESO,GASTO',
             'amount' => 'required|numeric|min:0.1',
-            'category' => 'required|array',
-            'category.name' => 'required|string',
+            'category' => 'nullable|array',
+            'category.name' => 'nullable|string',
         ];
     }
 
