@@ -12,11 +12,7 @@ class SharedService
     private int $limit = 10;
     private int $page = 1;
     private string $search = '';
-    private string $schedule = '';
-    private int $gender = 0;
-    private string $status = '';
-    private string $startDate = '';
-    private string $endDate = '';
+    // ... resto de propiedades ...
 
     public function convertCamelToSnake(array $data): array
     {
@@ -35,17 +31,6 @@ class SharedService
         return $date;
     }
 
-    /**
-     * @param GetAllRequest $request
-     * @param string $entityName
-     * @param string $modelName
-     * @param array|string|null $columnSearch
-     * @param array $filters
-     * @param callable|null $extendQuery
-     * @param string $orderBy Campo por el cual ordenar
-     * @param string $orderDir Dirección del ordenamiento (asc/desc)
-     * @return array
-     */
     public function query(
         GetAllRequest $request,
         string $entityName,
@@ -69,6 +54,8 @@ class SharedService
         }
 
         $query->where('is_deleted', false);
+
+        // ... lógica de filtros existente ...
         if (!empty($filters)) {
             foreach ($filters as $column => $value) {
                 if (str_contains((string) $value, ',')) {
@@ -121,23 +108,42 @@ class SharedService
         ];
     }
 
+    // AQUI ESTA LA CORRECCION PRINCIPAL
     public function searchFilter($query, string $search, array|string $columns): Builder
     {
         $columns = is_array($columns) ? $columns : [$columns];
 
         return $query->where(function ($q) use ($search, $columns) {
             foreach ($columns as $column) {
+                // Caso 1: Columnas con funciones SQL crudas (ej: unaccent)
                 if (str_contains($column, '(')) {
                     $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     continue;
                 }
+
+                // Caso 2: Columnas de Fecha y Hora (Datetime)
+                // Detectamos 'creation_time', 'updated_at', etc.
+                if (in_array($column, ['creation_time', 'date', 'created_at', 'updated_at']) || str_ends_with($column, '_time') || str_ends_with($column, '_at')) {
+
+                    // Opción A: Busca coincidencias con el formato visual (DD/MM/YYYY 12H AM/PM)
+                    // Esto permite buscar "03/01/2026" y también "03/01/2026 02:00 PM"
+                    $q->orWhereRaw("TO_CHAR($column, 'DD/MM/YYYY HH12:MI:SS AM') ILIKE ?", ['%' . $search . '%']);
+
+                    // Opción B: Mantiene compatibilidad con formato ISO (YYYY-MM-DD) por si acaso
+                    $q->orWhereRaw("TO_CHAR($column, 'YYYY-MM-DD HH24:MI:SS') ILIKE ?", ['%' . $search . '%']);
+
+                    continue;
+                }
+
+                // Caso 3: Relaciones (tablas.columna)
                 if (str_contains($column, '.')) {
                     [$relation, $field] = explode('.', $column, 2);
-
                     $q->orWhereHas($relation, function ($subQuery) use ($field, $search) {
                         $subQuery->whereRaw("unaccent(CAST($field AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     });
-                } else {
+                }
+                // Caso 4: Columnas normales de texto
+                else {
                     $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                 }
             }
@@ -146,6 +152,7 @@ class SharedService
 
     public function filters($query, array $filters = [])
     {
+        // ... (tu lógica existente de filters) ...
         foreach ($filters as $column => $value) {
             if (str_contains((string) $value, ',')) {
                 $values = explode(',', $value);
