@@ -33,6 +33,7 @@ class ExpenseResource extends JsonResource
             'paymentMethod' => $this->payment_method,
             'referenceCode' => $this->reference_code,
             'user' => $this->creator->name . " " . $this->creator->surname ?? '---',
+            'userId' => $this->user_id,
         ];
     }
 }
