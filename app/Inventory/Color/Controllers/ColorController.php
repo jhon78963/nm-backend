@@ -85,40 +85,6 @@ class ColorController extends Controller
         return response()->json(SizeResource::collection($sizes));
     }
 
-    // public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
-    // {
-    //     $productId = $request->input('productId');
-    //     $sizeId = $request->input('sizeId');
-
-    //     $productSizeId = DB::table('product_size')
-    //         ->where('product_id', $productId)
-    //         ->where('size_id', $sizeId)
-    //         ->value('id');
-
-    //     $productSizeColors = DB::table('product_size_color')
-    //         ->where('product_size_id', '=', $productSizeId)
-    //         ->orderBy('description', 'asc')
-    //         ->get()
-    //         ->keyBy('color_id');
-
-    //     $colors = Color::where('is_deleted', '=', false)->get()
-    //         ->map(function ($color) use ($productSizeColors, $productSizeId): Color {
-    //             if ($productSizeColors->has($color->id)) {
-    //                 $color->isExists = true;
-    //                 $color->stock = $productSizeColors[$color->id]->stock;
-    //             } else {
-    //                 $color->isExists = false;
-    //                 $color->stock = null;
-    //             }
-    //             $color->productSizeId = $productSizeId;
-    //             return $color;
-    //         })->sortBy(
-    //             fn($color): mixed => $color->stock === null ? PHP_INT_MAX : $color->id
-    //         )->values();
-
-    //     return response()->json(ColorSelectedResource::collection($colors));
-    // }
-
     public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
     {
         $productId = $request->input('productId');
