@@ -27,7 +27,7 @@ class TeamUpdateRequest extends FormRequest
                 'required',
                 'string',
                 'digits:8',
-                Rule::unique('team', 'dni')->ignore($this->route('team')),
+                Rule::unique('teams', 'dni')->ignore($this->route('team')),
             ],
             'name' => 'required|string|max:100',
             'surname' => 'required|string|max:100',

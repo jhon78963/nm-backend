@@ -22,7 +22,7 @@ class TeamCreateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'dni' => 'required|digits:8|unique:team,dni',
+            'dni' => 'required|digits:8|unique:teams,dni',
             'name' => 'required|string|max:100',
             'surname' => 'required|string|max:100',
         ];
