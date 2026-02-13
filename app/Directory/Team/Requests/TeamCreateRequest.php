@@ -25,6 +25,7 @@ class TeamCreateRequest extends FormRequest
             'dni' => 'required|digits:8|unique:teams,dni',
             'name' => 'required|string|max:100',
             'surname' => 'required|string|max:100',
+            'salary' => 'nullable',
         ];
     }
 }
