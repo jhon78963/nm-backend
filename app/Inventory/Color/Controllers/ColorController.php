@@ -78,6 +78,14 @@ class ColorController extends Controller
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
             ->select('s.id', 'product_size.id as productSizeId', 's.description', 'product_size.stock')
+        //     ->orderByRaw('
+        //     CASE
+        //         WHEN product_size.stock > 0 THEN 1
+        //         WHEN product_size.stock = 0 THEN 2
+        //         ELSE 3
+        //     END ASC
+        // ')
+            ->orderByRaw('CASE WHEN product_size.stock > 0 THEN 0 ELSE 1 END ASC')
             ->orderByRaw("CASE WHEN s.description ~ '^[0-9]+$' THEN s.description::integer ELSE NULL END ASC")
             ->orderBy('s.id', 'asc')
             ->get();
