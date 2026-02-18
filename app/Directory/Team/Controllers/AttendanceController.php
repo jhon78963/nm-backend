@@ -35,6 +35,7 @@ class AttendanceController extends Controller
             'date' => 'required|date',
             'status' => 'required|in:PUNTUAL,TARDE,FALTA,DESCANSO,VACACIONES',
             'check_in_time' => 'nullable|date_format:H:i',
+            'check_out_time' => 'nullable|date_format:H:i',
             'delay_minutes' => 'nullable|integer',
             'notes' => 'nullable|string'
         ]);
@@ -48,6 +49,7 @@ class AttendanceController extends Controller
             [
                 'status' => $data['status'],
                 'check_in_time' => $data['check_in_time'] ?? null,
+                'check_out_time' => $data['check_out_time'] ?? null,
                 'delay_minutes' => $data['delay_minutes'] ?? 0,
                 'notes' => $data['notes'] ?? null
             ]
