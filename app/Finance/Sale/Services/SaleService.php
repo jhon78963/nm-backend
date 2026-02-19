@@ -124,6 +124,75 @@ class SaleService extends ModelService
     }
 
     /**
+     * Anula una venta, devuelve el stock y registra el historial.
+     */
+    public function delete(Model $model): void
+    {
+        DB::transaction(function () use ($model) {
+            // 1. Cargar los detalles si no están cargados
+            $model->load('details');
+
+            foreach ($model->details as $detail) {
+                // Obtener el ID de la relación product_size
+                $psId = DB::table('product_size')
+                    ->where('product_id', $detail->product_id)
+                    ->where('size_id', $detail->size_id)
+                    ->value('id');
+
+                if ($psId) {
+                    // 2. Capturar stock actual ANTES de devolver (para el historial)
+                    $currentStock = 0;
+                    if ($detail->color_id) {
+                        $colorRow = DB::table('product_size_color')
+                            ->where('product_size_id', $psId)
+                            ->where('color_id', $detail->color_id)
+                            ->first();
+                        $currentStock = $colorRow ? $colorRow->stock : 0;
+
+                        // Devolver stock a la tabla por color
+                        DB::table('product_size_color')
+                            ->where('product_size_id', $psId)
+                            ->where('color_id', $detail->color_id)
+                            ->increment('stock', $detail->quantity);
+                    } else {
+                        $masterRow = DB::table('product_size')->where('id', $psId)->first();
+                        $currentStock = $masterRow ? $masterRow->stock : 0;
+                    }
+
+                    // Devolver stock a la tabla maestra
+                    DB::table('product_size')->where('id', $psId)->increment('stock', $detail->quantity);
+
+                    // 3. Registrar en Historial de Producto
+                    ProductHistory::create([
+                        'product_id' => $detail->product_id,
+                        'entity_type' => 'SALE_VOIDED', // O 'SALE'
+                        'entity_id' => $model->id,
+                        'event_type' => 'RETURNED',
+                        'old_values' => [
+                            'stock' => $currentStock
+                        ],
+                        'new_values' => [
+                            'stock' => $currentStock + $detail->quantity,
+                            'quantity' => $detail->quantity,
+                            'reason' => 'Venta anulada por el usuario',
+                            'sale_code' => $model->code
+                        ],
+                        'creator_user_id' => Auth::id(),
+                    ]);
+                }
+            }
+
+            // 4. Marcar la venta como eliminada y cambiar estado
+            // Asumiendo que usas 'is_deleted' según tus queries de estadísticas
+            $model->update([
+                'is_deleted' => true,
+                'status' => 'CANCELED', // O 'CANCELED'
+                'notes' => substr(($model->notes ?? '') . " | VENTA ANULADA EL " . now(), -250)
+            ]);
+        });
+    }
+
+    /**
      * Procesa Venta POS (Creación con stock, pagos mixtos e HISTORIAL DETALLADO)
      */
     public function processPosSale(array $data): Sale
