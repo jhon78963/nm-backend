@@ -1,9 +1,9 @@
 <?php
-
 namespace App\Inventory\Product\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str; // Importamos Str para manipular textos
 
 class ProductEcommerceResource extends JsonResource
 {
@@ -13,17 +13,16 @@ class ProductEcommerceResource extends JsonResource
         $uniqueColors = [];
         $uniqueSizes = [];
         $totalStock = 0;
+
+        // Obtenemos el precio mínimo para mostrar en la tarjeta del producto
         $minPrice = $this->productSizes->min('sale_price') ?? 0;
 
-        // Recorrer las tallas y sus colores para aplanar las variaciones
         foreach ($this->productSizes as $productSize) {
-
-            // Recolectar tallas únicas para el bloque "attributes"
             if (!isset($uniqueSizes[$productSize->size_id])) {
                 $uniqueSizes[$productSize->size_id] = [
                     'id' => $productSize->size_id,
                     'value' => $productSize->size->description ?? '',
-                    'attribute_id' => 14, // Mantenemos el ID estático para "Size" según tu JSON
+                    'attribute_id' => 14,
                 ];
             }
 
@@ -31,46 +30,36 @@ class ProductEcommerceResource extends JsonResource
                 $stock = $color->pivot->stock;
                 $totalStock += $stock;
 
-                // Recolectar colores únicos para el bloque "attributes"
                 if (!isset($uniqueColors[$color->id])) {
                     $uniqueColors[$color->id] = [
                         'id' => $color->id,
                         'value' => $color->description,
                         'hex_color' => $color->hash,
-                        'attribute_id' => 13, // Mantenemos el ID estático para "Color"
+                        'attribute_id' => 13,
                     ];
                 }
 
-                // Aplanar la variación (Talla + Color)
                 $variations[] = [
-                    'id' => $productSize->id . '-' . $color->id, // ID virtual compuesto
+                    'id' => $productSize->id . '-' . $color->id,
                     'name' => "{$this->name} ({$color->description} / {$productSize->size->description})",
-                    'price' => $productSize->purchase_price,
-                    'sale_price' => $productSize->sale_price,
+                    'price' => $productSize->purchase_price ?? $minPrice,
+                    'sale_price' => $productSize->sale_price ?? $minPrice,
                     'quantity' => $stock,
                     'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
-                    'sku' => $productSize->barcode,
+                    'sku' => $productSize->barcode ?? $this->barcode,
                     'attribute_values' => [
-                        [
-                            'id' => $color->id,
-                            'value' => $color->description,
-                            'attribute_id' => 13
-                        ],
-                        [
-                            'id' => $productSize->size_id,
-                            'value' => $productSize->size->description,
-                            'attribute_id' => 14
-                        ]
+                        ['id' => $color->id, 'value' => $color->description, 'attribute_id' => 13],
+                        ['id' => $productSize->size_id, 'value' => $productSize->size->description, 'attribute_id' => 14]
                     ]
                 ];
             }
         }
 
         return [
+            // DATOS REALES DE TU BD
             'id' => $this->id,
             'name' => $this->name,
-            'short_description' => strip_tags($this->description),
-            'description' => '<p>' . $this->description . '</p>', // Renderizamos como HTML simple
+            'description' => '<p>' . ($this->description ?? '') . '</p>',
             'price' => $minPrice,
             'sale_price' => $minPrice,
             'quantity' => $totalStock,
@@ -79,26 +68,41 @@ class ProductEcommerceResource extends JsonResource
             'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
             'discount' => $this->percentage_discount,
 
-            // Mapeo de la imagen principal (toma la primera)
-            'product_thumbnail' => $this->imagesEcommerce->first() ? [
-                'name' => $this->imagesEcommerce->first()->name,
-                'asset_url' => asset('storage/' . $this->imagesEcommerce->first()->path)
+            // IMÁGENES (Tomamos la primera como thumbnail)
+            'product_thumbnail' => $this->images->first() ? [
+                'id' => $this->images->first()->path, // Usamos el path como ID temporal
+                'name' => $this->images->first()->name,
+                'asset_url' => asset('storage/' . $this->images->first()->path)
             ] : null,
-
-            // Mapeo de galerías
-            'product_galleries' => $this->imagesEcommerce->map(function ($img) {
+            'product_galleries' => $this->images->map(function ($img) {
                 return [
                     'name' => $img->name,
                     'asset_url' => asset('storage/' . $img->path)
                 ];
             }),
 
-            // Bloque de atributos agrupados
+            // === AQUI EMPIEZA LA MAGIA (DATOS CALCULADOS/SIMULADOS) ===
+
+            // 1. Creamos un slug al vuelo basado en el nombre y el ID para que Angular pueda rutear
+            'slug' => Str::slug($this->name . '-' . $this->id),
+
+            // 2. Cortamos la descripción a 100 caracteres para la vista previa
+            'short_description' => Str::limit(strip_tags($this->description ?? ''), 100),
+
+            // 3. Devolvemos arrays vacíos o nulos para lo que aún no tienes, así Angular no da error 'undefined'
+            'categories' => [],
+            'brand' => null,
+            'tags' => [],
+            'reviews' => [],
+            'is_featured' => 1, // Lo forzamos a 1 para que aparezca en tu inicio
+            'is_trending' => 0,
+
+            // === ATRIBUTOS Y VARIACIONES ===
             'attributes' => [
                 [
                     'id' => 13,
                     'name' => 'Colour',
-                    'attribute_values' => array_values($uniqueColors) // array_values resetea los índices
+                    'attribute_values' => array_values($uniqueColors)
                 ],
                 [
                     'id' => 14,
@@ -106,8 +110,6 @@ class ProductEcommerceResource extends JsonResource
                     'attribute_values' => array_values($uniqueSizes)
                 ]
             ],
-
-            // Variaciones aplanadas
             'variations' => $variations
         ];
     }
