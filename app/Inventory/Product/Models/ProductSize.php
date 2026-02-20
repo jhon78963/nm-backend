@@ -63,10 +63,21 @@ class ProductSize extends Model
         return $this->belongsTo(Size::class, 'size_id');
     }
 
-    public function productSizeColors(): BelongsToMany {
+    public function productSizeColors(): BelongsToMany
+    {
         return $this->belongsToMany(
             Color::class,
             'product_size_color',
         )->withPivot(['stock']);
+    }
+
+    public function colors()
+    {
+        return $this->belongsToMany(
+            Color::class,
+            'product_size_color',
+            'product_size_id',
+            'color_id'
+        )->withPivot('stock');
     }
 }

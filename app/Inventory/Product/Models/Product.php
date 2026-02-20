@@ -75,7 +75,8 @@ class Product extends Model
      *
      * @return BelongsTo
      */
-    public function gender(): BelongsTo {
+    public function gender(): BelongsTo
+    {
         return $this->belongsTo(Gender::class);
     }
 
@@ -84,7 +85,8 @@ class Product extends Model
      *
      * @return BelongsTo
      */
-    public function warehouse(): BelongsTo {
+    public function warehouse(): BelongsTo
+    {
         return $this->belongsTo(Warehouse::class);
     }
 
@@ -106,17 +108,32 @@ class Product extends Model
     }
 
     /**
+     * Get the images associated with the product.
+     *
+     * @return HasMany
+     */
+    public function imagesEcommerce(): HasMany
+    {
+        return $this->hasMany(ProductImage::class, 'product_id');
+    }
+
+    /**
      * Get the sizes associated with the product.
      *
      * @return BelongsToMany
      */
-    public function sizes(): BelongsToMany {
+    public function sizes(): BelongsToMany
+    {
         return $this->belongsToMany(
             Size::class,
             'product_size',
         )->withPivot([
-            'stock', 'purchase_price', 'sale_price', 'min_sale_price', 'barcode'
-        ]);
+                    'stock',
+                    'purchase_price',
+                    'sale_price',
+                    'min_sale_price',
+                    'barcode'
+                ]);
     }
 
     /**

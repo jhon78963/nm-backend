@@ -1,6 +1,7 @@
 <?php
 
 use App\Inventory\Product\Controllers\ProductController;
+use App\Inventory\Product\Controllers\ProductEcommerceController;
 use App\Inventory\Product\Controllers\ProductHistoryController;
 use App\Inventory\Product\Controllers\ProductImageController;
 use App\Inventory\Product\Controllers\ProductSizeColorController;
@@ -37,3 +38,8 @@ Route::controller(ProductImageController::class)->group(function(): void {
 });
 
 Route::get('/products/{id}/history', [ProductHistoryController::class, 'index']);
+
+Route::controller(ProductEcommerceController::class)->group(function(): void {
+    Route::get('/prod/ecommerce', 'index');
+    Route::get('/prod/ecommerce/{id}', 'show');
+});
