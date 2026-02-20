@@ -69,12 +69,12 @@ class ProductEcommerceResource extends JsonResource
             'discount' => $this->percentage_discount,
 
             // IMÁGENES (Tomamos la primera como thumbnail)
-            'product_thumbnail' => $this->images->first() ? [
-                'id' => $this->images->first()->path, // Usamos el path como ID temporal
-                'name' => $this->images->first()->name,
-                'asset_url' => asset('storage/' . $this->images->first()->path)
+            'product_thumbnail' => $this->imagesEcommerce->first() ? [
+                'id' => $this->imagesEcommerce->first()->path, // Usamos el path como ID temporal
+                'name' => $this->imagesEcommerce->first()->name,
+                'asset_url' => asset('storage/' . $this->imagesEcommerce->first()->path)
             ] : null,
-            'product_galleries' => $this->images->map(function ($img) {
+            'product_galleries' => $this->imagesEcommerce->map(function ($img) {
                 return [
                     'name' => $img->name,
                     'asset_url' => asset('storage/' . $img->path)
