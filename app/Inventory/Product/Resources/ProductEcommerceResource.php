@@ -3,7 +3,7 @@ namespace App\Inventory\Product\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Str; // Importamos Str para manipular textos
+use Illuminate\Support\Str;
 
 class ProductEcommerceResource extends JsonResource
 {
@@ -55,6 +55,8 @@ class ProductEcommerceResource extends JsonResource
             }
         }
 
+        $imageServerUrl = rtrim(env('IMAGE_SERVER_URL', 'http://localhost:8001'), '/');
+
         return [
             // DATOS REALES DE TU BD
             'id' => $this->id,
@@ -68,34 +70,68 @@ class ProductEcommerceResource extends JsonResource
             'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
             'discount' => $this->percentage_discount,
 
-            // IMÁGENES (Tomamos la primera como thumbnail)
+            // IMÁGENES
             'product_thumbnail' => $this->imagesEcommerce->first() ? [
-                'id' => $this->imagesEcommerce->first()->path, // Usamos el path como ID temporal
+                'id' => $this->imagesEcommerce->first()->path,
                 'name' => $this->imagesEcommerce->first()->name,
-                'asset_url' => asset('storage/' . $this->imagesEcommerce->first()->path)
+                'asset_url' => $imageServerUrl . '/storage/' . ltrim($this->imagesEcommerce->first()->path, '/')
             ] : null,
-            'product_galleries' => $this->imagesEcommerce->map(function ($img) {
+
+            'product_galleries' => $this->imagesEcommerce->map(function ($img) use ($imageServerUrl) {
                 return [
                     'name' => $img->name,
-                    'asset_url' => asset('storage/' . $img->path)
+                    'asset_url' => $imageServerUrl . '/storage/' . ltrim($img->path, '/')
                 ];
             }),
 
-            // === AQUI EMPIEZA LA MAGIA (DATOS CALCULADOS/SIMULADOS) ===
+            // === CAMPOS CALCULADOS PARA EVITAR ERRORES EN ANGULAR ===
 
-            // 1. Creamos un slug al vuelo basado en el nombre y el ID para que Angular pueda rutear
+            // Textos y URLs
             'slug' => Str::slug($this->name . '-' . $this->id),
-
-            // 2. Cortamos la descripción a 100 caracteres para la vista previa
             'short_description' => Str::limit(strip_tags($this->description ?? ''), 100),
 
-            // 3. Devolvemos arrays vacíos o nulos para lo que aún no tienes, así Angular no da error 'undefined'
+            // Previene el TypeError: Cannot read properties of undefined (reading 'find')
+            'wholesales' => [],
+
+            // Previene errores con productos relacionados
+            'cross_sell_products' => [],
+            'related_products' => [],
+            'cross_products' => [],
+            'similar_products' => [],
+
+            // Unidades y fechas (Angular las suele formatear)
+            'unit' => '1 Unidad',
+            'weight' => 0,
+            'created_at' => $this->creation_time ?? now()->toIso8601String(),
+            'updated_at' => $this->last_modification_time ?? now()->toIso8601String(),
+
+            // Previene errores en componentes de valoración/estrellas
+            'orders_count' => 0,
+            'reviews_count' => 0,
+            'rating_count' => 0,
+            'can_review' => false,
+            'review_ratings' => [0, 0, 0, 0, 0],
+
+            // Previene el TypeError: Cannot read properties of undefined (reading 'toString')
+            'store_id' => 1,
+            'store' => [
+                'id' => 1,
+                'store_name' => 'Novedades Maritex',
+                'slug' => 'novedades-maritex'
+            ],
+
+            // Relaciones de agrupamiento vacías por ahora
             'categories' => [],
             'brand' => null,
             'tags' => [],
             'reviews' => [],
-            'is_featured' => 1, // Lo forzamos a 1 para que aparezca en tu inicio
+
+            // Flags de interfaz (1 = true, 0 = false)
+            'is_featured' => 1,
             'is_trending' => 0,
+            'is_return' => 0,
+            'is_approved' => 1,
+            'type' => 'simple',
 
             // === ATRIBUTOS Y VARIACIONES ===
             'attributes' => [

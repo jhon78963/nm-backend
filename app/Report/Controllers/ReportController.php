@@ -28,17 +28,20 @@ class ReportController extends Controller
 
         // 3. Top Productos
         // Pasamos el rango completo para que filtre los más vendidos de ESE periodo
-        $topProducts = $this->reportsService->getTopProducts(20, $startDate, $endDate);
+        $topProducts = $this->reportsService->getTopProducts(20);
 
         // 4. Reporte Financiero
         $financials = $this->reportsService->getFinancialReport($startDate, $endDate);
+
+        $allTimeMonthlyReport = $this->reportsService->getAllTimeMonthlyReport();
 
         return response()->json([
             'success' => true,
             'data' => [
                 'totals' => $salesTotals,
                 'top_products' => $topProducts,
-                'financials' => $financials
+                'financials' => $financials,
+                'all_time_monthly_report' => $allTimeMonthlyReport
             ]
         ]);
     }

@@ -53,9 +53,9 @@ class ReportService
             ->sum('total_amount');
 
         return [
-            'daily' => (float)$daily,
-            'weekly' => (float)$weekly,
-            'monthly' => (float)$monthly
+            'daily' => (float) $daily,
+            'weekly' => (float) $weekly,
+            'monthly' => (float) $monthly
         ];
     }
 
@@ -100,9 +100,9 @@ class ReportService
         // 2. COSTO DE MERCADERÍA
         $costOfGoods = DB::table('sales as s')
             ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
-            ->leftJoin('product_size as ps', function($join) {
-                 $join->on('sd.product_id', '=', 'ps.product_id')
-                      ->on('sd.size_id', '=', 'ps.size_id');
+            ->leftJoin('product_size as ps', function ($join) {
+                $join->on('sd.product_id', '=', 'ps.product_id')
+                    ->on('sd.size_id', '=', 'ps.size_id');
             })
             ->whereBetween('s.creation_time', [$start, $end])
             ->where('s.status', 'COMPLETED')
@@ -123,11 +123,11 @@ class ReportService
 
         return [
             'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
-            'sales_revenue' => (float)$salesRevenue,
-            'cost_of_goods' => (float)$costOfGoods,
-            'gross_profit' => (float)$grossProfit,
-            'operating_expenses' => (float)$operatingExpenses,
-            'net_utility' => (float)$netUtility,
+            'sales_revenue' => (float) $salesRevenue,
+            'cost_of_goods' => (float) $costOfGoods,
+            'gross_profit' => (float) $grossProfit,
+            'operating_expenses' => (float) $operatingExpenses,
+            'net_utility' => (float) $netUtility,
             'chart_data' => $this->getDailyChartData($start, $end)
         ];
     }
@@ -155,8 +155,8 @@ class ReportService
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
 
-            $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
-            $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
+            $dataSales[] = isset($sales[$dateStr]) ? (float) $sales[$dateStr] : 0;
+            $dataExpenses[] = isset($expenses[$dateStr]) ? (float) $expenses[$dateStr] : 0;
         }
 
         return [
@@ -164,5 +164,29 @@ class ReportService
             'sales' => $dataSales,
             'expenses' => $dataExpenses
         ];
+    }
+
+    public function getAllTimeMonthlyReport()
+    {
+        $report = Sale::selectRaw(expression: "
+            TO_CHAR(creation_time, 'MM-YYYY') as month_year,
+            SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
+            SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
+            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount,
+            SUM(total_amount) as total_month
+        ")
+            ->where(column: 'status', operator: '=', value: 'COMPLETED')
+            ->where(column: 'is_deleted', operator: '=', value: false)
+            ->groupByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
+            ->orderByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM') ASC")
+            ->get();
+
+        return $report->map(callback: fn(\stdClass $row): array => [
+            'fecha' => $row->month_year,
+            'efectivo' => (float) $row->cash_amount,
+            'yape' => (float) $row->yape_amount,
+            'tarjeta_transferencia' => (float) $row->card_transfer_amount,
+            'total_mensual' => (float) $row->total_month
+        ]);
     }
 }
