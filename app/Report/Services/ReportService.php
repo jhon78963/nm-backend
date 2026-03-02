@@ -181,7 +181,7 @@ class ReportService
             ->orderByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM') ASC")
             ->get();
 
-        return $report->map(callback: fn(\stdClass $row): array => [
+        return $report->map(callback: fn($row): array => [
             'fecha' => $row->month_year,
             'efectivo' => (float) $row->cash_amount,
             'yape' => (float) $row->yape_amount,
