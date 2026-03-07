@@ -17,44 +17,41 @@ class CashflowService
         $endOfDay = Carbon::parse($date)->endOfDay();
 
         // 1. OBTENER VENTAS (SALES)
+        // Las ventas las seguimos filtrando por creation_time a menos que también hayas
+        // agregado un campo 'date' específico a la tabla sales. Asumiremos creation_time
+        // por ahora basándonos en tu código anterior.
         $sales = Sale::whereBetween('creation_time', [$startOfDay, $endOfDay])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
-            ->with(['payments', 'details']) // IMPORTANTE: Cargamos 'details' para ver qué se vendió
+            ->with(['payments', 'details'])
             ->orderBy('creation_time', 'desc')
             ->get()
             ->map(function ($sale) {
-
-                // --- FORMATEO DE DESCRIPCIÓN ---
-                // Recorremos los productos vendidos para armar el texto
                 $itemsDescription = $sale->details->map(function ($detail) {
-                    // Formato: Nombre | talla: Talla | color: Color
                     return "{$detail->product_name_snapshot} | {$detail->size_name_snapshot} | {$detail->color_name_snapshot}";
-                })->implode(' + '); // Si hay más de un producto, los unimos con un "+"
+                })->implode(' + ');
 
                 return [
                     'id' => $sale->id,
                     'type' => 'SALE',
                     'time' => $sale->creation_time->format('H:i A'),
-
-                    // FORMATO FINAL: Venta Ropa #Code | Detalles
                     'description' => "{$sale->code} | {$itemsDescription}",
-
                     'method' => $sale->payment_method,
                     'amount' => (float) $sale->total_amount,
                 ];
             });
 
         // 2. OBTENER MOVIMIENTOS MANUALES (INGRESOS/GASTOS)
-        $movements = CashMovement::whereBetween('creation_time', [$startOfDay, $endOfDay])
+        // AQUI CAMBIAMOS PARA FILTRAR Y ORDENAR POR 'date'
+        $movements = CashMovement::whereBetween('date', [$startOfDay, $endOfDay])
             ->where('is_deleted', false)
-            ->orderBy('creation_time', 'desc')
+            ->orderBy('date', 'desc')
             ->get()
             ->map(function ($mov) {
                 return [
                     'id' => $mov->id,
                     'type' => $mov->type,
-                    'time' => $mov->creation_time->format('H:i A'),
+                    'time' => $mov->date->format('H:i A'), // Usamos date en lugar de creation_time
                     'description' => $mov->description,
                     'method' => $mov->payment_method,
                     'amount' => (float) $mov->amount
@@ -100,7 +97,7 @@ class CashflowService
             'description' => $data['description'],
             'payment_method' => $data['payment_method'] ?? 'CASH',
             'creator_user_id' => auth()->id() ?? 1, // Usuario actual o default
-            'creation_time' => now()
+            'date' => $data['date'],
         ]);
     }
 }

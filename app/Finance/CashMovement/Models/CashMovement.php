@@ -11,6 +11,7 @@ class CashMovement extends Model
     protected $table = 'cash_movements';
 
     protected $fillable = [
+        'date',
         'type',
         'amount',
         'description',
@@ -22,6 +23,7 @@ class CashMovement extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'creation_time' => 'datetime'
+        'creation_time' => 'datetime',
+        'date' => 'datetime',
     ];
 }

@@ -36,7 +36,8 @@ class CashflowController extends Controller
             'type' => 'required|in:INCOME,EXPENSE',
             'amount' => 'required|numeric|min:0.1',
             'description' => 'required|string|max:255',
-            'payment_method' => 'nullable|string'
+            'payment_method' => 'nullable|string',
+            'date' => 'required|date',
         ]);
 
         $this->cashflowService->registerMovement($data);
