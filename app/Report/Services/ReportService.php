@@ -113,7 +113,7 @@ class ReportService
         $grossProfit = $salesRevenue - $costOfGoods;
 
         // 4. GASTOS OPERATIVOS
-        $operatingExpenses = CashMovement::whereBetween('creation_time', [$start, $end])
+        $operatingExpenses = CashMovement::whereBetween('date', [$start, $end])
             ->where('type', 'EXPENSE')
             ->where('is_deleted', false)
             ->sum('amount');
@@ -140,8 +140,8 @@ class ReportService
             ->groupBy('date')
             ->pluck('total', 'date');
 
-        $expenses = CashMovement::selectRaw("TO_CHAR(creation_time, 'YYYY-MM-DD') as date, SUM(amount) as total")
-            ->whereBetween('creation_time', [$start, $end])
+        $expenses = CashMovement::selectRaw("TO_CHAR(date, 'YYYY-MM-DD') as date, SUM(amount) as total")
+            ->whereBetween('date', [$start, $end])
             ->where('type', 'EXPENSE')
             ->groupBy('date')
             ->pluck('total', 'date');
