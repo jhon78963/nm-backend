@@ -3,7 +3,6 @@
 namespace App\Finance\CashMovement\Controllers;
 
 use App\Finance\CashMovement\Services\CashflowService;
-use App\Finance\FinancialSummary\Requests\StoreTransactionRequest;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
