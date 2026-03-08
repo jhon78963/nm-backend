@@ -138,7 +138,7 @@ class ReportService
             $myVariants = $variants->where('product_id', $product->product_id)->values();
 
             // Tomamos las 2 variantes más vendidas
-            $topVariantsText = $myVariants->take(2)->map(function ($v) {
+            $topVariantsText = $myVariants->take(4)->map(function ($v) {
                 // Reemplazamos ESTÁNDAR o ESTANDAR por STD (sin importar mayúsculas/minúsculas)
                 $sizeLabel = str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $v->size);
 
