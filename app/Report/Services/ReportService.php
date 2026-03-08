@@ -68,18 +68,32 @@ class ReportService
         return DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
             ->selectRaw('
-                sd.product_name_snapshot as name,
-                sd.size_name_snapshot as size,
-                sd.color_name_snapshot as color,
+                sd.product_id,
+                MAX(sd.product_name_snapshot) as name,
                 CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
                 CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
             ')
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false)
-            ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
+            ->groupBy('sd.product_id')
             ->orderByDesc('total_sold')
             ->limit($limit)
             ->get();
+        // return DB::table('sale_details as sd')
+        //     ->join('sales as s', 'sd.sale_id', '=', 's.id')
+        //     ->selectRaw('
+        //         sd.product_name_snapshot as name,
+        //         sd.size_name_snapshot as size,
+        //         sd.color_name_snapshot as color,
+        //         CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
+        //         CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
+        //     ')
+        //     ->where('s.status', 'COMPLETED')
+        //     ->where('s.is_deleted', false)
+        //     ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
+        //     ->orderByDesc('total_sold')
+        //     ->limit($limit)
+        //     ->get();
     }
 
     /**
