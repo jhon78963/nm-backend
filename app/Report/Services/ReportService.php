@@ -166,27 +166,89 @@ class ReportService
         ];
     }
 
+    // public function getAllTimeMonthlyReport()
+    // {
+    //     $report = Sale::selectRaw(expression: "
+    //         TO_CHAR(creation_time, 'MM-YYYY') as month_year,
+    //         SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
+    //         SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
+    //         SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount,
+    //         SUM(total_amount) as total_month
+    //     ")
+    //         ->where(column: 'status', operator: '=', value: 'COMPLETED')
+    //         ->where(column: 'is_deleted', operator: '=', value: false)
+    //         ->groupByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
+    //         ->orderByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM') ASC")
+    //         ->get();
+
+    //     return $report->map(callback: fn($row): array => [
+    //         'fecha' => $row->month_year,
+    //         'efectivo' => (float) $row->cash_amount,
+    //         'yape' => (float) $row->yape_amount,
+    //         'tarjeta_transferencia' => (float) $row->card_transfer_amount,
+    //         'total_mensual' => (float) $row->total_month
+    //     ]);
+    // }
+
     public function getAllTimeMonthlyReport()
     {
-        $report = Sale::selectRaw(expression: "
+        // 1. Obtener las ventas agrupadas por mes
+        $sales = Sale::selectRaw("
+            TO_CHAR(creation_time, 'YYYY-MM') as sort_month,
             TO_CHAR(creation_time, 'MM-YYYY') as month_year,
             SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
             SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
             SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount,
-            SUM(total_amount) as total_month
+            SUM(total_amount) as total_sales
         ")
-            ->where(column: 'status', operator: '=', value: 'COMPLETED')
-            ->where(column: 'is_deleted', operator: '=', value: false)
-            ->groupByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
-            ->orderByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM') ASC")
-            ->get();
+            ->where('status', 'COMPLETED')
+            ->where('is_deleted', false)
+            ->groupByRaw("TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
+            ->get()
+            ->keyBy('sort_month');
 
-        return $report->map(callback: fn($row): array => [
-            'fecha' => $row->month_year,
-            'efectivo' => (float) $row->cash_amount,
-            'yape' => (float) $row->yape_amount,
-            'tarjeta_transferencia' => (float) $row->card_transfer_amount,
-            'total_mensual' => (float) $row->total_month
-        ]);
+        // 2. Obtener los movimientos de caja agrupados por mes
+        $movements = CashMovement::selectRaw("
+            TO_CHAR(date, 'YYYY-MM') as sort_month,
+            SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as total_income,
+            SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as total_expense
+        ")
+            ->where('is_deleted', false)
+            ->groupByRaw("TO_CHAR(date, 'YYYY-MM')")
+            ->get()
+            ->keyBy('sort_month');
+
+        // 3. Unir todos los meses y ordenarlos cronológicamente
+        $allMonths = $sales->keys()->merge($movements->keys())->unique()->sort();
+
+        $report = [];
+
+        foreach ($allMonths as $month) {
+            $saleData = $sales->get($month);
+            $movData = $movements->get($month);
+
+            $fecha = $saleData ? $saleData->month_year : \Carbon\Carbon::createFromFormat('Y-m', $month)->format('m-Y');
+
+            $efectivo = $saleData ? (float) $saleData->cash_amount : 0;
+            $yape = $saleData ? (float) $saleData->yape_amount : 0;
+            $tarjeta = $saleData ? (float) $saleData->card_transfer_amount : 0;
+            $totalVentas = $saleData ? (float) $saleData->total_sales : 0;
+
+            $ingresos = $movData ? (float) $movData->total_income : 0;
+            $gastos = $movData ? (float) $movData->total_expense : 0;
+
+            // Calculamos el total mensual aplicando ingresos y gastos
+            $totalMensual = $totalVentas + $ingresos - $gastos;
+
+            $report[] = [
+                'fecha' => $fecha,
+                'efectivo' => $efectivo,
+                'yape' => $yape,
+                'tarjeta_transferencia' => $tarjeta,
+                'total_mensual' => $totalMensual
+            ];
+        }
+
+        return array_values($report);
     }
 }
