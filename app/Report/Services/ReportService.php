@@ -65,20 +65,20 @@ class ReportService
      */
     public function getTopProducts(int $limit = 20)
     {
-        return DB::table('sale_details as sd')
-            ->join('sales as s', 'sd.sale_id', '=', 's.id')
-            ->selectRaw('
-                sd.product_id,
-                MAX(sd.product_name_snapshot) as name,
-                CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
-                CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
-            ')
-            ->where('s.status', 'COMPLETED')
-            ->where('s.is_deleted', false)
-            ->groupBy('sd.product_id')
-            ->orderByDesc('total_sold')
-            ->limit($limit)
-            ->get();
+        // return DB::table('sale_details as sd')
+        //     ->join('sales as s', 'sd.sale_id', '=', 's.id')
+        //     ->selectRaw('
+        //         sd.product_id,
+        //         MAX(sd.product_name_snapshot) as name,
+        //         CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
+        //         CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
+        //     ')
+        //     ->where('s.status', 'COMPLETED')
+        //     ->where('s.is_deleted', false)
+        //     ->groupBy('sd.product_id')
+        //     ->orderByDesc('total_sold')
+        //     ->limit($limit)
+        //     ->get();
         // return DB::table('sale_details as sd')
         //     ->join('sales as s', 'sd.sale_id', '=', 's.id')
         //     ->selectRaw('
@@ -94,6 +94,63 @@ class ReportService
         //     ->orderByDesc('total_sold')
         //     ->limit($limit)
         //     ->get();
+
+        $topProducts = DB::table('sale_details as sd')
+            ->join('sales as s', 'sd.sale_id', '=', 's.id')
+            ->selectRaw('
+                sd.product_id,
+                MAX(sd.product_name_snapshot) as name,
+                CAST(SUM(sd.quantity) AS INTEGER) as total_sold
+            ')
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false)
+            ->groupBy('sd.product_id')
+            ->orderByDesc('total_sold')
+            ->limit($limit)
+            ->get();
+
+        if ($topProducts->isEmpty()) {
+            return [];
+        }
+
+        $productIds = $topProducts->pluck('product_id')->toArray();
+
+        // 2. Obtenemos CÓMO se dividieron esas ventas (solo para los top productos)
+        $variants = DB::table('sale_details as sd')
+            ->join('sales as s', 'sd.sale_id', '=', 's.id')
+            ->selectRaw('
+                sd.product_id,
+                sd.color_name_snapshot as color,
+                sd.size_name_snapshot as size,
+                CAST(SUM(sd.quantity) AS INTEGER) as variant_sold
+            ')
+            ->whereIn('sd.product_id', $productIds)
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false)
+            ->groupBy('sd.product_id', 'sd.color_name_snapshot', 'sd.size_name_snapshot')
+            ->orderByDesc('variant_sold')
+            ->get();
+
+        // 3. Unimos la data armando el texto para tu frontend
+        return $topProducts->map(function ($product) use ($variants) {
+            // Filtramos las variantes de este producto específico
+            $myVariants = $variants->where('product_id', $product->product_id)->values();
+
+            // Tomamos las 2 variantes más vendidas para no saturar la cajita de la UI
+            $topVariantsText = $myVariants->take(2)->map(function ($v) {
+                // Formato: "Azul (M)" o "Negro (Standar)"
+                return "{$v->color} ({$v->size})";
+            })->implode(' | ');
+
+            return [
+                'name' => $product->name,
+                'total_sold' => $product->total_sold,
+                // Si hay más de 2 variantes, le agregamos un "..." al final
+                'color' => $myVariants->count() > 2
+                    ? "Top: {$topVariantsText}..."
+                    : "Top: {$topVariantsText}"
+            ];
+        });
     }
 
     /**
