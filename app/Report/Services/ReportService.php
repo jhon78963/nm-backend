@@ -192,14 +192,13 @@ class ReportService
 
     public function getAllTimeMonthlyReport()
     {
-        // 1. Obtener las ventas agrupadas por mes
+        // 1. VENTAS: Agrupadas por mes y método de pago
         $sales = Sale::selectRaw("
             TO_CHAR(creation_time, 'YYYY-MM') as sort_month,
             TO_CHAR(creation_time, 'MM-YYYY') as month_year,
             SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
             SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
-            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount,
-            SUM(total_amount) as total_sales
+            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount
         ")
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
@@ -207,18 +206,23 @@ class ReportService
             ->get()
             ->keyBy('sort_month');
 
-        // 2. Obtener los movimientos de caja agrupados por mes
+        // 2. MOVIMIENTOS DE CAJA: Agrupados por mes y calculando el NETO por método de pago
+        // (Suma si es INCOME, Resta si es EXPENSE)
         $movements = CashMovement::selectRaw("
             TO_CHAR(date, 'YYYY-MM') as sort_month,
-            SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as total_income,
-            SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as total_expense
+            SUM(CASE WHEN payment_method = 'CASH' AND type = 'INCOME' THEN amount
+                     WHEN payment_method = 'CASH' AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_cash,
+            SUM(CASE WHEN payment_method = 'YAPE' AND type = 'INCOME' THEN amount
+                     WHEN payment_method = 'YAPE' AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_yape,
+            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') AND type = 'INCOME' THEN amount
+                     WHEN payment_method IN ('CARD', 'TRANSFER') AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_card_transfer
         ")
             ->where('is_deleted', false)
             ->groupByRaw("TO_CHAR(date, 'YYYY-MM')")
             ->get()
             ->keyBy('sort_month');
 
-        // 3. Unir todos los meses y ordenarlos cronológicamente
+        // 3. Unir los meses únicos de ambas consultas
         $allMonths = $sales->keys()->merge($movements->keys())->unique()->sort();
 
         $report = [];
@@ -229,16 +233,13 @@ class ReportService
 
             $fecha = $saleData ? $saleData->month_year : \Carbon\Carbon::createFromFormat('Y-m', $month)->format('m-Y');
 
-            $efectivo = $saleData ? (float) $saleData->cash_amount : 0;
-            $yape = $saleData ? (float) $saleData->yape_amount : 0;
-            $tarjeta = $saleData ? (float) $saleData->card_transfer_amount : 0;
-            $totalVentas = $saleData ? (float) $saleData->total_sales : 0;
+            // Calculamos cada columna sumando las ventas + los movimientos netos (que ya vienen en positivo o negativo)
+            $efectivo = ($saleData ? (float) $saleData->cash_amount : 0) + ($movData ? (float) $movData->net_cash : 0);
+            $yape = ($saleData ? (float) $saleData->yape_amount : 0) + ($movData ? (float) $movData->net_yape : 0);
+            $tarjeta = ($saleData ? (float) $saleData->card_transfer_amount : 0) + ($movData ? (float) $movData->net_card_transfer : 0);
 
-            $ingresos = $movData ? (float) $movData->total_income : 0;
-            $gastos = $movData ? (float) $movData->total_expense : 0;
-
-            // Calculamos el total mensual aplicando ingresos y gastos
-            $totalMensual = $totalVentas + $ingresos - $gastos;
+            // El total mensual es simplemente la suma de los 3 métodos de pago ya calculados
+            $totalMensual = $efectivo + $yape + $tarjeta;
 
             $report[] = [
                 'fecha' => $fecha,
