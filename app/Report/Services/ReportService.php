@@ -132,24 +132,23 @@ class ReportService
             ->get();
 
         // 3. Unimos la data armando el texto para tu frontend
-        // 3. Unimos la data armando el texto para tu frontend
         return $topProducts->map(function ($product) use ($variants) {
             // Filtramos las variantes de este producto específico
             $myVariants = $variants->where('product_id', $product->product_id)->values();
 
-            // Tomamos las 2 variantes más vendidas
-            $topVariantsText = $myVariants->take(4)->map(function ($v) {
-                // Reemplazamos ESTÁNDAR o ESTANDAR por STD (sin importar mayúsculas/minúsculas)
+            // Tomamos las 4 variantes más vendidas
+            $topVariantsText = $myVariants->map(function ($v) {
+                // Reemplazamos ESTÁNDAR o ESTANDAR por STD
                 $sizeLabel = str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $v->size);
 
-                // Formato final: "Negro (STD)"
-                return "{$v->color} ({$sizeLabel})";
+                // Formato final con la cantidad: "3 - Celeste (30)"
+                return "{$v->variant_sold} - {$v->color} ({$sizeLabel})";
             })->implode(' | ');
 
             return [
                 'name' => $product->name,
                 'total_sold' => $product->total_sold,
-                'color' => $myVariants->count() > 4
+                'color' => $myVariants->count() > 100
                     ? "Top: {$topVariantsText}..."
                     : "Top: {$topVariantsText}"
             ];
