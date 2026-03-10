@@ -1,6 +1,7 @@
 <?php
 
 use App\Directory\Team\Controllers\AttendanceController;
+use App\Directory\Team\Controllers\PaymentController;
 use App\Directory\Team\Controllers\TeamController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,5 +13,12 @@ Route::controller(TeamController::class)->group(function () {
     Route::get('/teams/{team}', 'get');
 });
 
-Route::get('/attendance/{teamId}', [AttendanceController::class, 'getByMonth']);
-Route::post('/attendance', [AttendanceController::class, 'store']);
+Route::controller(AttendanceController::class)->group(function () {
+    Route::get('/attendance/{teamId}', 'getByMonth');
+    Route::post('/attendance', 'store');
+});
+
+Route::controller(PaymentController::class)->group(function () {
+    Route::get('/payments', 'getByMonth');
+    Route::post('/payments', 'store');
+});

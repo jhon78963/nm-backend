@@ -3,6 +3,7 @@
 namespace App\Directory\Team\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Attendance extends Model
 {
@@ -54,5 +55,10 @@ class Attendance extends Model
             'date' => 'date:Y-m-d',
             'check_in_time' => 'datetime:H:i',
         ];
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
     }
 }

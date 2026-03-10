@@ -3,9 +3,9 @@
 namespace App\Directory\Team\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Team extends Model
+class TeamPayment extends Model
 {
     /**
      * The attributes that are mass assignable.
@@ -14,10 +14,11 @@ class Team extends Model
      */
     protected $fillable = [
         'id',
-        'dni',
-        'name',
-        'surname',
-        'salary',
+        'type',
+        'amount',
+        'date',
+        'description',
+        'team_id',
     ];
 
     /**
@@ -42,13 +43,21 @@ class Team extends Model
      */
     public $timestamps = false;
 
-    public function payments(): HasMany
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        return $this->hasMany(TeamPayment::class, 'team_id');
+        return [
+            'date' => 'date:Y-m-d',
+            'amount' => 'decimal:2',
+        ];
     }
 
-    public function attendances(): HasMany
+    public function team(): BelongsTo
     {
-        return $this->hasMany(Attendance::class, 'team_id');
+        return $this->belongsTo(Team::class);
     }
 }
