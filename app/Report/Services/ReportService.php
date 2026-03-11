@@ -44,14 +44,19 @@ class ReportService
             ? Carbon::parse($referenceDate)
             : $now;
 
+        // Comparamos si el mes y año seleccionados son los actuales
+        $isCurrentMonth = $selectedDate->isCurrentMonth() && $selectedDate->isCurrentYear();
+
         return [
-            // Hoy en tiempo real
-            'daily' => $this->getNetBalance($now->copy()->startOfDay(), $now->copy()->endOfDay()),
+            // Si no es el mes actual, devolvemos 0 para evitar confusiones
+            'daily' => $isCurrentMonth
+                ? $this->getNetBalance($now->copy()->startOfDay(), $now->copy()->endOfDay())
+                : 0,
 
-            // Lunes a Domingo de la semana actual
-            'weekly' => $this->getNetBalance($now->copy()->startOfWeek(), $now->copy()->endOfWeek()),
+            'weekly' => $isCurrentMonth
+                ? $this->getNetBalance($now->copy()->startOfWeek(), $now->copy()->endOfWeek())
+                : 0,
 
-            // Mes completo del filtro seleccionado
             'monthly' => $this->getNetBalance(
                 $selectedDate->copy()->startOfMonth()->startOfDay(),
                 $selectedDate->copy()->endOfMonth()->endOfDay()
@@ -81,7 +86,7 @@ class ReportService
             ->sum('amount');
 
         // Total Ingresos (Equivale al Total Mensual de la tabla histórica)
-        $totalRevenue = (float)($onlySales + $otherIncomes);
+        $totalRevenue = (float) ($onlySales + $otherIncomes);
 
         $costOfGoods = DB::table('sales as s')
             ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
@@ -99,15 +104,15 @@ class ReportService
             ->where('is_deleted', false)
             ->sum('amount');
 
-        $grossProfit = $totalRevenue - (float)$costOfGoods;
+        $grossProfit = $totalRevenue - (float) $costOfGoods;
 
         return [
             'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
             'sales_revenue' => $totalRevenue,
-            'cost_of_goods' => (float)$costOfGoods,
+            'cost_of_goods' => (float) $costOfGoods,
             'gross_profit' => $grossProfit,
-            'operating_expenses' => (float)$operatingExpenses,
-            'net_utility' => $grossProfit - (float)$operatingExpenses,
+            'operating_expenses' => (float) $operatingExpenses,
+            'net_utility' => $grossProfit - (float) $operatingExpenses,
             'chart_data' => $this->getDailyChartData($start, $end)
         ];
     }
@@ -136,8 +141,8 @@ class ReportService
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
-            $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
-            $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
+            $dataSales[] = isset($sales[$dateStr]) ? (float) $sales[$dateStr] : 0;
+            $dataExpenses[] = isset($expenses[$dateStr]) ? (float) $expenses[$dateStr] : 0;
         }
 
         return ['labels' => $dates, 'sales' => $dataSales, 'expenses' => $dataExpenses];
@@ -155,7 +160,8 @@ class ReportService
             ->limit($limit)
             ->get();
 
-        if ($topProducts->isEmpty()) return [];
+        if ($topProducts->isEmpty())
+            return [];
 
         $productIds = $topProducts->pluck('product_id')->toArray();
         $variants = DB::table('sale_details as sd')
@@ -169,7 +175,7 @@ class ReportService
 
         return $topProducts->map(function ($product) use ($variants) {
             $myVariants = $variants->where('product_id', $product->product_id)->values();
-            $topVariantsText = $myVariants->map(fn($v) => "{$v->variant_sold}-{$v->color}(".str_ireplace(['ESTÁNDAR','ESTANDAR'],'STD',$v->size).")")->implode(' | ');
+            $topVariantsText = $myVariants->map(fn($v) => "{$v->variant_sold}-{$v->color}(" . str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $v->size) . ")")->implode(' | ');
             return ['name' => $product->name, 'total_sold' => $product->total_sold, 'color' => "Top: {$topVariantsText}"];
         });
     }
@@ -178,7 +184,7 @@ class ReportService
     {
         return DB::table('products as p')
             ->leftJoin('sale_details as sd', 'p.id', '=', 'sd.product_id')
-            ->leftJoin('sales as s', fn($j) => $j->on('sd.sale_id','=','s.id')->where('s.status','COMPLETED')->where('s.is_deleted',false))
+            ->leftJoin('sales as s', fn($j) => $j->on('sd.sale_id', '=', 's.id')->where('s.status', 'COMPLETED')->where('s.is_deleted', false))
             ->selectRaw('p.name, p.creation_time as reg_date, CAST(COALESCE(SUM(sd.quantity), 0) AS INTEGER) as total_sold')
             ->groupBy('p.id', 'p.name', 'p.creation_time')
             ->orderBy('total_sold', 'asc')->orderBy('p.creation_time', 'asc')
@@ -224,13 +230,16 @@ class ReportService
             $movData = $movements->get($month);
             $fecha = $saleData ? $saleData->month_year : Carbon::createFromFormat('Y-m', $month)->format('m-Y');
 
-            $efectivo = ($saleData ? (float)$saleData->cash_amount : 0) + ($movData ? (float)$movData->net_cash : 0);
-            $yape = ($saleData ? (float)$saleData->yape_amount : 0) + ($movData ? (float)$movData->net_yape : 0);
-            $tarjeta = ($saleData ? (float)$saleData->card_transfer_amount : 0) + ($movData ? (float)$movData->net_card_transfer : 0);
+            $efectivo = ($saleData ? (float) $saleData->cash_amount : 0) + ($movData ? (float) $movData->net_cash : 0);
+            $yape = ($saleData ? (float) $saleData->yape_amount : 0) + ($movData ? (float) $movData->net_yape : 0);
+            $tarjeta = ($saleData ? (float) $saleData->card_transfer_amount : 0) + ($movData ? (float) $movData->net_card_transfer : 0);
 
             $report[] = [
-                'fecha' => $fecha, 'efectivo' => $efectivo, 'yape' => $yape,
-                'tarjeta_transferencia' => $tarjeta, 'total_mensual' => $efectivo + $yape + $tarjeta
+                'fecha' => $fecha,
+                'efectivo' => $efectivo,
+                'yape' => $yape,
+                'tarjeta_transferencia' => $tarjeta,
+                'total_mensual' => $efectivo + $yape + $tarjeta
             ];
         }
         return array_values($report);
