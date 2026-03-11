@@ -65,36 +65,6 @@ class ReportService
      */
     public function getTopProducts(int $limit = 20)
     {
-        // return DB::table('sale_details as sd')
-        //     ->join('sales as s', 'sd.sale_id', '=', 's.id')
-        //     ->selectRaw('
-        //         sd.product_id,
-        //         MAX(sd.product_name_snapshot) as name,
-        //         CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
-        //         CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
-        //     ')
-        //     ->where('s.status', 'COMPLETED')
-        //     ->where('s.is_deleted', false)
-        //     ->groupBy('sd.product_id')
-        //     ->orderByDesc('total_sold')
-        //     ->limit($limit)
-        //     ->get();
-        // return DB::table('sale_details as sd')
-        //     ->join('sales as s', 'sd.sale_id', '=', 's.id')
-        //     ->selectRaw('
-        //         sd.product_name_snapshot as name,
-        //         sd.size_name_snapshot as size,
-        //         sd.color_name_snapshot as color,
-        //         CAST(SUM(sd.quantity) AS INTEGER) as total_sold,
-        //         CAST(SUM(sd.subtotal) AS FLOAT) as total_revenue
-        //     ')
-        //     ->where('s.status', 'COMPLETED')
-        //     ->where('s.is_deleted', false)
-        //     ->groupBy('sd.product_name_snapshot', 'sd.size_name_snapshot', 'sd.color_name_snapshot')
-        //     ->orderByDesc('total_sold')
-        //     ->limit($limit)
-        //     ->get();
-
         $topProducts = DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
             ->selectRaw('
@@ -153,6 +123,46 @@ class ReportService
                     : "Top: {$topVariantsText}"
             ];
         });
+    }
+
+    /**
+     * Ranking de Productos Menos Vendidos
+     * Incluye productos con 0 ventas y su fecha de registro.
+     */
+    public function getLeastSoldProducts(int $limit = 20)
+    {
+        return DB::table('products as p')
+            // Unimos con detalles de venta para contar cantidades
+            ->leftJoin('sale_details as sd', 'p.id', '=', 'sd.product_id')
+            // Unimos con ventas para filtrar solo las completadas y no eliminadas
+            ->leftJoin('sales as s', function ($join) {
+                $join->on('sd.sale_id', '=', 's.id')
+                    ->where('s.status', '=', 'COMPLETED')
+                    ->where('s.is_deleted', '=', false);
+            })
+            ->selectRaw('
+                p.name,
+                p.creation_time as registration_date,
+                CAST(COALESCE(SUM(sd.quantity), 0) AS INTEGER) as total_sold
+            ')
+            // Opcional: filtrar si el producto en sí no está marcado como eliminado
+            // ->where('p.is_deleted', false)
+            ->groupBy('p.id', 'p.name', 'p.creation_time')
+            // Ordenamos de menor a mayor venta
+            ->orderBy('total_sold', 'asc')
+            // En caso de empate en ventas (como muchos con 0), mostrar los más antiguos primero
+            ->orderBy('p.creation_time', 'asc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->name,
+                    'registration_date' => $item->registration_date
+                        ? Carbon::parse($item->registration_date)->format('d/m/Y')
+                        : 'Sin fecha',
+                    'total_sold' => $item->total_sold
+                ];
+            });
     }
 
     /**
@@ -238,30 +248,6 @@ class ReportService
             'expenses' => $dataExpenses
         ];
     }
-
-    // public function getAllTimeMonthlyReport()
-    // {
-    //     $report = Sale::selectRaw(expression: "
-    //         TO_CHAR(creation_time, 'MM-YYYY') as month_year,
-    //         SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
-    //         SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
-    //         SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount,
-    //         SUM(total_amount) as total_month
-    //     ")
-    //         ->where(column: 'status', operator: '=', value: 'COMPLETED')
-    //         ->where(column: 'is_deleted', operator: '=', value: false)
-    //         ->groupByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
-    //         ->orderByRaw(sql: "TO_CHAR(creation_time, 'YYYY-MM') ASC")
-    //         ->get();
-
-    //     return $report->map(callback: fn($row): array => [
-    //         'fecha' => $row->month_year,
-    //         'efectivo' => (float) $row->cash_amount,
-    //         'yape' => (float) $row->yape_amount,
-    //         'tarjeta_transferencia' => (float) $row->card_transfer_amount,
-    //         'total_mensual' => (float) $row->total_month
-    //     ]);
-    // }
 
     public function getAllTimeMonthlyReport()
     {
