@@ -30,7 +30,7 @@ class ReportController extends Controller
         // Pasamos el rango completo para que filtre los más vendidos de ESE periodo
         $topProducts = $this->reportsService->getTopProducts(20);
 
-        $leastProducts = $this->reportsService->getLeastSoldProducts(20);
+        $leastProducts = $this->reportsService->getLeastSoldProducts(30);
 
         // 4. Reporte Financiero
         $financials = $this->reportsService->getFinancialReport($startDate, $endDate);
