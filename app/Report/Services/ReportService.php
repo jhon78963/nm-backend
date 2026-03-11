@@ -129,7 +129,7 @@ class ReportService
      * Ranking de Productos Menos Vendidos
      * Incluye productos con 0 ventas y su fecha de registro.
      */
-    public function getLeastSoldProducts(int $limit = 20)
+    public function getLeastSoldProducts(int $limit = 50)
     {
         return DB::table('products as p')
             // Unimos con detalles de venta para contar cantidades
