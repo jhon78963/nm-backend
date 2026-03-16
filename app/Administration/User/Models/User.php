@@ -3,6 +3,7 @@
 namespace App\Administration\User\Models;
 
 use App\Administration\Role\Models\Role;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -25,6 +26,7 @@ class User extends Authenticatable
         'surname',
         'password',
         'role_id',
+        'warehouse_id',
         'profile_picture',
         'creator_user_id',
     ];
@@ -69,5 +71,9 @@ class User extends Authenticatable
 
     public function role(): BelongsTo {
         return $this->belongsTo(Role::class);
+    }
+
+    public function warehouse(): BelongsTo {
+        return $this->belongsTo(Warehouse::class);
     }
 }

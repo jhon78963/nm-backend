@@ -2,7 +2,7 @@
 
 namespace App\Inventory\Warehouse\Services;
 
-use App\Inventory\Warehouse\Model\Warehouse;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Services\ModelService;
 
 class WarehouseService extends ModelService

@@ -2,7 +2,7 @@
 
 namespace App\Inventory\Warehouse\Controllers;
 
-use App\Inventory\Warehouse\Model\Warehouse;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Inventory\Warehouse\Requests\WarehouseCreateRequest;
 use App\Inventory\Warehouse\Requests\WarehouseUpdateRequest;
 use App\Inventory\Warehouse\Resources\WarehouseResource;

@@ -27,6 +27,7 @@ class UserCreateRequest extends FormRequest
             'name' => 'required|string|max:25',
             'surname' => 'required|string|max:25',
             'roleId' => 'required',
+            'warehouseId' => 'required',
             'file' => 'nullable|max:2048',
         ];
     }

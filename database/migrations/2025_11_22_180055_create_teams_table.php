@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('surname');
             $table->decimal('salary', 10, 2);
+            $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->default(1);
         });
     }
 

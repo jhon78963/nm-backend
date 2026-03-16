@@ -3,7 +3,7 @@
 namespace App\Inventory\Product\Models;
 
 use App\Inventory\Gender\Models\Gender;
-use App\Inventory\Warehouse\Model\Warehouse;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Image\Models\Image;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;

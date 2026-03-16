@@ -2,6 +2,7 @@
 
 namespace App\Directory\Team\Resources;
 
+use App\Directory\Team\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -11,6 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $name
  * @property string $surname
  * @property string $salary
+ * @property number $warehouse_id
  */
 class TeamResource extends JsonResource
 {
@@ -27,6 +29,7 @@ class TeamResource extends JsonResource
             'name' => $this->name,
             'surname' => $this->surname,
             'salary' => $this->salary,
+            'warehouseId' => $this->warehouse_id,
         ];
     }
 }

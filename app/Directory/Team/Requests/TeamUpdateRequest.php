@@ -32,6 +32,7 @@ class TeamUpdateRequest extends FormRequest
             'name' => 'required|string|max:100',
             'surname' => 'required|string|max:100',
             'salary' => 'nullable',
+            'warehouseId' => "required|integer",
         ];
     }
 }

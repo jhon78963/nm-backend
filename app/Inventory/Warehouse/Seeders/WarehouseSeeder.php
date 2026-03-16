@@ -2,7 +2,7 @@
 
 namespace App\Inventory\Warehouse\Seeders;
 
-use App\Inventory\Warehouse\Model\Warehouse;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Seeder;
 
 class WarehouseSeeder extends Seeder

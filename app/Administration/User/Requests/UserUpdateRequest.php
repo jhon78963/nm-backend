@@ -25,6 +25,7 @@ class UserUpdateRequest extends FormRequest
             'name' => 'sometimes|max:25',
             'surname' => 'sometimes|max:25',
             'file' => 'sometimes|max:2048',
+            'warehouseId' => 'sometimes',
         ];
     }
 }

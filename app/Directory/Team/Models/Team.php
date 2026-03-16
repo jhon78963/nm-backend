@@ -2,7 +2,9 @@
 
 namespace App\Directory\Team\Models;
 
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Team extends Model
@@ -18,6 +20,7 @@ class Team extends Model
         'name',
         'surname',
         'salary',
+        'warehouse_id',
     ];
 
     /**
@@ -50,5 +53,10 @@ class Team extends Model
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class, 'team_id');
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 }
