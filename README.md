@@ -1,6 +1,6 @@
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-# SSLaiss API
+# NovedadesMaritex API
 
 1. Clonar el proyecto
 ```
@@ -23,6 +23,11 @@ php artisan migrate --seed
 7. Levantar servidor
 ```
 php artisan serve
+```
+
+8. Crear unaccent en postgresql
+```
+CREATE EXTENSION IF NOT EXISTS unaccent;
 ```
 
 # Comandos Bootstrap y Cache (Apache2)
