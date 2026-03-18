@@ -15,7 +15,6 @@ class ProductSizeService
 
     public function set(Product $product, int $sizeId, array $data): void
     {
-        // 1. Obtener datos anteriores si existían (para comparar cambios de precio/stock)
         $existingPivot = $product->sizes()
             ->where('size_id', $sizeId)
             ->first()
@@ -30,12 +29,10 @@ class ProductSizeService
             'min_sale_price' => $data['minSalePrice'],
         ];
 
-        // 2. Realizar la acción
         $product->sizes()->syncWithoutDetaching([
             $sizeId => $pivotData
         ]);
 
-        // 3. Registrar Historial
         $eventType = empty($existingPivot) ? 'CREATED' : 'UPDATED';
 
         $this->historyService->logChange(
@@ -50,7 +47,6 @@ class ProductSizeService
 
     public function remove(Product $product, int $sizeId): void
     {
-        // Obtener datos antes de borrar para el log
         $oldData = $product->sizes()
             ->where('size_id', $sizeId)
             ->first()
@@ -69,5 +65,40 @@ class ProductSizeService
                 null
             );
         }
+    }
+
+    public function setStock(Product $product, int $sizeId, int $qty, array $data): void
+    {
+        $existingPivot = $product->sizes()
+            ->where('size_id', $sizeId)
+            ->first()
+            ?->pivot
+                ?->toArray();
+
+        $currentStock = $existingPivot['stock'] ?? 0;
+        $newStock = $currentStock + $qty;
+
+        $pivotData = [
+                'barcode' => $data['barcode'],
+                'stock' => $newStock,
+                'purchase_price' => $data['purchase_price'],
+                'sale_price' => $data['sale_price'],
+                'min_sale_price' => $data['min_sale_price'],
+            ];
+
+        $product->sizes()->syncWithoutDetaching([
+            $sizeId => $pivotData
+        ]);
+
+        $eventType = empty($existingPivot) ? 'CREATED' : 'UPDATED';
+
+        $this->historyService->logChange(
+            $product,
+            'SIZE',
+            $sizeId,
+            $eventType,
+            $existingPivot ?? [],
+            $pivotData
+        );
     }
 }

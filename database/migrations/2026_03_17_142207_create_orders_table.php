@@ -11,7 +11,7 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('sales', function (Blueprint $table) {
+        Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->datetime('creation_time')->default(DB::raw('CURRENT_TIMESTAMP'));
             $table->foreignId('creator_user_id')->nullable()->constrained('users');
@@ -21,43 +21,36 @@ return new class extends Migration {
             $table->foreignId('deleter_user_id')->nullable()->constrained('users');
             $table->boolean('is_deleted')->default(false);
 
-            // Campos de Negocio
+            $table->date('reference_date');
             $table->string('code')->unique()->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable();
-            $table->foreign('customer_id')->references('id')->on('customers');
-
             $table->decimal('total_amount', 10, 2);
-            $table->decimal('tax_amount', 10, 2)->default(0);
-            $table->string('payment_method')->default('CASH'); // CASH, CARD, YAPE, PLIN
+            $table->foreignId('origin_warehouse_id')->nullable()->constrained('warehouses');
+            $table->foreignId('destination_warehouse_id')->constrained('warehouses');
+            $table->string('tracking_number')->nullable();
+            $table->enum('type', ['TRIP_PURCHASE', 'ONLINE_PURCHASE', 'WAREHOUSE_TRANSFER', 'WAREHOUSE_IN']);
             $table->enum('status', ['COMPLETED', 'CANCELED', 'PENDING'])->default('COMPLETED');
-            $table->string('notes')->nullable();
+            $table->text('notes')->nullable();
+
         });
 
-        Schema::create('sale_details', function (Blueprint $table) {
+        // EL DETALLE (La Ropa)
+        Schema::create('order_details', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('sale_id');
-            $table->foreign('sale_id')->references('id')->on('sales')->onDelete('cascade');
+            $table->foreignId('order_id')->constrained('orders')->onDelete('cascade');
+            $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('size_id')->constrained('sizes');
+            $table->foreignId('color_id')->nullable()->constrained('colors');
 
-            // Relaciones para mantener integridad referencial
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id')->references('id')->on('products');
-
-            $table->unsignedBigInteger('size_id');
-            $table->foreign('size_id')->references('id')->on('sizes');
-
-            $table->unsignedBigInteger('color_id');
-            $table->foreign('color_id')->references('id')->on('colors');
-
-            // SNAPSHOTS (Guardamos el texto por si borran el producto original)
             $table->string('product_name_snapshot');
             $table->string('size_name_snapshot');
             $table->string('color_name_snapshot');
             $table->string('sku_snapshot')->nullable();
 
-            // Datos financieros del ítem
             $table->integer('quantity');
-            $table->decimal('unit_price', 10, 2);
-            $table->decimal('subtotal', 10, 2);
+            $table->string('barcode')->nullable();
+            $table->float('purchase_price')->nullable();
+            $table->float('sale_price')->nullable();
+            $table->float('min_sale_price')->nullable();
         });
     }
 
@@ -66,7 +59,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('sale_details');
-        Schema::dropIfExists('sales');
+        Schema::dropIfExists('order_details');
+        Schema::dropIfExists('orders');
     }
 };

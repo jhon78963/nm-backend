@@ -13,28 +13,23 @@ class ProductSizeColorService
         $this->historyService = $historyService;
     }
 
- public function set(ProductSize $productSize, int $colorId, array $data): void
+    public function set(ProductSize $productSize, int $colorId, array $data): void
     {
-        // 1. Datos anteriores
         $existingPivot = $productSize->productSizeColors()
             ->where('color_id', $colorId)
             ->first()
             ?->pivot
-            ?->toArray() ?? [];
+                ?->toArray() ?? [];
 
-        // 2. Acción
         $productSize->productSizeColors()->syncWithoutDetaching([
             $colorId => ['stock' => $data['stock']]
         ]);
 
-        // 3. Historial (Necesitamos el Producto Padre para vincularlo)
         if (!$productSize->relationLoaded('product')) {
-            $productSize->load('product'); // Carga perezosa si no está
+            $productSize->load('product');
         }
 
         $eventType = empty($existingPivot) ? 'CREATED' : 'UPDATED';
-
-        // Agregamos el ID de la talla al log para contexto
         $newData = ['stock' => $data['stock'], 'size_id_ref' => $productSize->size_id];
         $oldData = $existingPivot ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id]) : [];
 
@@ -54,7 +49,7 @@ class ProductSizeColorService
             ->where('color_id', $colorId)
             ->first()
             ?->pivot
-            ?->toArray();
+                ?->toArray();
 
         $productSize->productSizeColors()->detach($colorId);
 
