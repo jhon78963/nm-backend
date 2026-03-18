@@ -51,6 +51,7 @@ return new class extends Migration {
             $table->float('purchase_price')->nullable();
             $table->float('sale_price')->nullable();
             $table->float('min_sale_price')->nullable();
+            $table->decimal('subtotal', 10, 2);
         });
     }
 

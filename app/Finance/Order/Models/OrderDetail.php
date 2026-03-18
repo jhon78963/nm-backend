@@ -28,9 +28,11 @@ class OrderDetail extends Model
 
         // Valores numéricos
         'quantity',
+        'barcode',
         'purchase_price',
         'sale_price',
         'min_sale_price',
+        'subtotal',
     ];
 
     protected $casts = [
@@ -38,11 +40,12 @@ class OrderDetail extends Model
         'purchase_price' => 'float',
         'sale_price' => 'float',
         'min_sale_price' => 'float',
+        'subtotal' => 'float',
     ];
 
     public function order(): BelongsTo
     {
-        return $this->belongsTo(Order::class, 'sale_id');
+        return $this->belongsTo(Order::class, 'order_id');
     }
 
     public function product(): BelongsTo

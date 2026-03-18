@@ -3,7 +3,6 @@ namespace App\Shared\Foundation\Services;
 
 use App\Shared\Foundation\Requests\GetAllRequest;
 use Illuminate\Contracts\Database\Eloquent\Builder;
-use Arr;
 use Carbon\Carbon;
 use Str;
 
@@ -14,11 +13,21 @@ class SharedService
     private string $search = '';
     // ... resto de propiedades ...
 
-    public function convertCamelToSnake(array $data): array
+    public function convertCamelToSnake(array $array): array
     {
-        return Arr::mapWithKeys($data, function ($value, $key): array {
-            return [Str::snake($key) => $value];
-        });
+        $result = [];
+
+        foreach ($array as $key => $value) {
+            $snakeKey = Str::snake($key);
+
+            if (is_array($value)) {
+                $result[$snakeKey] = $this->convertCamelToSnake($value);
+            } else {
+                $result[$snakeKey] = $value;
+            }
+        }
+
+        return $result;
     }
 
     public function dateFormat($date)

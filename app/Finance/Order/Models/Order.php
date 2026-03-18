@@ -33,6 +33,7 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'reference_date' => 'datetime',
         'creation_time' => 'datetime',
         'last_modification_time' => 'datetime',
         'deletion_time' => 'datetime',
@@ -42,6 +43,6 @@ class Order extends Model
 
     public function details(): HasMany
     {
-        return $this->hasMany(OrderDetail::class, 'sale_id');
+        return $this->hasMany(OrderDetail::class, 'order_id');
     }
 }
