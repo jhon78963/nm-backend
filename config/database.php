@@ -64,8 +64,8 @@ return [
 
         'multikart' => [
             'driver' => env('DB_MULTIKART_CONNECTION', 'mysql'),
-            'url' => env('DB_MULTIKART_HOST'),
-            'host' => env('DB_HOST', '127.0.0.1'),
+            'url' => env('DB_URL'),
+            'host' => env('DB_MULTIKART_HOST', '127.0.0.1'),
             'port' => env('DB_MULTIKART_PORT', '3306'),
             'database' => env('DB_MULTIKART_DATABASE', 'laravel'),
             'username' => env('DB_MULTIKART_USERNAME', 'root'),
