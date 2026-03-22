@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos de Zero a Multikart enlazando categorías correctas con JSON :V';
+    protected $description = 'Sincroniza productos de Zero a Multikart activos por defecto :V';
 
     public function handle()
     {
@@ -67,7 +67,7 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => $zProduct->status === 'AVAILABLE' ? 1 : 0,
+                    'status' => 1, // <--- ¡AQUÍ ESTÁ EL FIX! Forzado a Activo siempre
                     'is_approved' => 1,
                     'store_id' => $storeId,
                     'created_by_id' => $adminId,
@@ -110,7 +110,7 @@ class SyncZeroToMultikart extends Command
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                             'sku' => $pSize->barcode ?? 'VAR-' . $skuPadre . '-S' . $pSize->id . '-C' . $pColor->id,
-                            'status' => 1,
+                            'status' => 1, // Activo también en las variaciones
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
@@ -127,7 +127,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización letal completada! Categorías enlazadas a la perfección sin duplicar. 🚀');
+            $this->info('¡Sincronización letal completada! Productos 100% activos y en vitrina. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
@@ -135,17 +135,12 @@ class SyncZeroToMultikart extends Command
         }
     }
 
-    /**
-     * Helper actualizado para Categorías con soporte JSON
-     */
     private function getOrCreateCategory($mkDb, $name, $adminId)
     {
-        // Buscamos ignorando la estructura JSON
         $category = $mkDb->table('categories')
             ->where('name', 'LIKE', '%"' . $name . '"%')
             ->first();
 
-        // Fallback por si acaso está en texto plano
         if (!$category) {
             $category = $mkDb->table('categories')
                 ->where('name', $name)
@@ -156,7 +151,6 @@ class SyncZeroToMultikart extends Command
             return $category->id;
         }
 
-        // Si es un género totalmente nuevo, lo crea con el formato JSON que Multikart espera
         return $mkDb->table('categories')->insertGetId([
             'name' => json_encode(['es' => $name], JSON_UNESCAPED_UNICODE),
             'slug' => Str::slug($name),
