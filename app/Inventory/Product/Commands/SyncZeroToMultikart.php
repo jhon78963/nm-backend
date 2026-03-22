@@ -10,13 +10,12 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos de Zero a Multikart incluyendo categorías sin duplicar :V';
+    protected $description = 'Sincroniza productos de Zero a Multikart enlazando categorías correctas con JSON :V';
 
     public function handle()
     {
         $this->info('Iniciando volcado final con categorías de Zero a Multikart...');
 
-        // Agregamos 'gender' a la carga de relaciones para tener el dato a la mano
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
         if ($zeroProducts->isEmpty()) {
@@ -27,17 +26,15 @@ class SyncZeroToMultikart extends Command
         $mkDb = DB::connection('multikart');
 
         $adminId = 1;
-        $storeId = 1; // Tu tienda "Novedades Maritex"
+        $storeId = 1;
 
-        // IDs Fijos de Atributos según tu BD
         $colorAttrId = 1;
         $tallaAttrId = 2;
 
         $mkDb->beginTransaction();
 
         try {
-            // LIMPIEZA: Borrar todos los productos EXCEPTO el ID 5
-            $this->info('Limpiando basura anterior (Respetando el producto ID 5)...');
+            $this->info('Limpiando productos anteriores (Respetando el ID 5)...');
             $mkDb->table('products')->where('id', '!=', 5)->delete();
 
             $bar = $this->output->createProgressBar(count($zeroProducts));
@@ -47,7 +44,6 @@ class SyncZeroToMultikart extends Command
 
                 $skuPadre = $zProduct->barcode ?? 'Z-' . $zProduct->id;
 
-                // Calcular stock total y precio base
                 $totalStock = 0;
                 $basePrice = 0;
 
@@ -79,7 +75,7 @@ class SyncZeroToMultikart extends Command
                     'updated_at' => now(),
                 ]);
 
-                // 2. CATEGORÍA: Buscar o crear la categoría (Damas, Caballeros, etc.) y enlazarla
+                // 2. CATEGORÍA: Buscar con soporte JSON y enlazar
                 $genderName = $zProduct->gender ? $zProduct->gender->name : 'General';
                 $categoryId = $this->getOrCreateCategory($mkDb, $genderName, $adminId);
 
@@ -90,25 +86,22 @@ class SyncZeroToMultikart extends Command
                     'updated_at' => now()
                 ]);
 
-                // 3. Asociar el producto padre con los atributos Talla y Color
+                // 3. Asociar atributos base
                 $mkDb->table('product_attributes')->insert([
                     ['product_id' => $mkProductId, 'attribute_id' => $tallaAttrId, 'created_at' => now(), 'updated_at' => now()],
                     ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
                 ]);
 
-                // 4. Recorrer Tallas y Colores de Zero para crear Variaciones
+                // 4. Variaciones
                 foreach ($zProduct->productSizes as $pSize) {
-
                     $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
 
                     foreach ($pSize->colors as $pColor) {
-
                         $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $pColor->description, $pColor->hash, $adminId);
 
                         $stock = $pColor->pivot->stock;
                         $precio = $pSize->sale_price ?? 0;
 
-                        // 5. Insertar la Variación
                         $variationId = $mkDb->table('variations')->insertGetId([
                             'product_id' => $mkProductId,
                             'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $pColor->description,
@@ -122,7 +115,6 @@ class SyncZeroToMultikart extends Command
                             'updated_at' => now(),
                         ]);
 
-                        // 6. Unir la Variación con Talla y Color
                         $mkDb->table('variation_attribute_values')->insert([
                             ['variation_id' => $variationId, 'attribute_value_id' => $tallaValueId, 'created_at' => now(), 'updated_at' => now()],
                             ['variation_id' => $variationId, 'attribute_value_id' => $colorValueId, 'created_at' => now(), 'updated_at' => now()],
@@ -135,7 +127,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización letal completada! Categorías en su sitio. 🚀');
+            $this->info('¡Sincronización letal completada! Categorías enlazadas a la perfección sin duplicar. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
@@ -144,21 +136,31 @@ class SyncZeroToMultikart extends Command
     }
 
     /**
-     * Helper para enlazar o crear las Categorías (Damas, Caballeros, etc.)
+     * Helper actualizado para Categorías con soporte JSON
      */
     private function getOrCreateCategory($mkDb, $name, $adminId)
     {
-        $category = $mkDb->table('categories')->where('name', $name)->first();
+        // Buscamos ignorando la estructura JSON
+        $category = $mkDb->table('categories')
+            ->where('name', 'LIKE', '%"' . $name . '"%')
+            ->first();
 
-        if ($category) {
-            return $category->id; // Si ya existe "Damas", devuelve su ID
+        // Fallback por si acaso está en texto plano
+        if (!$category) {
+            $category = $mkDb->table('categories')
+                ->where('name', $name)
+                ->first();
         }
 
-        // Si no existe, la crea como categoría de producto
+        if ($category) {
+            return $category->id;
+        }
+
+        // Si es un género totalmente nuevo, lo crea con el formato JSON que Multikart espera
         return $mkDb->table('categories')->insertGetId([
-            'name' => $name,
+            'name' => json_encode(['es' => $name], JSON_UNESCAPED_UNICODE),
             'slug' => Str::slug($name),
-            'type' => 'product', // Clave para que aparezca en la tienda y no como un blog post
+            'type' => 'product',
             'status' => 1,
             'is_allow_all_zone' => 1,
             'created_by_id' => $adminId,
@@ -167,9 +169,6 @@ class SyncZeroToMultikart extends Command
         ]);
     }
 
-    /**
-     * Helper para buscar los atributos (JSON support)
-     */
     private function getOrCreateAttributeValue($mkDb, $attributeId, $plainValue, $hexColor, $adminId)
     {
         $attrValue = $mkDb->table('attribute_values')
