@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos de Zero a Multikart activos por defecto :V';
+    protected $description = 'Sincroniza productos de Zero a Multikart con mapeo de categorías exacto :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con categorías de Zero a Multikart...');
+        $this->info('Iniciando volcado final y definitivo de Zero a Multikart...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -26,7 +26,7 @@ class SyncZeroToMultikart extends Command
         $mkDb = DB::connection('multikart');
 
         $adminId = 1;
-        $storeId = 1;
+        $storeId = 1; // Tu tienda Novedades Maritex
 
         $colorAttrId = 1;
         $tallaAttrId = 2;
@@ -67,7 +67,7 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => 1, // <--- ¡AQUÍ ESTÁ EL FIX! Forzado a Activo siempre
+                    'status' => 1, // Siempre activo
                     'is_approved' => 1,
                     'store_id' => $storeId,
                     'created_by_id' => $adminId,
@@ -75,16 +75,41 @@ class SyncZeroToMultikart extends Command
                     'updated_at' => now(),
                 ]);
 
-                // 2. CATEGORÍA: Buscar con soporte JSON y enlazar
-                $genderName = $zProduct->gender ? $zProduct->gender->name : 'General';
-                $categoryId = $this->getOrCreateCategory($mkDb, $genderName, $adminId);
+                // 2. CATEGORÍA: Mapeo Directo por IDs
+                if ($zProduct->gender) {
+                    $generoZero = strtolower(trim($zProduct->gender->name));
 
-                $mkDb->table('product_categories')->insert([
-                    'product_id' => $mkProductId,
-                    'category_id' => $categoryId,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
+                    // Diccionario letal: Apuntamos directo a los IDs exactos
+                    $categoryIdsMap = [
+                        'dama'       => 8,
+                        'damas'      => 8,
+                        'femenino'   => 8,
+                        'mujer'      => 8,
+                        'caballero'  => 10,
+                        'caballeros' => 10,
+                        'masculino'  => 10,
+                        'hombre'     => 10,
+                        'niño'       => 14,
+                        'niños'      => 14,
+                        'niña'       => 14,
+                        'niñas'      => 14,
+                    ];
+
+                    // Si está en el diccionario, usamos el ID directo.
+                    if (array_key_exists($generoZero, $categoryIdsMap)) {
+                        $categoryId = $categoryIdsMap[$generoZero];
+                    } else {
+                        // Si creas un género nuevo ("Unisex"), lo crea y lo amarra
+                        $categoryId = $this->getOrCreateCategory($mkDb, $zProduct->gender->name, $adminId);
+                    }
+
+                    $mkDb->table('product_categories')->insert([
+                        'product_id' => $mkProductId,
+                        'category_id' => $categoryId,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                }
 
                 // 3. Asociar atributos base
                 $mkDb->table('product_attributes')->insert([
@@ -110,7 +135,7 @@ class SyncZeroToMultikart extends Command
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                             'sku' => $pSize->barcode ?? 'VAR-' . $skuPadre . '-S' . $pSize->id . '-C' . $pColor->id,
-                            'status' => 1, // Activo también en las variaciones
+                            'status' => 1, // Siempre activo
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
@@ -127,7 +152,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización letal completada! Productos 100% activos y en vitrina. 🚀');
+            $this->info('¡Sincronización letal completada! Todo limpio y enlazado. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
