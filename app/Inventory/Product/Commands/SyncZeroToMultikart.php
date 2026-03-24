@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos de Zero a Multikart (Con Tax ID y sin Unique SKU) :V';
+    protected $description = 'Sincroniza productos completando la matriz de variaciones con stock 0 :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final...');
+        $this->info('Iniciando volcado final con relleno de matriz...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -42,10 +42,13 @@ class SyncZeroToMultikart extends Command
 
             foreach ($zeroProducts as $zProduct) {
 
-                $skuPadre = $zProduct->barcode ?? 'Z-' . $zProduct->id;
+                $skuPadre = $zProduct->barcode ?? 'Z' . $zProduct->id;
 
                 $totalStock = 0;
                 $basePrice = 0;
+
+                // Paso extra: Recopilar TODOS los colores únicos de este producto
+                $allColors = collect();
 
                 foreach ($zProduct->productSizes as $pSize) {
                     if ($basePrice === 0 && $pSize->sale_price > 0) {
@@ -53,6 +56,11 @@ class SyncZeroToMultikart extends Command
                     }
                     foreach ($pSize->colors as $pColor) {
                         $totalStock += $pColor->pivot->stock;
+
+                        // Guardamos el color en nuestra colección si no está
+                        if (!$allColors->contains('id', $pColor->id)) {
+                            $allColors->push($pColor);
+                        }
                     }
                 }
 
@@ -115,24 +123,33 @@ class SyncZeroToMultikart extends Command
                     ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
                 ]);
 
-                // 4. Variaciones
+                // 4. Variaciones: Cruzamos TODAS las tallas con TODOS los colores (Matriz completa)
                 foreach ($zProduct->productSizes as $pSize) {
                     $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
+                    $precio = $pSize->sale_price ?? 0;
 
-                    foreach ($pSize->colors as $pColor) {
-                        $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $pColor->description, $pColor->hash, $adminId);
+                    foreach ($allColors as $colorObj) {
+                        $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
 
-                        $stock = $pColor->pivot->stock;
-                        $precio = $pSize->sale_price ?? 0;
+                        // Verificamos si esta combinación exacta de talla/color existe en tu BD Zero
+                        $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
 
-                        // Generamos el SKU: Si no tiene uno propio, armamos uno basado en el padre para intentar que sea único pero que no reviente si se duplica
-                        // $skuVariacion = $pSize->barcode ?? 'VAR-' . $skuPadre . '-S' . $pSize->id . '-C' . $pColor->id;
+                        if ($colorPivot) {
+                            // Sí existe: Tomamos el stock real
+                            $stock = $colorPivot->pivot->stock;
+                        } else {
+                            // No existe: Rellenamos con 0 para que el panel de Multikart no se rompa
+                            $stock = 0;
+                        }
 
-                        $skuVariacion = $pSize->barcode ? $pSize->barcode . $pColor->id : $skuPadre . $pSize->id . $pColor->id;
+                        // SKU: Talla Barcode + Color ID (Solo números, sin guiones)
+                        $skuVariacion = $pSize->barcode
+                            ? $pSize->barcode . $colorObj->id
+                            : $skuPadre . $pSize->id . $colorObj->id;
 
                         $variationId = $mkDb->table('variations')->insertGetId([
                             'product_id' => $mkProductId,
-                            'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $pColor->description,
+                            'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description,
                             'price' => $precio,
                             'sale_price' => $precio,
                             'quantity' => $stock,
@@ -155,7 +172,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! (Tax ID asignado). 🚀');
+            $this->info('¡Sincronización completada! Matriz rellenada y panel a salvo. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
