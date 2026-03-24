@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza omitiendo colores sin stock total y aplicando matriz inteligente :V';
+    protected $description = 'Sincroniza omitiendo basura pero manteniendo la matriz clickeable :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con matriz filtrada anti-basura...');
+        $this->info('Iniciando volcado final con matriz activa y navegable...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -47,12 +47,11 @@ class SyncZeroToMultikart extends Command
                 $totalStock = 0;
                 $basePrice = 0;
 
-                // Solo coleccionaremos las tallas y colores que tengan stock real > 0
                 $validSizes = collect();
                 $validColors = collect();
 
                 foreach ($zProduct->productSizes as $pSize) {
-                    $sizeStock = 0; // Para saber si esta talla existe en al menos 1 color
+                    $sizeStock = 0;
                     if ($basePrice === 0 && $pSize->sale_price > 0) {
                         $basePrice = $pSize->sale_price;
                     }
@@ -61,13 +60,11 @@ class SyncZeroToMultikart extends Command
                         $totalStock += $stock;
                         $sizeStock += $stock;
 
-                        // Solo metemos el color a la matriz si tiene stock > 0
                         if ($stock > 0 && !$validColors->contains('id', $pColor->id)) {
                             $validColors->push($pColor);
                         }
                     }
 
-                    // Solo metemos la talla a la matriz si en total tiene stock > 0
                     if ($sizeStock > 0) {
                         $validSizes->push($pSize);
                     }
@@ -84,7 +81,7 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => $totalStock > 0 ? 1 : 0,
+                    'status' => $totalStock > 0 ? 1 : 0, // El padre sí se apaga si todo está en 0
                     'is_approved' => 1,
                     'store_id' => $storeId,
                     'tax_id' => 1,
@@ -126,16 +123,14 @@ class SyncZeroToMultikart extends Command
                     ]);
                 }
 
-                // Si por si acaso el producto entero no tiene stock, ya no procesamos variaciones para no ensuciar
+                // 3. Matriz de Variaciones
                 if ($validSizes->isNotEmpty() && $validColors->isNotEmpty()) {
 
-                    // 3. Asociar atributos base
                     $mkDb->table('product_attributes')->insert([
                         ['product_id' => $mkProductId, 'attribute_id' => $tallaAttrId, 'created_at' => now(), 'updated_at' => now()],
                         ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
                     ]);
 
-                    // 4. Variaciones: Matriz de datos LIMPIOS (solo colores/tallas con stock)
                     foreach ($validSizes as $pSize) {
                         $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
                         $precio = $pSize->sale_price ?? 0;
@@ -163,7 +158,7 @@ class SyncZeroToMultikart extends Command
                                 'quantity' => $stock,
                                 'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                                 'sku' => $skuVariacion,
-                                'status' => $stock > 0 ? 1 : 0, // Aquí ponemos en 0 si la matriz cruzada da 0
+                                'status' => 1, // <--- CAMBIO CLAVE: Siempre 1 para que el frontend te deje hacer clic
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ]);
@@ -182,7 +177,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! Matriz limpia, sin colores fantasma y lista. 🚀');
+            $this->info('¡Sincronización completada! El panel y la tienda ya son navegables. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
