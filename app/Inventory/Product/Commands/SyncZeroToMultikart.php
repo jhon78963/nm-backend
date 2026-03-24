@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza omitiendo basura pero manteniendo la matriz clickeable :V';
+    protected $description = 'Sincroniza con textos SEO por defecto según el género :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con matriz activa y navegable...');
+        $this->info('Iniciando volcado final con descripciones por género...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -70,10 +70,43 @@ class SyncZeroToMultikart extends Command
                     }
                 }
 
+                // --- LÓGICA DE DESCRIPCIONES POR GÉNERO ---
+                $generoZero = $zProduct->gender ? strtolower(trim($zProduct->gender->name)) : 'general';
+                $tipoDesc = 'default';
+
+                if (in_array($generoZero, ['dama', 'damas', 'femenino', 'mujer'])) $tipoDesc = 'dama';
+                elseif (in_array($generoZero, ['caballero', 'caballeros', 'masculino', 'hombre'])) $tipoDesc = 'caballero';
+                elseif (in_array($generoZero, ['niño', 'niños', 'niña', 'niñas'])) $tipoDesc = 'niño';
+
+                $textosSeo = [
+                    'dama' => [
+                        'short' => 'Descubre la comodidad y estilo con nuestra nueva colección para damas.',
+                        'long'  => 'Renueva tu armario con nuestras prendas exclusivas para mujer. Diseñadas para ofrecer el máximo confort sin perder la elegancia. Ideales para el día a día, con materiales de alta calidad y un ajuste perfecto que resaltará tu estilo único.'
+                    ],
+                    'caballero' => [
+                        'short' => 'Estilo urbano y confort total para el hombre moderno.',
+                        'long'  => 'Nuestra línea para caballeros combina durabilidad y diseño. Prendas versátiles que se adaptan a tu ritmo de vida, ya sea para un look casual de fin de semana o para estar cómodo en casa. Confeccionadas con materiales premium y costuras reforzadas.'
+                    ],
+                    'niño' => [
+                        'short' => 'Ropa divertida, resistente y súper cómoda para los más pequeños.',
+                        'long'  => 'Sabemos que los niños no paran, por eso estas prendas están hechas para resistir todas sus aventuras. Telas suaves que cuidan su piel, colores vibrantes y diseños que les encantarán. ¡Libertad de movimiento total garantizada!'
+                    ],
+                    'default' => [
+                        'short' => 'Calidad y comodidad garantizada para tu día a día.',
+                        'long'  => 'Prenda confeccionada con los mejores materiales para asegurar durabilidad y confort. Un básico imprescindible en tu guardarropa que combina con todo, pensado para ofrecerte la mejor experiencia de uso.'
+                    ]
+                ];
+
+                // Formateamos a JSON para que Spatie (el traductor de Multikart) lo lea perfecto y no salga {"es":null}
+                $shortDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['short']], JSON_UNESCAPED_UNICODE);
+                $longDescJson  = json_encode(['es' => $textosSeo[$tipoDesc]['long']], JSON_UNESCAPED_UNICODE);
+                // ------------------------------------------
+
                 // 1. Insertar el Producto Padre
                 $mkProductId = $mkDb->table('products')->insertGetId([
                     'name' => $zProduct->name,
-                    'short_description' => $zProduct->description,
+                    'short_description' => $shortDescJson, // <--- Aplicamos el Short
+                    'description' => $longDescJson,        // <--- Aplicamos el Long
                     'sku' => $skuPadre,
                     'type' => 'classified',
                     'product_type' => 'physical',
@@ -81,7 +114,7 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => $totalStock > 0 ? 1 : 0, // El padre sí se apaga si todo está en 0
+                    'status' => $totalStock > 0 ? 1 : 0,
                     'is_approved' => 1,
                     'store_id' => $storeId,
                     'tax_id' => 1,
@@ -92,8 +125,6 @@ class SyncZeroToMultikart extends Command
 
                 // 2. CATEGORÍA
                 if ($zProduct->gender) {
-                    $generoZero = strtolower(trim($zProduct->gender->name));
-
                     $categoryIdsMap = [
                         'dama'       => 8,
                         'damas'      => 8,
@@ -158,7 +189,7 @@ class SyncZeroToMultikart extends Command
                                 'quantity' => $stock,
                                 'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                                 'sku' => $skuVariacion,
-                                'status' => 1, // <--- CAMBIO CLAVE: Siempre 1 para que el frontend te deje hacer clic
+                                'status' => 1,
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ]);
@@ -177,7 +208,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! El panel y la tienda ya son navegables. 🚀');
+            $this->info('¡Sincronización completada! Textos agregados y listos para los Observers. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
