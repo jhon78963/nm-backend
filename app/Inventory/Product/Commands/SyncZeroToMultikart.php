@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos completando la matriz de variaciones con stock 0 :V';
+    protected $description = 'Sincroniza productos completando matriz y desactivando los sin stock :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con relleno de matriz...');
+        $this->info('Iniciando volcado final con matriz y auto-desactivación de stock 0...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -47,7 +47,6 @@ class SyncZeroToMultikart extends Command
                 $totalStock = 0;
                 $basePrice = 0;
 
-                // Paso extra: Recopilar TODOS los colores únicos de este producto
                 $allColors = collect();
 
                 foreach ($zProduct->productSizes as $pSize) {
@@ -57,7 +56,6 @@ class SyncZeroToMultikart extends Command
                     foreach ($pSize->colors as $pColor) {
                         $totalStock += $pColor->pivot->stock;
 
-                        // Guardamos el color en nuestra colección si no está
                         if (!$allColors->contains('id', $pColor->id)) {
                             $allColors->push($pColor);
                         }
@@ -75,16 +73,16 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => 1,
+                    'status' => $totalStock > 0 ? 1 : 0, // Desactiva el producto entero si no hay nada de stock
                     'is_approved' => 1,
                     'store_id' => $storeId,
-                    'tax_id' => 1, // <--- AÑADIDO EL TAX ID
+                    'tax_id' => 1,
                     'created_by_id' => $adminId,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
 
-                // 2. CATEGORÍA: Mapeo Directo por IDs
+                // 2. CATEGORÍA
                 if ($zProduct->gender) {
                     $generoZero = strtolower(trim($zProduct->gender->name));
 
@@ -123,7 +121,7 @@ class SyncZeroToMultikart extends Command
                     ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
                 ]);
 
-                // 4. Variaciones: Cruzamos TODAS las tallas con TODOS los colores (Matriz completa)
+                // 4. Variaciones: Cruzar la matriz completa
                 foreach ($zProduct->productSizes as $pSize) {
                     $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
                     $precio = $pSize->sale_price ?? 0;
@@ -131,18 +129,14 @@ class SyncZeroToMultikart extends Command
                     foreach ($allColors as $colorObj) {
                         $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
 
-                        // Verificamos si esta combinación exacta de talla/color existe en tu BD Zero
                         $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
 
                         if ($colorPivot) {
-                            // Sí existe: Tomamos el stock real
                             $stock = $colorPivot->pivot->stock;
                         } else {
-                            // No existe: Rellenamos con 0 para que el panel de Multikart no se rompa
                             $stock = 0;
                         }
 
-                        // SKU: Talla Barcode + Color ID (Solo números, sin guiones)
                         $skuVariacion = $pSize->barcode
                             ? $pSize->barcode . $colorObj->id
                             : $skuPadre . $pSize->id . $colorObj->id;
@@ -155,7 +149,7 @@ class SyncZeroToMultikart extends Command
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                             'sku' => $skuVariacion,
-                            'status' => 1,
+                            'status' => $stock > 0 ? 1 : 0, // <--- AQUÍ ESTÁ: status 0 si no hay stock
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
@@ -172,7 +166,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! Matriz rellenada y panel a salvo. 🚀');
+            $this->info('¡Sincronización completada! Matriz limpia y deshabilitada por falta de stock. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
