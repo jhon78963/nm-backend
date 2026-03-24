@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos completando matriz y desactivando los sin stock :V';
+    protected $description = 'Sincroniza omitiendo colores sin stock total y aplicando matriz inteligente :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con matriz y auto-desactivación de stock 0...');
+        $this->info('Iniciando volcado final con matriz filtrada anti-basura...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -47,18 +47,29 @@ class SyncZeroToMultikart extends Command
                 $totalStock = 0;
                 $basePrice = 0;
 
-                $allColors = collect();
+                // Solo coleccionaremos las tallas y colores que tengan stock real > 0
+                $validSizes = collect();
+                $validColors = collect();
 
                 foreach ($zProduct->productSizes as $pSize) {
+                    $sizeStock = 0; // Para saber si esta talla existe en al menos 1 color
                     if ($basePrice === 0 && $pSize->sale_price > 0) {
                         $basePrice = $pSize->sale_price;
                     }
                     foreach ($pSize->colors as $pColor) {
-                        $totalStock += $pColor->pivot->stock;
+                        $stock = $pColor->pivot->stock;
+                        $totalStock += $stock;
+                        $sizeStock += $stock;
 
-                        if (!$allColors->contains('id', $pColor->id)) {
-                            $allColors->push($pColor);
+                        // Solo metemos el color a la matriz si tiene stock > 0
+                        if ($stock > 0 && !$validColors->contains('id', $pColor->id)) {
+                            $validColors->push($pColor);
                         }
+                    }
+
+                    // Solo metemos la talla a la matriz si en total tiene stock > 0
+                    if ($sizeStock > 0) {
+                        $validSizes->push($pSize);
                     }
                 }
 
@@ -73,7 +84,7 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => $totalStock > 0 ? 1 : 0, // Desactiva el producto entero si no hay nada de stock
+                    'status' => $totalStock > 0 ? 1 : 0,
                     'is_approved' => 1,
                     'store_id' => $storeId,
                     'tax_id' => 1,
@@ -115,58 +126,63 @@ class SyncZeroToMultikart extends Command
                     ]);
                 }
 
-                // 3. Asociar atributos base
-                $mkDb->table('product_attributes')->insert([
-                    ['product_id' => $mkProductId, 'attribute_id' => $tallaAttrId, 'created_at' => now(), 'updated_at' => now()],
-                    ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
-                ]);
+                // Si por si acaso el producto entero no tiene stock, ya no procesamos variaciones para no ensuciar
+                if ($validSizes->isNotEmpty() && $validColors->isNotEmpty()) {
 
-                // 4. Variaciones: Cruzar la matriz completa
-                foreach ($zProduct->productSizes as $pSize) {
-                    $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
-                    $precio = $pSize->sale_price ?? 0;
+                    // 3. Asociar atributos base
+                    $mkDb->table('product_attributes')->insert([
+                        ['product_id' => $mkProductId, 'attribute_id' => $tallaAttrId, 'created_at' => now(), 'updated_at' => now()],
+                        ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
+                    ]);
 
-                    foreach ($allColors as $colorObj) {
-                        $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
+                    // 4. Variaciones: Matriz de datos LIMPIOS (solo colores/tallas con stock)
+                    foreach ($validSizes as $pSize) {
+                        $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
+                        $precio = $pSize->sale_price ?? 0;
 
-                        $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
+                        foreach ($validColors as $colorObj) {
+                            $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
 
-                        if ($colorPivot) {
-                            $stock = $colorPivot->pivot->stock;
-                        } else {
-                            $stock = 0;
+                            $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
+
+                            if ($colorPivot) {
+                                $stock = $colorPivot->pivot->stock;
+                            } else {
+                                $stock = 0;
+                            }
+
+                            $skuVariacion = $pSize->barcode
+                                ? $pSize->barcode . $colorObj->id
+                                : $skuPadre . $pSize->id . $colorObj->id;
+
+                            $variationId = $mkDb->table('variations')->insertGetId([
+                                'product_id' => $mkProductId,
+                                'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description,
+                                'price' => $precio,
+                                'sale_price' => $precio,
+                                'quantity' => $stock,
+                                'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
+                                'sku' => $skuVariacion,
+                                'status' => $stock > 0 ? 1 : 0, // Aquí ponemos en 0 si la matriz cruzada da 0
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+
+                            $mkDb->table('variation_attribute_values')->insert([
+                                ['variation_id' => $variationId, 'attribute_value_id' => $tallaValueId, 'created_at' => now(), 'updated_at' => now()],
+                                ['variation_id' => $variationId, 'attribute_value_id' => $colorValueId, 'created_at' => now(), 'updated_at' => now()],
+                            ]);
                         }
-
-                        $skuVariacion = $pSize->barcode
-                            ? $pSize->barcode . $colorObj->id
-                            : $skuPadre . $pSize->id . $colorObj->id;
-
-                        $variationId = $mkDb->table('variations')->insertGetId([
-                            'product_id' => $mkProductId,
-                            'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description,
-                            'price' => $precio,
-                            'sale_price' => $precio,
-                            'quantity' => $stock,
-                            'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
-                            'sku' => $skuVariacion,
-                            'status' => $stock > 0 ? 1 : 0, // <--- AQUÍ ESTÁ: status 0 si no hay stock
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-
-                        $mkDb->table('variation_attribute_values')->insert([
-                            ['variation_id' => $variationId, 'attribute_value_id' => $tallaValueId, 'created_at' => now(), 'updated_at' => now()],
-                            ['variation_id' => $variationId, 'attribute_value_id' => $colorValueId, 'created_at' => now(), 'updated_at' => now()],
-                        ]);
                     }
                 }
+
                 $bar->advance();
             }
 
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! Matriz limpia y deshabilitada por falta de stock. 🚀');
+            $this->info('¡Sincronización completada! Matriz limpia, sin colores fantasma y lista. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
