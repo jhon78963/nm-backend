@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikart extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza productos de Zero a Multikart con mapeo de categorías exacto :V';
+    protected $description = 'Sincroniza productos de Zero a Multikart (Con Tax ID y sin Unique SKU) :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final y definitivo de Zero a Multikart...');
+        $this->info('Iniciando volcado final...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -26,7 +26,7 @@ class SyncZeroToMultikart extends Command
         $mkDb = DB::connection('multikart');
 
         $adminId = 1;
-        $storeId = 1; // Tu tienda Novedades Maritex
+        $storeId = 1;
 
         $colorAttrId = 1;
         $tallaAttrId = 2;
@@ -67,9 +67,10 @@ class SyncZeroToMultikart extends Command
                     'sale_price' => $basePrice,
                     'quantity' => $totalStock,
                     'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-                    'status' => 1, // Siempre activo
+                    'status' => 1,
                     'is_approved' => 1,
                     'store_id' => $storeId,
+                    'tax_id' => 1, // <--- AÑADIDO EL TAX ID
                     'created_by_id' => $adminId,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -79,7 +80,6 @@ class SyncZeroToMultikart extends Command
                 if ($zProduct->gender) {
                     $generoZero = strtolower(trim($zProduct->gender->name));
 
-                    // Diccionario letal: Apuntamos directo a los IDs exactos
                     $categoryIdsMap = [
                         'dama'       => 8,
                         'damas'      => 8,
@@ -95,11 +95,9 @@ class SyncZeroToMultikart extends Command
                         'niñas'      => 14,
                     ];
 
-                    // Si está en el diccionario, usamos el ID directo.
                     if (array_key_exists($generoZero, $categoryIdsMap)) {
                         $categoryId = $categoryIdsMap[$generoZero];
                     } else {
-                        // Si creas un género nuevo ("Unisex"), lo crea y lo amarra
                         $categoryId = $this->getOrCreateCategory($mkDb, $zProduct->gender->name, $adminId);
                     }
 
@@ -127,6 +125,11 @@ class SyncZeroToMultikart extends Command
                         $stock = $pColor->pivot->stock;
                         $precio = $pSize->sale_price ?? 0;
 
+                        // Generamos el SKU: Si no tiene uno propio, armamos uno basado en el padre para intentar que sea único pero que no reviente si se duplica
+                        // $skuVariacion = $pSize->barcode ?? 'VAR-' . $skuPadre . '-S' . $pSize->id . '-C' . $pColor->id;
+
+                        $skuVariacion = $pSize->barcode ? $pSize->barcode . $pColor->id : $skuPadre . $pSize->id . $pColor->id;
+
                         $variationId = $mkDb->table('variations')->insertGetId([
                             'product_id' => $mkProductId,
                             'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $pColor->description,
@@ -134,8 +137,8 @@ class SyncZeroToMultikart extends Command
                             'sale_price' => $precio,
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
-                            'sku' => $pSize->barcode ?? 'VAR-' . $skuPadre . '-S' . $pSize->id . '-C' . $pColor->id,
-                            'status' => 1, // Siempre activo
+                            'sku' => $skuVariacion,
+                            'status' => 1,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
@@ -152,7 +155,7 @@ class SyncZeroToMultikart extends Command
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización letal completada! Todo limpio y enlazado. 🚀');
+            $this->info('¡Sincronización completada! (Tax ID asignado). 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
