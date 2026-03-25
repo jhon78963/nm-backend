@@ -178,7 +178,7 @@ class SyncZeroToMultikart extends Command
                             }
 
                             $skuVariacion = $pSize->barcode
-                                ? $pSize->barcode . $colorObj->id
+                                ? $pSize->barcode . $pSize->id . $colorObj->id
                                 : $skuPadre . $pSize->id . $colorObj->id;
 
                             $variationId = $mkDb->table('variations')->insertGetId([
