@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Inventory\Product\Commands;
+namespace App\Inventory\Product\Jobs;
 
 use App\Inventory\Product\Models\Product;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class SyncZeroToMultikart extends Command
+class SyncZeroToMultikartJob extends Command
 {
     protected $signature = 'multikart:sync-initial';
     protected $description = 'Sincroniza con textos SEO por defecto según el género :V';
@@ -74,32 +74,35 @@ class SyncZeroToMultikart extends Command
                 $generoZero = $zProduct->gender ? strtolower(trim($zProduct->gender->name)) : 'general';
                 $tipoDesc = 'default';
 
-                if (in_array($generoZero, ['dama', 'damas', 'femenino', 'mujer'])) $tipoDesc = 'dama';
-                elseif (in_array($generoZero, ['caballero', 'caballeros', 'masculino', 'hombre'])) $tipoDesc = 'caballero';
-                elseif (in_array($generoZero, ['niño', 'niños', 'niña', 'niñas'])) $tipoDesc = 'niño';
+                if (in_array($generoZero, ['dama', 'damas', 'femenino', 'mujer']))
+                    $tipoDesc = 'dama';
+                elseif (in_array($generoZero, ['caballero', 'caballeros', 'masculino', 'hombre']))
+                    $tipoDesc = 'caballero';
+                elseif (in_array($generoZero, ['niño', 'niños', 'niña', 'niñas']))
+                    $tipoDesc = 'niño';
 
                 $textosSeo = [
                     'dama' => [
                         'short' => 'Descubre la comodidad y estilo con nuestra nueva colección para damas.',
-                        'long'  => 'Renueva tu armario con nuestras prendas exclusivas para mujer. Diseñadas para ofrecer el máximo confort sin perder la elegancia. Ideales para el día a día, con materiales de alta calidad y un ajuste perfecto que resaltará tu estilo único.'
+                        'long' => 'Renueva tu armario con nuestras prendas exclusivas para mujer. Diseñadas para ofrecer el máximo confort sin perder la elegancia. Ideales para el día a día, con materiales de alta calidad y un ajuste perfecto que resaltará tu estilo único.'
                     ],
                     'caballero' => [
                         'short' => 'Estilo urbano y confort total para el hombre moderno.',
-                        'long'  => 'Nuestra línea para caballeros combina durabilidad y diseño. Prendas versátiles que se adaptan a tu ritmo de vida, ya sea para un look casual de fin de semana o para estar cómodo en casa. Confeccionadas con materiales premium y costuras reforzadas.'
+                        'long' => 'Nuestra línea para caballeros combina durabilidad y diseño. Prendas versátiles que se adaptan a tu ritmo de vida, ya sea para un look casual de fin de semana o para estar cómodo en casa. Confeccionadas con materiales premium y costuras reforzadas.'
                     ],
                     'niño' => [
                         'short' => 'Ropa divertida, resistente y súper cómoda para los más pequeños.',
-                        'long'  => 'Sabemos que los niños no paran, por eso estas prendas están hechas para resistir todas sus aventuras. Telas suaves que cuidan su piel, colores vibrantes y diseños que les encantarán. ¡Libertad de movimiento total garantizada!'
+                        'long' => 'Sabemos que los niños no paran, por eso estas prendas están hechas para resistir todas sus aventuras. Telas suaves que cuidan su piel, colores vibrantes y diseños que les encantarán. ¡Libertad de movimiento total garantizada!'
                     ],
                     'default' => [
                         'short' => 'Calidad y comodidad garantizada para tu día a día.',
-                        'long'  => 'Prenda confeccionada con los mejores materiales para asegurar durabilidad y confort. Un básico imprescindible en tu guardarropa que combina con todo, pensado para ofrecerte la mejor experiencia de uso.'
+                        'long' => 'Prenda confeccionada con los mejores materiales para asegurar durabilidad y confort. Un básico imprescindible en tu guardarropa que combina con todo, pensado para ofrecerte la mejor experiencia de uso.'
                     ]
                 ];
 
                 // Formateamos a JSON para que Spatie (el traductor de Multikart) lo lea perfecto y no salga {"es":null}
                 $shortDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['short']], JSON_UNESCAPED_UNICODE);
-                $longDescJson  = json_encode(['es' => $textosSeo[$tipoDesc]['long']], JSON_UNESCAPED_UNICODE);
+                $longDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['long']], JSON_UNESCAPED_UNICODE);
                 // ------------------------------------------
 
                 // 1. Insertar el Producto Padre
@@ -126,18 +129,18 @@ class SyncZeroToMultikart extends Command
                 // 2. CATEGORÍA
                 if ($zProduct->gender) {
                     $categoryIdsMap = [
-                        'dama'       => 8,
-                        'damas'      => 8,
-                        'femenino'   => 8,
-                        'mujer'      => 8,
-                        'caballero'  => 10,
+                        'dama' => 8,
+                        'damas' => 8,
+                        'femenino' => 8,
+                        'mujer' => 8,
+                        'caballero' => 10,
                         'caballeros' => 10,
-                        'masculino'  => 10,
-                        'hombre'     => 10,
-                        'niño'       => 14,
-                        'niños'      => 14,
-                        'niña'       => 14,
-                        'niñas'      => 14,
+                        'masculino' => 10,
+                        'hombre' => 10,
+                        'niño' => 14,
+                        'niños' => 14,
+                        'niña' => 14,
+                        'niñas' => 14,
                     ];
 
                     if (array_key_exists($generoZero, $categoryIdsMap)) {

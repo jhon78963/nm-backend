@@ -18,6 +18,6 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withCommands([
-        \App\Inventory\Product\Commands\SyncZeroToMultikart::class,
+        \App\Inventory\Product\Jobs\SyncZeroToMultikartJob::class,
     ])
     ->create();

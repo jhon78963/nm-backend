@@ -57,7 +57,7 @@
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite"
         ],
-        "deploy": [
+        "sync": [
             "git pull",
             "sudo chown -R www-data:www-data /var/www",
             "sudo chown -R $USER:www-data storage",
@@ -70,6 +70,19 @@
             "@php artisan view:cache",
             "@php artisan config:cache",
             "@php artisan multikart:sync-initial"
+        ],
+        "deploy": [
+            "git pull",
+            "sudo chown -R www-data:www-data /var/www",
+            "sudo chown -R $USER:www-data storage",
+            "sudo chown -R $USER:www-data bootstrap/cache",
+            "chmod -R 775 storage",
+            "chmod -R 775 bootstrap/cache",
+            "sudo systemctl reload nginx",
+            "@php artisan optimize:clear",
+            "@php artisan route:cache",
+            "@php artisan view:cache",
+            "@php artisan config:cache"
         ]
     },
     "extra": {

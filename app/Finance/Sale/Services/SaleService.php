@@ -5,7 +5,7 @@ namespace App\Finance\Sale\Services;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Models\SaleDetail;
-use App\Inventory\Product\Models\ProductHistory; // Importante para el historial
+use App\Inventory\Product\Models\ProductHistory;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;

@@ -14,7 +14,6 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Calculamos el stock de forma segura
         $stock = $this->sizes_sum_stock ?? $this->sizes->sum('pivot.stock');
 
         return [
@@ -26,16 +25,10 @@ class ProductResource extends JsonResource
             'percentageDiscount' => $this->percentage_discount,
             'description' => $this->description,
             'status' => $this->status,
-
-            // --- CORRECCIÓN AQUÍ ---
-            // Usamos '?->' para evitar el error si es null
             'genderId' => $this->gender_id,
-            'gender' => $this->gender?->name ?? 'Sin género', // Si es null, pondrá 'Sin género'
-
+            'gender' => $this->gender?->name ?? 'Sin género',
             'warehouseId' => $this->warehouse_id,
-            'warehouse' => $this->warehouse?->name ?? 'Sin almacén', // Lo mismo aquí
-            // -----------------------
-
+            'warehouse' => $this->warehouse?->name ?? 'Sin almacén',
             'filter' => !$this->sizes()->exists(),
             'sizeTypeId' => $this->sizes->pluck('size_type_id')
                 ->unique()
