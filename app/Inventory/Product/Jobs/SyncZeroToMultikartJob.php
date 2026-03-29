@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Inventory\Product\Jobs;
+namespace App\Inventory\Product\Jobs; // Ojo: Asegúrate de que el namespace cuadre con tu ruta real si lo moviste a Jobs
 
 use App\Inventory\Product\Models\Product;
 use Illuminate\Console\Command;
@@ -10,11 +10,11 @@ use Illuminate\Support\Str;
 class SyncZeroToMultikartJob extends Command
 {
     protected $signature = 'multikart:sync-initial';
-    protected $description = 'Sincroniza con textos SEO por defecto según el género :V';
+    protected $description = 'Sincroniza con textos SEO por defecto y Nombres en JSON seguros :V';
 
     public function handle()
     {
-        $this->info('Iniciando volcado final con descripciones por género...');
+        $this->info('Iniciando volcado final con descripciones y nombres seguros...');
 
         $zeroProducts = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->get();
 
@@ -100,16 +100,17 @@ class SyncZeroToMultikartJob extends Command
                     ]
                 ];
 
-                // Formateamos a JSON para que Spatie (el traductor de Multikart) lo lea perfecto y no salga {"es":null}
+                // --- FIX DE TRADUCCIONES (NOMBRES Y DESCRIPCIONES A JSON) ---
+                $nombreProductoJson = json_encode(['es' => $zProduct->name], JSON_UNESCAPED_UNICODE);
                 $shortDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['short']], JSON_UNESCAPED_UNICODE);
                 $longDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['long']], JSON_UNESCAPED_UNICODE);
-                // ------------------------------------------
+                // -------------------------------------------------------------
 
                 // 1. Insertar el Producto Padre
                 $mkProductId = $mkDb->table('products')->insertGetId([
-                    'name' => $zProduct->name,
-                    'short_description' => $shortDescJson, // <--- Aplicamos el Short
-                    'description' => $longDescJson,        // <--- Aplicamos el Long
+                    'name' => $nombreProductoJson, // <--- Aplicamos el JSON Seguro
+                    'short_description' => $shortDescJson,
+                    'description' => $longDescJson,
                     'sku' => $skuPadre,
                     'type' => 'classified',
                     'product_type' => 'physical',
@@ -129,25 +130,12 @@ class SyncZeroToMultikartJob extends Command
                 // 2. CATEGORÍA
                 if ($zProduct->gender) {
                     $categoryIdsMap = [
-                        'dama' => 8,
-                        'damas' => 8,
-                        'femenino' => 8,
-                        'mujer' => 8,
-                        'caballero' => 10,
-                        'caballeros' => 10,
-                        'masculino' => 10,
-                        'hombre' => 10,
-                        'niño' => 14,
-                        'niños' => 14,
-                        'niña' => 14,
-                        'niñas' => 14,
+                        'dama' => 8, 'damas' => 8, 'femenino' => 8, 'mujer' => 8,
+                        'caballero' => 10, 'caballeros' => 10, 'masculino' => 10, 'hombre' => 10,
+                        'niño' => 14, 'niños' => 14, 'niña' => 14, 'niñas' => 14,
                     ];
 
-                    if (array_key_exists($generoZero, $categoryIdsMap)) {
-                        $categoryId = $categoryIdsMap[$generoZero];
-                    } else {
-                        $categoryId = $this->getOrCreateCategory($mkDb, $zProduct->gender->name, $adminId);
-                    }
+                    $categoryId = array_key_exists($generoZero, $categoryIdsMap) ? $categoryIdsMap[$generoZero] : $this->getOrCreateCategory($mkDb, $zProduct->gender->name, $adminId);
 
                     $mkDb->table('product_categories')->insert([
                         'product_id' => $mkProductId,
@@ -171,22 +159,21 @@ class SyncZeroToMultikartJob extends Command
 
                         foreach ($validColors as $colorObj) {
                             $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
-
                             $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
-
-                            if ($colorPivot) {
-                                $stock = $colorPivot->pivot->stock;
-                            } else {
-                                $stock = 0;
-                            }
+                            $stock = $colorPivot ? $colorPivot->pivot->stock : 0;
 
                             $skuVariacion = $pSize->barcode
                                 ? $pSize->barcode . $pSize->id . $colorObj->id
                                 : $skuPadre . $pSize->id . $colorObj->id;
 
+                            // --- FIX DE TRADUCCIONES (NOMBRE VARIACIÓN A JSON) ---
+                            $nombreVariacion = $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description;
+                            $nombreVariacionJson = json_encode(['es' => $nombreVariacion], JSON_UNESCAPED_UNICODE);
+                            // -----------------------------------------------------
+
                             $variationId = $mkDb->table('variations')->insertGetId([
                                 'product_id' => $mkProductId,
-                                'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description,
+                                'name' => $nombreVariacionJson, // <--- Aplicamos el JSON Seguro
                                 'price' => $precio,
                                 'sale_price' => $precio,
                                 'quantity' => $stock,
@@ -204,14 +191,13 @@ class SyncZeroToMultikartJob extends Command
                         }
                     }
                 }
-
                 $bar->advance();
             }
 
             $mkDb->commit();
             $bar->finish();
             $this->newLine();
-            $this->info('¡Sincronización completada! Textos agregados y listos para los Observers. 🚀');
+            $this->info('¡Sincronización completada! Base de datos curada contra bugs de JSON. 🚀');
 
         } catch (\Exception $e) {
             $mkDb->rollBack();
@@ -221,19 +207,9 @@ class SyncZeroToMultikartJob extends Command
 
     private function getOrCreateCategory($mkDb, $name, $adminId)
     {
-        $category = $mkDb->table('categories')
-            ->where('name', 'LIKE', '%"' . $name . '"%')
-            ->first();
-
-        if (!$category) {
-            $category = $mkDb->table('categories')
-                ->where('name', $name)
-                ->first();
-        }
-
-        if ($category) {
-            return $category->id;
-        }
+        $category = $mkDb->table('categories')->where('name', 'LIKE', '%"' . $name . '"%')->first();
+        if (!$category) $category = $mkDb->table('categories')->where('name', $name)->first();
+        if ($category) return $category->id;
 
         return $mkDb->table('categories')->insertGetId([
             'name' => json_encode(['es' => $name], JSON_UNESCAPED_UNICODE),
@@ -249,21 +225,9 @@ class SyncZeroToMultikartJob extends Command
 
     private function getOrCreateAttributeValue($mkDb, $attributeId, $plainValue, $hexColor, $adminId)
     {
-        $attrValue = $mkDb->table('attribute_values')
-            ->where('attribute_id', $attributeId)
-            ->where('value', 'LIKE', '%"' . $plainValue . '"%')
-            ->first();
-
-        if (!$attrValue) {
-            $attrValue = $mkDb->table('attribute_values')
-                ->where('attribute_id', $attributeId)
-                ->where('value', $plainValue)
-                ->first();
-        }
-
-        if ($attrValue) {
-            return $attrValue->id;
-        }
+        $attrValue = $mkDb->table('attribute_values')->where('attribute_id', $attributeId)->where('value', 'LIKE', '%"' . $plainValue . '"%')->first();
+        if (!$attrValue) $attrValue = $mkDb->table('attribute_values')->where('attribute_id', $attributeId)->where('value', $plainValue)->first();
+        if ($attrValue) return $attrValue->id;
 
         return $mkDb->table('attribute_values')->insertGetId([
             'attribute_id' => $attributeId,
