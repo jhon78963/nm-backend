@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Inventory\Product\Jobs; // Ojo: Asegúrate de que el namespace cuadre con tu ruta real si lo moviste a Jobs
+namespace App\Inventory\Product\Jobs;
 
 use App\Inventory\Product\Models\Product;
 use Illuminate\Console\Command;

@@ -24,11 +24,11 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
 
     public function handle(): void
     {
-        // 1. Traemos la data fresca de Zero
+        // 1. Traemos la data fresca usando exactamente las relaciones que sí funcionan
         $zProduct = Product::with(['productSizes.size', 'productSizes.colors', 'gender'])->find($this->productId);
         $mkDb = DB::connection('multikart');
 
-        // Si eliminaron el producto en Zero, lo "apagamos" en Multikart
+        // Si lo borraron en Zero, lo apagamos en Multikart
         if (!$zProduct || $zProduct->is_deleted) {
             $mkDb->table('products')
                 ->where('sku', 'Z' . $this->productId)
@@ -56,21 +56,26 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
             if ($basePrice === 0 && $pSize->sale_price > 0) {
                 $basePrice = $pSize->sale_price;
             }
+
+            // Guardamos TODAS las tallas para poder actualizarlas (incluso si tienen stock 0)
+            if (!$validSizes->contains('id', $pSize->id)) {
+                $validSizes->push($pSize);
+            }
+
+            // Usamos ->colors igual que en tu Job principal
             foreach ($pSize->colors as $pColor) {
                 $stock = $pColor->pivot->stock;
                 $totalStock += $stock;
                 $sizeStock += $stock;
 
-                if ($stock > 0 && !$validColors->contains('id', $pColor->id)) {
+                // Guardamos TODOS los colores para poder ponerlos en out_of_stock si llegan a 0
+                if (!$validColors->contains('id', $pColor->id)) {
                     $validColors->push($pColor);
                 }
             }
-            if ($sizeStock > 0) {
-                $validSizes->push($pSize);
-            }
         }
 
-        // Textos SEO por Género (Igual que en el comando)
+        // Textos SEO por Género
         $generoZero = $zProduct->gender ? strtolower(trim($zProduct->gender->name)) : 'general';
         $tipoDesc = 'default';
         if (in_array($generoZero, ['dama', 'damas', 'femenino', 'mujer'])) $tipoDesc = 'dama';
@@ -84,16 +89,18 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
             'default' => ['short' => 'Calidad y comodidad garantizada para tu día a día.', 'long'  => 'Prenda confeccionada con los mejores materiales...']
         ];
 
+        // FIX JSON: Nombres Seguros
+        $nombreProductoJson = json_encode(['es' => $zProduct->name], JSON_UNESCAPED_UNICODE);
         $shortDescJson = json_encode(['es' => $textosSeo[$tipoDesc]['short']], JSON_UNESCAPED_UNICODE);
         $longDescJson  = json_encode(['es' => $textosSeo[$tipoDesc]['long']], JSON_UNESCAPED_UNICODE);
 
-        // 2. BUSCAMOS EL PRODUCTO PADRE (Update or Insert)
+        // 2. ACTUALIZAR O CREAR EL PRODUCTO PADRE
         $mkProduct = $mkDb->table('products')->where('sku', $skuPadre)->first();
 
         if ($mkProduct) {
             $mkProductId = $mkProduct->id;
             $mkDb->table('products')->where('id', $mkProductId)->update([
-                'name' => $zProduct->name,
+                'name' => $nombreProductoJson,
                 'short_description' => $shortDescJson,
                 'description' => $longDescJson,
                 'price' => $basePrice,
@@ -104,9 +111,8 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
                 'updated_at' => now(),
             ]);
         } else {
-            // Si no existe, lo creamos de cero
             $mkProductId = $mkDb->table('products')->insertGetId([
-                'name' => $zProduct->name,
+                'name' => $nombreProductoJson,
                 'short_description' => $shortDescJson,
                 'description' => $longDescJson,
                 'sku' => $skuPadre,
@@ -125,21 +131,22 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
                 'updated_at' => now(),
             ]);
 
-            // Como es nuevo, le amarramos la categoría
+            // Categoría
             $categoryIdsMap = ['dama' => 8, 'damas' => 8, 'mujer' => 8, 'caballero' => 10, 'caballeros' => 10, 'hombre' => 10, 'niño' => 14, 'niños' => 14];
-            $categoryId = array_key_exists($generoZero, $categoryIdsMap) ? $categoryIdsMap[$generoZero] : 8; // Default 8
+            $categoryId = array_key_exists($generoZero, $categoryIdsMap) ? $categoryIdsMap[$generoZero] : 8;
 
             $mkDb->table('product_categories')->insert([
                 'product_id' => $mkProductId, 'category_id' => $categoryId, 'created_at' => now(), 'updated_at' => now()
             ]);
 
+            // Atributos base
             $mkDb->table('product_attributes')->insert([
                 ['product_id' => $mkProductId, 'attribute_id' => $tallaAttrId, 'created_at' => now(), 'updated_at' => now()],
                 ['product_id' => $mkProductId, 'attribute_id' => $colorAttrId, 'created_at' => now(), 'updated_at' => now()]
             ]);
         }
 
-        // 3. ACTUALIZAR O CREAR VARIACIONES
+        // 3. ACTUALIZAR O CREAR LAS VARIACIONES
         if ($validSizes->isNotEmpty() && $validColors->isNotEmpty()) {
             foreach ($validSizes as $pSize) {
                 $tallaValueId = $this->getOrCreateAttributeValue($mkDb, $tallaAttrId, $pSize->size->description, null, $adminId);
@@ -147,34 +154,43 @@ class SyncSingleProductToMultikartJob implements ShouldQueue
 
                 foreach ($validColors as $colorObj) {
                     $colorValueId = $this->getOrCreateAttributeValue($mkDb, $colorAttrId, $colorObj->description, $colorObj->hash, $adminId);
+
+                    // Extraer stock de la relación exacta
                     $colorPivot = $pSize->colors->firstWhere('id', $colorObj->id);
                     $stock = $colorPivot ? $colorPivot->pivot->stock : 0;
 
-                    $skuVariacion = $pSize->barcode ? $pSize->barcode . $colorObj->id : $skuPadre . $pSize->id . $colorObj->id;
+                    // SKU exacto como en el script funcional
+                    $skuVariacion = $pSize->barcode
+                        ? $pSize->barcode . $pSize->id . $colorObj->id
+                        : $skuPadre . $pSize->id . $colorObj->id;
+
+                    $nombreVariacion = $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description;
+                    $nombreVariacionJson = json_encode(['es' => $nombreVariacion], JSON_UNESCAPED_UNICODE);
 
                     $mkVariation = $mkDb->table('variations')->where('sku', $skuVariacion)->first();
 
                     if ($mkVariation) {
-                        // Si ya existe (Ej: Fue una venta), solo actualizamos stock y precio
+                        // UPDATE
                         $mkDb->table('variations')->where('id', $mkVariation->id)->update([
+                            'name' => $nombreVariacionJson,
                             'price' => $precio,
                             'sale_price' => $precio,
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
-                            'status' => $stock > 0 ? 1 : 0,
+                            'status' => 1,
                             'updated_at' => now(),
                         ]);
                     } else {
-                        // Si es un COLOR NUEVO que acabas de agregar en Zero, lo inserta!
+                        // INSERT
                         $variationId = $mkDb->table('variations')->insertGetId([
                             'product_id' => $mkProductId,
-                            'name' => $zProduct->name . ' - ' . $pSize->size->description . ' - ' . $colorObj->description,
+                            'name' => $nombreVariacionJson,
                             'price' => $precio,
                             'sale_price' => $precio,
                             'quantity' => $stock,
                             'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                             'sku' => $skuVariacion,
-                            'status' => $stock > 0 ? 1 : 0,
+                            'status' => 1,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
