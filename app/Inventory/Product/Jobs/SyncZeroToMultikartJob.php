@@ -109,6 +109,7 @@ class SyncZeroToMultikartJob extends Command
                 // 1. Insertar el Producto Padre
                 $mkProductId = $mkDb->table('products')->insertGetId([
                     'name' => $nombreProductoJson, // <--- Aplicamos el JSON Seguro
+                    'slug' => Str::slug($zProduct->name),
                     'short_description' => $shortDescJson,
                     'description' => $longDescJson,
                     'sku' => $skuPadre,
