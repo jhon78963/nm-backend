@@ -60,15 +60,20 @@ class CashflowController extends Controller
         return response()->json(['success' => true, 'data' => $movement]);
     }
 
-    public function update(Request $request, $id): JsonResponse
-    {
-        $data = $request->validate([
-            /* validaciones opcionales */
-            'image' => 'nullable|image',
-        ]);
+public function update(Request $request, $id): JsonResponse
+{
+    $data = $request->validate([
+        'type'           => 'nullable|in:INCOME,EXPENSE',
+        'category'       => 'nullable|in:ADMINISTRATIVE,STORE',
+        'amount'         => 'nullable|numeric',
+        'description'    => 'nullable|string',
+        'date'           => 'nullable|date',
+        'payment_method' => 'nullable|string',
+        'image'          => 'nullable|image|max:5120', // 5MB
+    ]);
 
-        $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
+    $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
 
-        return response()->json(['success' => true, 'data' => $movement]);
-    }
+    return response()->json(['success' => true, 'data' => $movement]);
+}
 }
