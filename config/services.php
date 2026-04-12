@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'uploader' => [
+        'url' => env('UPLOADER_URL'),
+        'api_key' => env('UPLOADER_API_KEY'),
+    ],
+
 ];

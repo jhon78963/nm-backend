@@ -16,6 +16,8 @@ class CashMovement extends Model
         'amount',
         'description',
         'payment_method',
+        'category',
+        'voucher_path',
         'creation_time',
         'creator_user_id',
         'is_deleted'

@@ -29,17 +29,46 @@ class CashflowController extends Controller
         ]);
     }
 
+    public function getAdminMonthlyReport(Request $request): JsonResponse
+    {
+        // Validamos que venga un mes, si no, usamos el actual
+        $month = $request->query('month', now()->format('Y-m'));
+
+        $report = $this->cashflowService->getMonthlyAdminExpenses($month);
+
+        return response()->json([
+            'success' => true,
+            'data' => $report
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'type' => 'required|in:INCOME,EXPENSE',
-            'amount' => 'required|numeric|min:0.1',
-            'description' => 'required|string|max:255',
-            'payment_method' => 'nullable|string',
+            'category' => 'required|in:ADMINISTRATIVE,STORE',
+            'amount' => 'required|numeric',
+            'description' => 'required|string',
             'date' => 'required|date',
+            'image' => 'nullable|image',
+            'payment_method' => 'nullable|string',
         ]);
 
-        $this->cashflowService->registerMovement($data);
-        return response()->json(['success' => true, 'message' => 'Movimiento registrado']);
+        // Pasamos los datos y el archivo (si existe)
+        $movement = $this->cashflowService->registerMovement($data, $request->file('image'));
+
+        return response()->json(['success' => true, 'data' => $movement]);
+    }
+
+    public function update(Request $request, $id): JsonResponse
+    {
+        $data = $request->validate([
+            /* validaciones opcionales */
+            'image' => 'nullable|image',
+        ]);
+
+        $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
+
+        return response()->json(['success' => true, 'data' => $movement]);
     }
 }
