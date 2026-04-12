@@ -35,12 +35,14 @@ class CashflowService
             ->orderBy('creation_time', 'desc')
             ->get()
             ->map(function ($sale) {
-                // ... (tu lógica de mapeo de ventas se mantiene igual)
+                $itemsDescription = $sale->details->map(function ($detail) {
+                    return "{$detail->product_name_snapshot} | {$detail->size_name_snapshot} | {$detail->color_name_snapshot}";
+                })->implode(' + ');
                 return [
                     'id' => $sale->id,
                     'type' => 'SALE',
                     'time' => $sale->creation_time->format('H:i A'),
-                    'description' => $sale->code, // Simplificado para el ejemplo
+                    'description' => "{$sale->code} | {$itemsDescription}",
                     'method' => $sale->payment_method,
                     'amount' => (float) $sale->total_amount,
                 ];
