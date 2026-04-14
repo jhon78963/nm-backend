@@ -20,8 +20,12 @@ class CashflowController extends Controller
     {
         // Si no envía fecha, usamos hoy
         $date = $request->query('date', now()->format('Y-m-d'));
+        $filters = $request->query('filters', ['CASH', 'YAPE', 'CARD']);
+        if (is_string($filters)) {
+            $filters = explode(',', $filters);
+        }
 
-        $report = $this->cashflowService->getDailyReport($date);
+        $report = $this->cashflowService->getDailyReport($date, $filters);
 
         return response()->json([
             'success' => true,
@@ -60,20 +64,20 @@ class CashflowController extends Controller
         return response()->json(['success' => true, 'data' => $movement]);
     }
 
-public function update(Request $request, $id): JsonResponse
-{
-    $data = $request->validate([
-        'type'           => 'nullable|in:INCOME,EXPENSE',
-        'category'       => 'nullable|in:ADMINISTRATIVE,STORE',
-        'amount'         => 'nullable|numeric',
-        'description'    => 'nullable|string',
-        'date'           => 'nullable|date',
-        'payment_method' => 'nullable|string',
-        'image'          => 'nullable|image|max:5120', // 5MB
-    ]);
+    public function update(Request $request, $id): JsonResponse
+    {
+        $data = $request->validate([
+            'type' => 'nullable|in:INCOME,EXPENSE',
+            'category' => 'nullable|in:ADMINISTRATIVE,STORE',
+            'amount' => 'nullable|numeric',
+            'description' => 'nullable|string',
+            'date' => 'nullable|date',
+            'payment_method' => 'nullable|string',
+            'image' => 'nullable|image|max:5120', // 5MB
+        ]);
 
-    $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
+        $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
 
-    return response()->json(['success' => true, 'data' => $movement]);
-}
+        return response()->json(['success' => true, 'data' => $movement]);
+    }
 }
