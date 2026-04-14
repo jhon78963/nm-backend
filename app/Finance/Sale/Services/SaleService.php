@@ -69,58 +69,126 @@ class SaleService extends ModelService
     public function update(Model $model, array $data): Model
     {
         return DB::transaction(function () use ($model, $data) {
-
-            // 1. Actualizar campos base
+            // 1. Actualizar cabecera (notas, cliente, etc.)
             $model->fill($data);
             $model->save();
 
-            // 2. Actualizar Precios de Ítems
             if (!empty($data['items']) && is_array($data['items'])) {
                 foreach ($data['items'] as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
-                    if ($detail) {
-                        $newPrice = (float) $itemData['unit_price'];
-                        $quantity = (int) $detail->quantity;
+                    if (!$detail)
+                        continue;
 
-                        $detail->update([
-                            'unit_price' => $newPrice,
-                            'subtotal' => $newPrice * $quantity
-                        ]);
+                    $oldQty = (int) $detail->quantity;
+                    $newQty = (int) $itemData['quantity'];
+                    $newPrice = (float) $itemData['unit_price'];
+
+                    // Obtener ID de inventario actual
+                    $oldPsId = DB::table('product_size')
+                        ->where('product_id', $detail->product_id)
+                        ->where('size_id', $detail->size_id)
+                        ->value('id');
+
+                    // Detectar si el Front mandó una nueva Talla/Producto
+                    $hasNewPsId = isset($itemData['product_size_id']);
+                    $newPsId = $hasNewPsId ? $itemData['product_size_id'] : $oldPsId;
+
+                    // Manejo de color (si no viene, mantenemos el anterior)
+                    $newColorId = array_key_exists('color_id', $itemData)
+                        ? ($itemData['color_id'] > 0 ? $itemData['color_id'] : null)
+                        : $detail->color_id;
+
+                    // DETERMINAR SI ES CAMBIO DE PRODUCTO
+                    $isExchange = ($newPsId != $oldPsId) || ($hasNewPsId && $newColorId != $detail->color_id);
+
+                    if ($isExchange) {
+                        // ESCENARIO A: CAMBIO DE PRODUCTO (Devolver stock viejo / Quitar nuevo)
+                        $this->adjustStock($oldPsId, $detail->color_id, $oldQty, 'increment');
+                        $this->adjustStock($newPsId, $newColorId, $newQty, 'decrement');
+
+                        // Generar nuevos nombres/fotos para el detalle
+                        $snap = $this->getNewProductSnapshot($newPsId, $newColorId);
+                        $detail->fill($snap); // Carga los campos _snapshot
+                        $detail->color_id = $newColorId;
+                    } else {
+                        // ESCENARIO B: MISMO PRODUCTO, SOLO CANTIDAD
+                        $diff = $newQty - $oldQty;
+                        if ($diff !== 0) {
+                            $this->adjustStock($oldPsId, $detail->color_id, $diff, 'decrement');
+                        }
                     }
+
+                    // --- ASIGNACIÓN FINAL ---
+                    // Seteamos los valores directamente en el modelo
+                    $detail->quantity = $newQty;
+                    $detail->unit_price = $newPrice;
+                    $detail->subtotal = $newQty * $newPrice;
+
+                    // save() persiste TODO lo que el modelo tenga modificado (fill + asignaciones)
+                    $detail->save();
                 }
 
-                // Recalcular Total General
-                $newGrandTotal = $model->details()->sum('subtotal');
-                $model->update(['total_amount' => $newGrandTotal]);
+                // Recalcular Total General de la Venta
+                $model->update(['total_amount' => $model->details()->sum('subtotal')]);
             }
 
-            // 3. GESTIÓN DE PAGOS (Edición Mixta)
+            // 3. GESTIÓN DE PAGOS (Borrar y Recrear)
             if (isset($data['payments']) && is_array($data['payments'])) {
-                // Borrar anteriores y crear nuevos para mantener consistencia
                 $model->payments()->delete();
-
-                foreach ($data['payments'] as $payment) {
+                foreach ($data['payments'] as $p) {
                     $model->payments()->create([
-                        'method' => $payment['method'],
-                        'amount' => $payment['amount'],
-                        'reference' => $payment['reference'] ?? null,
+                        'method' => $p['method'],
+                        'amount' => $p['amount'],
+                        'reference' => $p['reference'] ?? 'AJUSTE EN EDICIÓN',
                     ]);
                 }
-
-                // Actualizar método principal en cabecera
                 $uniqueMethods = collect($data['payments'])->pluck('method')->unique();
-                $mainMethod = $uniqueMethods->count() > 1 ? 'MIXTO' : $uniqueMethods->first();
-                $model->update(['payment_method' => $mainMethod]);
-
-            } else {
-                // Fallback: Si cambió el total pero no enviaron pagos, ajustar si es pago único
-                if ($model->payments()->count() === 1) {
-                    $model->payments()->first()->update(['amount' => $model->total_amount]);
-                }
+                $model->update(['payment_method' => $uniqueMethods->count() > 1 ? 'MIXTO' : $uniqueMethods->first()]);
             }
 
             return $model->fresh(['details', 'payments']);
         });
+    }
+
+    /**
+     * Helper para no repetir lógica de incremento/decremento de stock
+     */
+    private function adjustStock($psId, $colorId, $qty, $method)
+    {
+        if (!$psId || $qty == 0)
+            return;
+
+        DB::table('product_size')->where('id', $psId)->$method('stock', $qty);
+
+        if ($colorId) {
+            DB::table('product_size_color')
+                        ->where('product_size_id', $psId)
+                        ->where('color_id', $colorId)
+                ->$method('stock', $qty);
+        }
+    }
+
+    /**
+     * Obtiene nombres para el snapshot al cambiar producto
+     */
+    private function getNewProductSnapshot($psId, $colorId)
+    {
+        $data = DB::table('product_size as ps')
+            ->join('products as p', 'ps.product_id', '=', 'p.id')
+            ->join('sizes as s', 'ps.size_id', '=', 's.id')
+            ->where('ps.id', $psId)
+            ->select('p.id as product_id', 's.id as size_id', 'p.name as product_name', 's.description as size_name')
+            ->first();
+
+        $colorName = $colorId ? DB::table('colors')->where('id', $colorId)->value('description') : 'Único';
+
+        return [
+            'product_id' => $data->product_id,
+            'size_id' => $data->size_id,
+            'product_name_snapshot' => $data->product_name,
+            'size_name_snapshot' => $data->size_name,
+            'color_name_snapshot' => $colorName
+        ];
     }
 
     /**
@@ -129,48 +197,55 @@ class SaleService extends ModelService
     public function delete(Model $model): void
     {
         DB::transaction(function () use ($model) {
-            // 1. Cargar los detalles si no están cargados
+            // 1. VALIDACIÓN ANTIDUPLE (Vital)
+            if ($model->is_deleted || $model->status === 'CANCELED') {
+                throw new Exception("La venta {$model->code} ya se encuentra anulada.");
+            }
+
             $model->load('details');
 
             foreach ($model->details as $detail) {
-                // Obtener el ID de la relación product_size
+                // Buscamos el ID de la relación maestra
                 $psId = DB::table('product_size')
                     ->where('product_id', $detail->product_id)
                     ->where('size_id', $detail->size_id)
                     ->value('id');
 
                 if ($psId) {
-                    // 2. Capturar stock actual ANTES de devolver (para el historial)
                     $currentStock = 0;
+
+                    // 2. Bloqueamos las filas de stock para que el historial sea exacto
                     if ($detail->color_id) {
                         $colorRow = DB::table('product_size_color')
                             ->where('product_size_id', $psId)
                             ->where('color_id', $detail->color_id)
+                            ->lockForUpdate() // <--- Bloqueo de fila
                             ->first();
+
                         $currentStock = $colorRow ? $colorRow->stock : 0;
 
-                        // Devolver stock a la tabla por color
                         DB::table('product_size_color')
                             ->where('product_size_id', $psId)
                             ->where('color_id', $detail->color_id)
                             ->increment('stock', $detail->quantity);
                     } else {
-                        $masterRow = DB::table('product_size')->where('id', $psId)->first();
+                        $masterRow = DB::table('product_size')
+                            ->where('id', $psId)
+                            ->lockForUpdate()
+                            ->first();
                         $currentStock = $masterRow ? $masterRow->stock : 0;
                     }
 
                     // Devolver stock a la tabla maestra
                     DB::table('product_size')->where('id', $psId)->increment('stock', $detail->quantity);
 
-                    // 3. Registrar en Historial de Producto
+                    // 3. Registrar en Historial (Con valores reales bloqueados)
                     ProductHistory::create([
                         'product_id' => $detail->product_id,
-                        'entity_type' => 'SALE_VOIDED', // O 'SALE'
+                        'entity_type' => 'SALE_VOIDED',
                         'entity_id' => $model->id,
                         'event_type' => 'RETURNED',
-                        'old_values' => [
-                            'stock' => $currentStock
-                        ],
+                        'old_values' => ['stock' => $currentStock],
                         'new_values' => [
                             'stock' => $currentStock + $detail->quantity,
                             'quantity' => $detail->quantity,
@@ -182,12 +257,11 @@ class SaleService extends ModelService
                 }
             }
 
-            // 4. Marcar la venta como eliminada y cambiar estado
-            // Asumiendo que usas 'is_deleted' según tus queries de estadísticas
+            // 4. Marcar como eliminada
             $model->update([
                 'is_deleted' => true,
-                'status' => 'CANCELED', // O 'CANCELED'
-                'notes' => substr(($model->notes ?? '') . " | VENTA ANULADA EL " . now(), -250)
+                'status' => 'CANCELED',
+                'notes' => substr(($model->notes ?? '') . " | ANULADA EL " . now()->format('d/m/Y H:i'), -250)
             ]);
         });
     }
