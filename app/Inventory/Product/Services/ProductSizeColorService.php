@@ -16,7 +16,7 @@ class ProductSizeColorService
     public function set(ProductSize $productSize, int $colorId, array $data): void
     {
         $existingPivot = $productSize->productSizeColors()
-            ->where('color_id', $colorId)
+            ->wherePivot('color_id', $colorId)
             ->first()
             ?->pivot
                 ?->toArray() ?? [];
@@ -46,7 +46,7 @@ class ProductSizeColorService
     public function remove(ProductSize $productSize, int $colorId): void
     {
         $oldData = $productSize->productSizeColors()
-            ->where('color_id', $colorId)
+            ->wherePivot('color_id', $colorId)
             ->first()
             ?->pivot
                 ?->toArray();

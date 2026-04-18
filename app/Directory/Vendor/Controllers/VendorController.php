@@ -25,9 +25,9 @@ class VendorController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->vendorService->create($data);
+            $vendor = $this->vendorService->create($data);
 
-            return response()->json(['message' => 'Vendor created.'], 201);
+            return response()->json(new VendorResource($vendor), 201);
         });
     }
 

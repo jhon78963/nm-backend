@@ -18,6 +18,7 @@ use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 use DB;
 
 class ColorController extends Controller
@@ -70,14 +71,24 @@ class ColorController extends Controller
         $productId = $request->input('productId');
         $size = $request->input('size');
 
-        $sizes = ProductSize::join('sizes as s', 'product_size.size_id', '=', 's.id')
+        $sizes = ProductSize::query()
+            ->join('sizes as s', 'product_size.size_id', '=', 's.id')
             ->where('product_size.product_id', $productId)
             ->when(
                 $size,
                 fn(Builder $query): Builder =>
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
-            ->select('s.id', 'product_size.id as productSizeId', 's.description', 'product_size.stock')
+            ->select([
+                's.id',
+                'product_size.id as productSizeId',
+                's.description',
+                'product_size.stock',
+                'product_size.barcode',
+                'product_size.purchase_price',
+                'product_size.sale_price',
+                'product_size.min_sale_price',
+            ])
             ->orderByRaw("CASE WHEN s.description ~ '^[0-9]+$' THEN s.description::integer ELSE NULL END ASC")
             ->orderBy('s.id', 'asc')
             ->get();
@@ -85,16 +96,58 @@ class ColorController extends Controller
         return response()->json(SizeResource::collection($sizes));
     }
 
+    /**
+     * Catálogo completo de colores con bandera `isExists` / `stock` según `product_size_color`.
+     */
     public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
     {
-        $productId = $request->input('productId');
-        $sizeId = $request->input('sizeId');
+        $productSizeId = $this->resolveProductSizeId(
+            $request->integer('productId'),
+            $request->integer('sizeId'),
+        );
 
-        $productSizeId = DB::table('product_size')
+        $colors = $this->buildCatalogColorsForProductSize($productSizeId);
+
+        return response()->json(ColorSelectedResource::collection($colors));
+    }
+
+    /**
+     * Solo colores que ya tienen fila en `product_size_color` (stock no nulo en inventario por talla).
+     * Útil en compras para elegir variantes ya existentes sin listar todo el catálogo.
+     */
+    public function getAllSelectedAttached(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productSizeId = $this->resolveProductSizeId(
+            $request->integer('productId'),
+            $request->integer('sizeId'),
+        );
+
+        $colors = $this->buildCatalogColorsForProductSize($productSizeId)
+            ->filter(fn (Color $color): bool => $color->isExists === true)
+            ->values();
+
+        return response()->json(ColorSelectedResource::collection($colors));
+    }
+
+    private function resolveProductSizeId(int $productId, int $sizeId): ?int
+    {
+        if ($productId < 1 || $sizeId < 1) {
+            return null;
+        }
+
+        $id = DB::table('product_size')
             ->where('product_id', $productId)
             ->where('size_id', $sizeId)
             ->value('id');
 
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * @return Collection<int, Color>
+     */
+    private function buildCatalogColorsForProductSize(?int $productSizeId): Collection
+    {
         $productSizeColors = collect();
 
         if ($productSizeId) {
@@ -104,8 +157,8 @@ class ColorController extends Controller
                 ->keyBy('color_id');
         }
 
-        $colors = Color::where('is_deleted', '=', false)
-            ->orderBy('description', 'asc') // Ordenamos alfabéticamente por nombre del color aquí
+        return Color::where('is_deleted', '=', false)
+            ->orderBy('description', 'asc')
             ->get()
             ->map(function ($color) use ($productSizeColors, $productSizeId): Color {
                 if ($productSizeColors->has($color->id)) {
@@ -126,11 +179,10 @@ class ColorController extends Controller
                 } else {
                     $priority = 2;
                 }
+
                 return [$priority, strtolower($color->description)];
             })
             ->values();
-
-        return response()->json(ColorSelectedResource::collection($colors));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse

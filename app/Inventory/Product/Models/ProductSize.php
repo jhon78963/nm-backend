@@ -68,6 +68,8 @@ class ProductSize extends Model
         return $this->belongsToMany(
             Color::class,
             'product_size_color',
+            'product_size_id',
+            'color_id',
         )->withPivot(['stock']);
     }
 

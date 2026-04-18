@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Product\Models;
 
+use App\Directory\Vendor\Models\Vendor;
 use App\Inventory\Gender\Models\Gender;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Image\Models\Image;
@@ -32,6 +33,7 @@ class Product extends Model
         'status',
         'gender_id',
         'warehouse_id',
+        'vendor_id',
     ];
 
     /**
@@ -88,6 +90,16 @@ class Product extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * Proveedor habitual (asignado desde compras u otro flujo).
+     *
+     * @return BelongsTo<Vendor, Product>
+     */
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class);
     }
 
     /**
