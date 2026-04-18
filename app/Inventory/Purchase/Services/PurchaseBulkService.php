@@ -9,13 +9,13 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductService;
 use App\Inventory\Product\Services\ProductSizeColorService;
+use App\Inventory\Purchase\Support\PurchasePayloadResolver;
 use App\Inventory\Size\Services\SizeService;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /**
  * Registro masivo de compra: crea catálogo temporal (producto/talla/color) y
- * actualiza stock en `product_size` y `product_size_color`.
+ * actualiza stock en `product_size` y `product_size_color`; persiste documento `purchases`.
  */
 class PurchaseBulkService
 {
@@ -24,13 +24,15 @@ class PurchaseBulkService
         protected SizeService $sizeService,
         protected ColorService $colorService,
         protected ProductSizeColorService $productSizeColorService,
+        protected PurchasePayloadResolver $resolver,
+        protected PurchaseDocumentService $purchaseDocumentService,
     ) {
     }
 
     /**
      * @param  array<string, mixed>  $payload
      */
-    public function handle(array $payload): void
+    public function handle(array $payload): int
     {
         $purchase = $payload['purchase'] ?? [];
         $warehouseId = (int) ($purchase['warehouseId'] ?? 1);
@@ -43,7 +45,9 @@ class PurchaseBulkService
         $sizeTempMap = [];
         $colorTempMap = [];
 
-        DB::transaction(function () use ($payload, $warehouseId, $vendorId, &$productTempMap, &$sizeTempMap, &$colorTempMap): void {
+        $purchaseId = 0;
+
+        DB::transaction(function () use ($payload, $warehouseId, $vendorId, &$productTempMap, &$sizeTempMap, &$colorTempMap, &$purchaseId): void {
             $this->upsertCatalogProducts(
                 $payload['catalogUpserts']['products'] ?? [],
                 $warehouseId,
@@ -56,7 +60,18 @@ class PurchaseBulkService
             if ($vendorId !== null) {
                 $this->assignVendorToPurchaseProducts($vendorId, $payload['lines'] ?? [], $productTempMap);
             }
+            $document = $this->purchaseDocumentService->record(
+                $payload,
+                $warehouseId,
+                $vendorId,
+                $productTempMap,
+                $sizeTempMap,
+                $colorTempMap,
+            );
+            $purchaseId = (int) $document->id;
         });
+
+        return $purchaseId;
     }
 
     /**
@@ -67,7 +82,7 @@ class PurchaseBulkService
     {
         foreach ($rows as $row) {
             $tempId = $row['tempId'] ?? null;
-            if (!$tempId) {
+            if (! $tempId) {
                 continue;
             }
             $data = [
@@ -85,8 +100,6 @@ class PurchaseBulkService
     }
 
     /**
-     * Asigna el proveedor de la compra a todos los productos involucrados en las líneas.
-     *
      * @param  array<int, array<string, mixed>>  $lines
      * @param  array<string, int>  $productTempMap
      */
@@ -97,6 +110,7 @@ class PurchaseBulkService
             $ref = is_array($line['productRef'] ?? null) ? $line['productRef'] : [];
             if (($ref['mode'] ?? '') === 'id' && isset($ref['productId'])) {
                 $ids[] = (int) $ref['productId'];
+
                 continue;
             }
             $tid = (string) ($ref['tempId'] ?? '');
@@ -122,7 +136,7 @@ class PurchaseBulkService
     {
         foreach ($rows as $row) {
             $tempId = $row['tempId'] ?? null;
-            if (!$tempId) {
+            if (! $tempId) {
                 continue;
             }
             $size = $this->sizeService->create([
@@ -141,7 +155,7 @@ class PurchaseBulkService
     {
         foreach ($rows as $row) {
             $tempId = $row['tempId'] ?? null;
-            if (!$tempId) {
+            if (! $tempId) {
                 continue;
             }
             $color = $this->colorService->create([
@@ -165,26 +179,26 @@ class PurchaseBulkService
         array $colorTempMap,
     ): void {
         foreach ($lines as $line) {
-            $productId = $this->resolveProductId($line['productRef'] ?? [], $productTempMap);
-            $sizeId = $this->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
+            $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
+            $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
 
             $product = Product::query()->where('is_deleted', false)->findOrFail($productId);
 
-            $productSize = $this->resolveProductSize($product, $sizeId, $line);
+            $productSize = $this->resolver->resolveProductSize($product, $sizeId, $line);
 
             $colors = array_map(
-                fn (mixed $c): array => $this->normalizeLineColorRow(is_array($c) ? $c : []),
+                fn (mixed $c): array => $this->resolver->normalizeLineColorRow(is_array($c) ? $c : []),
                 $line['colors'] ?? [],
             );
 
-            $hasColorKeys = $this->colorsHaveIds($colors);
+            $hasColorKeys = $this->resolver->colorsHaveIds($colors);
 
             $lineTotalQty = 0;
             foreach ($colors as $c) {
                 $lineTotalQty += $c['quantity'];
             }
 
-            if (!$hasColorKeys && count($colors) === 1) {
+            if (! $hasColorKeys && count($colors) === 1) {
                 $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
                 continue;
             }
@@ -207,104 +221,6 @@ class PurchaseBulkService
 
             $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
         }
-    }
-
-    /**
-     * Acepta camelCase (frontend) o snake_case si algo transforma el JSON.
-     *
-     * @param  array<string, mixed>  $c
-     * @return array{colorId: ?int, tempId: ?string, quantity: int}
-     */
-    protected function normalizeLineColorRow(array $c): array
-    {
-        $colorId = $c['colorId'] ?? $c['color_id'] ?? null;
-        $tempId = $c['tempId'] ?? $c['temp_id'] ?? null;
-
-        return [
-            'colorId' => $colorId !== null && $colorId !== '' ? (int) $colorId : null,
-            'tempId' => $tempId !== null && $tempId !== '' ? (string) $tempId : null,
-            'quantity' => max(0, (int) ($c['quantity'] ?? 0)),
-        ];
-    }
-
-    /**
-     * @param  array<int, array{colorId: ?int, tempId: ?string, quantity: int}>  $colors
-     */
-    protected function colorsHaveIds(array $colors): bool
-    {
-        foreach ($colors as $c) {
-            if ($c['colorId'] !== null || $c['tempId'] !== null) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param  array<string, mixed>  $ref
-     * @param  array<string, int>  $tempMap
-     */
-    protected function resolveProductId(array $ref, array $tempMap): int
-    {
-        if (($ref['mode'] ?? '') === 'id') {
-            return (int) $ref['productId'];
-        }
-        $tid = (string) ($ref['tempId'] ?? '');
-        if ($tid === '' || !isset($tempMap[$tid])) {
-            throw new InvalidArgumentException('Producto temporal no resuelto: '.$tid);
-        }
-
-        return $tempMap[$tid];
-    }
-
-    /**
-     * @param  array<string, mixed>  $ref
-     * @param  array<string, int>  $tempMap
-     */
-    protected function resolveSizeId(array $ref, array $tempMap): int
-    {
-        if (($ref['mode'] ?? '') === 'id') {
-            return (int) $ref['sizeId'];
-        }
-        $tid = (string) ($ref['tempId'] ?? '');
-        if ($tid === '' || !isset($tempMap[$tid])) {
-            throw new InvalidArgumentException('Talla temporal no resuelta: '.$tid);
-        }
-
-        return $tempMap[$tid];
-    }
-
-    /**
-     * @param  array<string, mixed>  $line
-     */
-    protected function resolveProductSize(Product $product, int $sizeId, array $line): ProductSize
-    {
-        $psId = $line['productSizeId'] ?? null;
-        if ($psId) {
-            $ps = ProductSize::query()
-                ->where('id', $psId)
-                ->where('product_id', $product->id)
-                ->where('size_id', $sizeId)
-                ->first();
-            if ($ps) {
-                return $ps;
-            }
-        }
-
-        return ProductSize::query()->firstOrCreate(
-            [
-                'product_id' => $product->id,
-                'size_id' => $sizeId,
-            ],
-            [
-                'barcode' => null,
-                'stock' => 0,
-                'purchase_price' => null,
-                'sale_price' => null,
-                'min_sale_price' => null,
-            ],
-        );
     }
 
     /**
@@ -338,10 +254,6 @@ class PurchaseBulkService
         }
     }
 
-    /**
-     * Misma vía que {@see ProductSizeColorController}: {@see ProductSizeColorService::set()}
-     * con stock absoluto (actual + ingreso).
-     */
     protected function incrementProductSizeColorStock(ProductSize $productSize, int $colorId, int $delta): void
     {
         if ($delta === 0) {

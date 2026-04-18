@@ -5,4 +5,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::controller(PurchaseController::class)->group(function (): void {
     Route::post('/purchases/bulk', 'registerBulk');
+    Route::get('/purchases', 'getAll');
+    Route::get('/purchases/{purchase}', 'get');
+    Route::patch('/purchases/{purchase}', 'update');
+    Route::post('/purchases/{purchase}/cancel', 'cancel');
 });
