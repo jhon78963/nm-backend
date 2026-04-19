@@ -1,8 +1,8 @@
 <?php
 
-use App\Finance\Sale\Controllers\SaleController;
+use App\Finance\Sale\Controllers\PosController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/print/ticket/{id}', [SaleController::class, 'ticket']);
-Route::get('/pos/sales/{saleId}/ticket/html', [SaleController::class, 'getTicketHtml']);
-Route::get('/pos/sales/{saleId}/ticket/base64', [SaleController::class, 'getTicketBase64']);
+Route::get('/print/ticket/{saleId}', [PosController::class, 'printTicket']);
+Route::get('/pos/sales/{saleId}/ticket', [PosController::class, 'printTicket']);
+Route::get('/pos/sales/{saleId}/ticket/html', [PosController::class, 'printTicket']);

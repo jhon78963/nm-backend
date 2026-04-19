@@ -2,9 +2,8 @@
 
 namespace App\Finance\Sale\Controllers;
 
-use App\Directory\Customer\Services\CustomerService;
-use App\Inventory\Product\Services\ProductService;
 use App\Finance\Sale\Models\Sale;
+use App\Finance\Sale\Requests\ExchangeSaleRequest;
 use App\Finance\Sale\Requests\SaleUpdateRequest;
 use App\Finance\Sale\Resources\SaleDetailResource;
 use App\Finance\Sale\Resources\SaleResource;
@@ -14,105 +13,22 @@ use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class SaleController extends Controller
 {
     public function __construct(
-        protected CustomerService $customerService,
-        protected ProductService $productService,
         protected SaleService $saleService,
         protected SharedService $sharedService,
     ) {
     }
 
-    public function searchProduct(Request $request): JsonResponse
-    {
-        $sku = $request->query('sku');
-        if (!$sku)
-            return response()->json(['error' => 'SKU requerido'], 400);
-        $product = $this->productService->findBySkuForPos($sku);
-        if (!$product) {
-            return response()->json(['message' => 'Producto no encontrado'], 404);
-        }
-        return response()->json($product);
-    }
-
     public function getMonthlyStats(): JsonResponse
     {
         $stats = $this->saleService->getMonthlyStats();
+
         return response()->json($stats);
-    }
-
-    public function searchCustomer(Request $request): JsonResponse
-    {
-        $dni = $request->query('dni');
-        if (!$dni)
-            return response()->json(['error' => 'DNI requerido'], 400);
-        $customer = $this->customerService->findOrCreateByDoc($dni);
-        return response()->json($customer);
-    }
-
-    public function checkout(Request $request): JsonResponse
-    {
-        // 1. Validamos la estructura (Esto estaba bien, lo mantenemos)
-        $data = $request->validate([
-            'customer.id' => 'nullable',
-            'total' => 'required|numeric',
-            'items' => 'required|array|min:1',
-            'items.*.color.product_size_id' => 'required|integer',
-            'items.*.color.color_id' => 'required|integer',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unitPrice' => 'required|numeric',
-            'items.*.total' => 'required|numeric',
-            // Pagos
-            'payments' => 'required|array|min:1',
-            'payments.*.method' => 'required|string',
-            'payments.*.amount' => 'required|numeric',
-            'payments.*.reference' => 'nullable|string',
-        ]);
-
-        try {
-            // 2. Preparamos la data para el servicio
-            $serviceData = [
-                'customer_id' => $data['customer']['id'] ?? null,
-                'total' => $data['total'],
-
-                // --- CORRECCIÓN CLAVE: PASAR LOS PAGOS AL SERVICIO ---
-                'payments' => $data['payments'],
-
-                'items' => collect($data['items'])->map(function ($i) {
-                    return [
-                        'product_size_id' => $i['color']['product_size_id'],
-                        'color_id' => $i['color']['color_id'],
-                        'quantity' => $i['quantity'],
-                        'unit_price' => $i['unitPrice'],
-                        'total' => $i['total']
-                    ];
-                })->toArray()
-            ];
-
-            // 3. Procesamos
-            $sale = $this->saleService->processPosSale($serviceData);
-
-            return response()->json([
-                'success' => true,
-                'sale_id' => $sale->id,
-                'message' => 'Venta registrada correctamente'
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function printTicket($saleId)
-    {
-        $sale = Sale::with(['details', 'customer'])
-            ->where('id', $saleId)
-            ->firstOrFail();
-        return view('pos.ticket', compact('sale'));
     }
 
     public function delete(Sale $sale): JsonResponse
@@ -128,6 +44,8 @@ class SaleController extends Controller
     public function get(Sale $sale): JsonResponse
     {
         $this->saleService->validate($sale, 'Sale');
+        $sale->load(['details', 'payments', 'customer']);
+
         return response()->json(new SaleDetailResource($sale));
     }
 
@@ -138,6 +56,8 @@ class SaleController extends Controller
             entityName: 'Finance\\Sale',
             modelName: 'Sale',
             columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name'],
+            filters: [],
+            extendQuery: fn ($q) => $q->with('customer'),
             orderBy: 'creation_time',
             orderDir: 'desc',
         );
@@ -160,22 +80,20 @@ class SaleController extends Controller
         });
     }
 
-    public function exchange(Request $request): JsonResponse
+    public function exchange(ExchangeSaleRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'returned_detail_id' => 'required|integer|exists:sale_details,id',
-            'difference_amount' => 'required|numeric|min:0',
-            'payment_method' => 'nullable|string',
-            'new_item.product_size_id' => 'required|integer',
-            'new_item.color_id' => 'required|integer',
-            'new_item.final_price' => 'required|integer',
-        ]);
-
         try {
-            $this->saleService->processExchange($data);
-            return response()->json(['success' => true, 'message' => 'Cambio registrado correctamente']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            $this->saleService->processExchange($request->validated());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cambio registrado correctamente',
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }

@@ -35,17 +35,11 @@ class SaleDetailResource extends JsonResource
                 'dni' => $this->customer?->document_number ?? '---',
             ],
 
-            // --- NUEVO: DESGLOSE DE PAGOS ---
-            // Mapeamos la relación 'payments' para enviar la lista detallada
-            'payments' => $this->payments->map(function ($payment) {
-                return [
-                    'id' => $payment->id,
-                    'method' => $payment->method,     // CASH, YAPE, PLIN...
-                    'amount' => (float) $payment->amount,
-                    'reference' => $payment->reference, // Nro Operación si existe
-                    'date' => $payment->created_at?->format('d/m/Y H:i'),
-                ];
-            }),
+            'payments' => $this->when(
+                $this->relationLoaded('payments'),
+                fn () => SalePaymentResource::collection($this->payments),
+                []
+            ),
 
             // --- DETALLES (ITEMS VENDIDOS) ---
             'items' => $this->details->map(function ($detail) {

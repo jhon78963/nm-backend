@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Exception;
 use Illuminate\Support\Collection;
+use stdClass;
 
 class SaleService extends ModelService
 {
@@ -21,46 +22,46 @@ class SaleService extends ModelService
     }
 
     /**
-     * Reporte de Ventas vs Costos vs Ganancia Agrupado por MES
+     * Reporte de Ventas vs Costos vs Ganancia agrupado por mes (una sola pasada a BD).
      */
     public function getMonthlyStats(): Collection
     {
-        // 1. INGRESOS: Sacamos directamente de 'sales' sumando 'total_amount'
-        $revenues = DB::table('sales')
-            ->selectRaw("
-                TO_CHAR(creation_time, 'MM-YYYY') as month_year,
-                TO_CHAR(creation_time, 'YYYY-MM') as sort_key,
-                SUM(total_amount) as total_revenue
-            ")
-            ->where('is_deleted', false)
-            ->where('status', 'COMPLETED')
-            ->groupByRaw("TO_CHAR(creation_time, 'MM-YYYY'), TO_CHAR(creation_time, 'YYYY-MM')")
-            ->orderBy('sort_key', 'desc')
-            ->get()
-            ->keyBy('month_year');
+        $rows = DB::select("
+            WITH rev AS (
+                SELECT TO_CHAR(creation_time, 'MM-YYYY') AS month_year,
+                       TO_CHAR(creation_time, 'YYYY-MM') AS sort_key,
+                       SUM(total_amount) AS total_revenue
+                FROM sales
+                WHERE is_deleted = false AND status = 'COMPLETED'
+                GROUP BY 1, 2
+            ),
+            cst AS (
+                SELECT TO_CHAR(s.creation_time, 'MM-YYYY') AS month_year,
+                       SUM(sd.quantity * COALESCE(ps.purchase_price, 0)) AS total_cost
+                FROM sales s
+                INNER JOIN sale_details sd ON s.id = sd.sale_id
+                LEFT JOIN product_size ps
+                    ON sd.product_id = ps.product_id AND sd.size_id = ps.size_id
+                WHERE s.is_deleted = false AND s.status = 'COMPLETED'
+                GROUP BY 1
+            )
+            SELECT r.month_year,
+                   r.sort_key,
+                   r.total_revenue,
+                   COALESCE(c.total_cost, 0) AS total_cost,
+                   r.total_revenue - COALESCE(c.total_cost, 0) AS profit
+            FROM rev r
+            LEFT JOIN cst c ON c.month_year = r.month_year
+            ORDER BY r.sort_key DESC
+        ");
 
-        // 2. COSTOS: Calculamos en base al precio de compra del producto
-        $costs = DB::table('sales as s')
-            ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
-            ->leftJoin('product_size as ps', function ($join) {
-                $join->on('sd.product_id', '=', 'ps.product_id')
-                    ->on('sd.size_id', '=', 'ps.size_id');
-            })
-            ->selectRaw("
-                TO_CHAR(s.creation_time, 'MM-YYYY') as month_year,
-                SUM(sd.quantity * COALESCE(ps.purchase_price, 0)) as total_cost
-            ")
-            ->where('s.is_deleted', false)
-            ->where('s.status', 'COMPLETED')
-            ->groupByRaw("TO_CHAR(s.creation_time, 'MM-YYYY')")
-            ->pluck('total_cost', 'month_year');
+        return collect($rows)->map(function (stdClass $item) {
+            $item->total_revenue = (float) $item->total_revenue;
+            $item->total_cost = (float) $item->total_cost;
+            $item->profit = (float) $item->profit;
 
-        // 3. FUSIÓN Y CÁLCULO DE GANANCIA
-        return $revenues->map(function ($item) use ($costs) {
-            $item->total_cost = $costs[$item->month_year] ?? 0;
-            $item->profit = $item->total_revenue - $item->total_cost;
             return $item;
-        })->values();
+        });
     }
 
     /**
@@ -296,31 +297,44 @@ class SaleService extends ModelService
                 $sale->payments()->create($p);
             }
 
-            // D. Procesar Ítems e Inventario
+            // D. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
             foreach ($data['items'] as $item) {
                 $productSizeId = $item['product_size_id'];
                 $qty = $item['quantity'];
+                $colorId = (int) $item['color_id'];
 
-                // 1. Obtener Stock ANTES de la venta (Para el historial)
-                $currentStock = 0;
-                if ($item['color_id'] > 0) {
-                    $colorRow = DB::table('product_size_color')
-                        ->where('product_size_id', $productSizeId)
-                        ->where('color_id', $item['color_id'])
-                        ->first();
-                    $currentStock = $colorRow ? $colorRow->stock : 0;
-                } else {
-                    $masterRow = DB::table('product_size')->where('id', $productSizeId)->first();
-                    $currentStock = $masterRow ? $masterRow->stock : 0;
+                $masterRow = DB::table('product_size')
+                    ->where('id', $productSizeId)
+                    ->lockForUpdate()
+                    ->first();
+                if (!$masterRow) {
+                    throw new Exception('Talla de producto no encontrada.');
                 }
 
-                // 2. Descuentos de Stock
+                $currentStock = 0;
+                if ($colorId > 0) {
+                    $colorRow = DB::table('product_size_color')
+                        ->where('product_size_id', $productSizeId)
+                        ->where('color_id', $colorId)
+                        ->lockForUpdate()
+                        ->first();
+                    $currentStock = $colorRow ? (int) $colorRow->stock : 0;
+                    if ($currentStock < $qty) {
+                        throw new Exception('Stock insuficiente para el color seleccionado.');
+                    }
+                } else {
+                    $currentStock = (int) $masterRow->stock;
+                    if ($currentStock < $qty) {
+                        throw new Exception('Stock insuficiente para el producto.');
+                    }
+                }
+
                 DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $qty);
 
-                if ($item['color_id'] > 0) {
+                if ($colorId > 0) {
                     DB::table('product_size_color')
                         ->where('product_size_id', $productSizeId)
-                        ->where('color_id', $item['color_id'])
+                        ->where('color_id', $colorId)
                         ->decrement('stock', $qty);
                 }
 
@@ -332,14 +346,18 @@ class SaleService extends ModelService
                     ->select('products.id as pid', 'products.name as pname', 'sizes.description as sname', 'sizes.id as sid')
                     ->first();
 
-                $colorName = $item['color_id'] > 0
-                    ? (DB::table('colors')->where('id', $item['color_id'])->value('description') ?? 'Desconocido')
+                if (!$sizeInfo) {
+                    throw new Exception('No se pudo resolver el producto para el ítem.');
+                }
+
+                $colorName = $colorId > 0
+                    ? (DB::table('colors')->where('id', $colorId)->value('description') ?? 'Desconocido')
                     : 'Único';
 
                 $sale->details()->create([
                     'product_id' => $sizeInfo->pid,
                     'size_id' => $sizeInfo->sid,
-                    'color_id' => $item['color_id'] > 0 ? $item['color_id'] : null,
+                    'color_id' => $colorId > 0 ? $colorId : null,
                     'product_name_snapshot' => $sizeInfo->pname,
                     'size_name_snapshot' => $sizeInfo->sname,
                     'color_name_snapshot' => $colorName,

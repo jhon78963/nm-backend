@@ -19,7 +19,7 @@ class SaleResource extends JsonResource
             'total' => (float) $this->total_amount,
             'status' => $this->status,
             'paymentMethod' => $this->payment_method,
-            'customer' => $this->customer->name ?? 'Público General',
+            'customer' => $this->whenLoaded('customer', fn () => $this->customer->name),
         ];
     }
 }
