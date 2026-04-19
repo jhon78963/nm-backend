@@ -179,48 +179,69 @@ class PurchaseBulkService
         array $colorTempMap,
     ): void {
         foreach ($lines as $line) {
-            $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
-            $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
-
-            $product = Product::query()->where('is_deleted', false)->findOrFail($productId);
-
-            $productSize = $this->resolver->resolveProductSize($product, $sizeId, $line);
-
-            $colors = array_map(
-                fn (mixed $c): array => $this->resolver->normalizeLineColorRow(is_array($c) ? $c : []),
-                $line['colors'] ?? [],
-            );
-
-            $hasColorKeys = $this->resolver->colorsHaveIds($colors);
-
-            $lineTotalQty = 0;
-            foreach ($colors as $c) {
-                $lineTotalQty += $c['quantity'];
-            }
-
-            if (! $hasColorKeys && count($colors) === 1) {
-                $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+            if (! is_array($line)) {
                 continue;
             }
-
-            $productSize->loadMissing('product');
-
-            foreach ($colors as $c) {
-                if ($c['quantity'] <= 0) {
-                    continue;
-                }
-                $colorId = $c['colorId'];
-                if ($colorId === null && $c['tempId'] !== null) {
-                    $colorId = $colorTempMap[$c['tempId']] ?? null;
-                }
-                if ($colorId === null) {
-                    continue;
-                }
-                $this->incrementProductSizeColorStock($productSize, (int) $colorId, $c['quantity']);
-            }
-
-            $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+            $this->applyStockForLine($line, $productTempMap, $sizeTempMap, $colorTempMap);
         }
+    }
+
+    /**
+     * Aplica al inventario el stock y precios de una línea de compra (mismo contrato que `lines[]` del bulk).
+     *
+     * @param  array<string, mixed>  $line
+     * @param  array<string, int>  $productTempMap
+     * @param  array<string, int>  $sizeTempMap
+     * @param  array<string, int>  $colorTempMap
+     */
+    public function applyStockForLine(
+        array $line,
+        array $productTempMap = [],
+        array $sizeTempMap = [],
+        array $colorTempMap = [],
+    ): void {
+        $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
+        $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
+
+        $product = Product::query()->where('is_deleted', false)->findOrFail($productId);
+
+        $productSize = $this->resolver->resolveProductSize($product, $sizeId, $line);
+
+        $colors = array_map(
+            fn (mixed $c): array => $this->resolver->normalizeLineColorRow(is_array($c) ? $c : []),
+            $line['colors'] ?? [],
+        );
+
+        $hasColorKeys = $this->resolver->colorsHaveIds($colors);
+
+        $lineTotalQty = 0;
+        foreach ($colors as $c) {
+            $lineTotalQty += $c['quantity'];
+        }
+
+        if (! $hasColorKeys && count($colors) === 1) {
+            $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+
+            return;
+        }
+
+        $productSize->loadMissing('product');
+
+        foreach ($colors as $c) {
+            if ($c['quantity'] <= 0) {
+                continue;
+            }
+            $colorId = $c['colorId'];
+            if ($colorId === null && $c['tempId'] !== null) {
+                $colorId = $colorTempMap[$c['tempId']] ?? null;
+            }
+            if ($colorId === null) {
+                continue;
+            }
+            $this->incrementProductSizeColorStock($productSize, (int) $colorId, $c['quantity']);
+        }
+
+        $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
     }
 
     /**
@@ -229,10 +250,11 @@ class PurchaseBulkService
     protected function incrementProductSizeStock(ProductSize $productSize, int $delta, array $line): void
     {
         $this->mergeProductSizePrices($productSize, $line);
-        if ($delta !== 0) {
-            $productSize->stock = (int) $productSize->stock + $delta;
-        }
         $productSize->save();
+
+        if ($delta !== 0) {
+            ProductSize::query()->whereKey($productSize->id)->increment('stock', $delta);
+        }
     }
 
     /**

@@ -19,7 +19,7 @@ class SizeResource extends JsonResource
         return [
             'id' => (int) $this->id,
             'productSizeId' => isset($this->productSizeId) ? (int) $this->productSizeId : null,
-            'description' => $this->description,
+            'description' => "Talla: $this->description - Stock: $this->stock",
             'stock' => isset($this->stock) ? (int) $this->stock : null,
             'barcode' => $this->barcode !== null && $this->barcode !== '' ? (string) $this->barcode : null,
             'purchasePrice' => $this->purchase_price !== null ? (float) $this->purchase_price : null,

@@ -38,7 +38,6 @@ class PurchaseDocumentService
         $purchaseBlock = $payload['purchase'] ?? [];
         $lines = $payload['lines'] ?? [];
         $totals = $payload['totals'] ?? [];
-        $subtotal = (float) ($totals['grandSubtotal'] ?? 0);
 
         try {
             $payloadSnapshot = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
@@ -49,6 +48,8 @@ class PurchaseDocumentService
         $registeredAt = $purchaseBlock['registeredAt'] ?? null;
         $registeredDate = $registeredAt ? date('Y-m-d', strtotime((string) $registeredAt)) : now()->format('Y-m-d');
 
+        $computedGrand = 0.0;
+
         $purchase = Purchase::query()->create([
             'creator_user_id' => Auth::id(),
             'vendor_id' => $vendorId,
@@ -58,7 +59,7 @@ class PurchaseDocumentService
             'warehouse_id' => $warehouseId,
             'currency' => (string) ($purchaseBlock['currency'] ?? 'PEN'),
             'status' => PurchaseStatus::Active,
-            'total_subtotal' => $subtotal,
+            'total_subtotal' => 0.0,
             'payload_json' => $payloadSnapshot,
             'is_deleted' => false,
         ]);
@@ -85,6 +86,13 @@ class PurchaseDocumentService
 
             $isSizeOnly = ! $hasColorKeys && count($colors) === 1;
 
+            $purchasePrice = (float) ($line['purchasePrice'] ?? 0);
+            $payloadSubtotal = (float) ($line['subtotal'] ?? 0);
+            $lineSubtotal = $payloadSubtotal > 0.00001
+                ? round($payloadSubtotal, 2)
+                : round($purchasePrice * max(0, $lineTotalQty), 2);
+            $computedGrand += $lineSubtotal;
+
             $purchaseLine = PurchaseLine::query()->create([
                 'purchase_id' => $purchase->id,
                 'line_id' => isset($line['lineId']) ? (string) $line['lineId'] : null,
@@ -95,7 +103,7 @@ class PurchaseDocumentService
                 'purchase_price' => $line['purchasePrice'] ?? null,
                 'sale_price' => $line['salePrice'] ?? null,
                 'min_sale_price' => $line['minSalePrice'] ?? null,
-                'subtotal' => (float) ($line['subtotal'] ?? 0),
+                'subtotal' => $lineSubtotal,
                 'size_stock_delta' => max(0, $lineTotalQty),
                 'has_color_breakdown' => ! $isSizeOnly,
             ]);
@@ -122,6 +130,12 @@ class PurchaseDocumentService
                 ]);
             }
         }
+
+        $payloadGrand = (float) ($totals['grandSubtotal'] ?? 0);
+        $purchase->total_subtotal = $payloadGrand > 0.00001
+            ? round($payloadGrand, 2)
+            : round($computedGrand, 2);
+        $purchase->save();
 
         return $purchase->fresh(['lines.colorDeltas']);
     }

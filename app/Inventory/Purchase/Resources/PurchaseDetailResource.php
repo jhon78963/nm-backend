@@ -33,12 +33,45 @@ class PurchaseDetailResource extends JsonResource
             'warehouseName' => $this->whenLoaded('warehouse', fn () => $this->warehouse->name),
             'currency' => $this->currency,
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : (string) $this->status,
-            'totalSubtotal' => (float) $this->total_subtotal,
+            'totalSubtotal' => $this->effectivePurchaseTotal(),
             'creationTime' => $this->creation_time?->format('Y-m-d H:i:s'),
             'cancelledAt' => $this->cancelled_at?->format('Y-m-d H:i:s'),
             'cancellationReason' => $this->cancellation_reason,
             'lines' => PurchaseLineResource::collection($this->whenLoaded('lines')),
             'payloadSnapshot' => $payload,
         ];
+    }
+
+    private function effectivePurchaseTotal(): float
+    {
+        $stored = (float) $this->total_subtotal;
+        if ($stored > 0.00001) {
+            return round($stored, 2);
+        }
+        if (! $this->relationLoaded('lines') || $this->lines->isEmpty()) {
+            return round($stored, 2);
+        }
+        $sum = 0.0;
+        foreach ($this->lines as $line) {
+            $ls = (float) $line->subtotal;
+            if ($ls > 0.00001) {
+                $sum += $ls;
+
+                continue;
+            }
+            $pp = (float) ($line->purchase_price ?? 0);
+            if ($line->has_color_breakdown) {
+                $line->loadMissing('colorDeltas');
+                $cq = 0;
+                foreach ($line->colorDeltas as $d) {
+                    $cq += (int) $d->quantity;
+                }
+                $sum += $pp * $cq;
+            } else {
+                $sum += $pp * (int) $line->size_stock_delta;
+            }
+        }
+
+        return round($sum, 2);
     }
 }
