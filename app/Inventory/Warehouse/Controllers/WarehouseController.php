@@ -56,16 +56,24 @@ class WarehouseController extends Controller
     public function get(Warehouse $warehouse): JsonResponse
     {
         $this->warehouseService->validate($warehouse, 'Warehouse');
+
         return response()->json(new WarehouseResource($warehouse));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
+        $tenantId = $request->query('tenant_id');
+        $extendQuery = null;
+        if ($tenantId !== null && $tenantId !== '') {
+            $extendQuery = fn ($q) => $q->where('tenant_id', (int) $tenantId);
+        }
+
         $query = $this->sharedService->query(
-            request:      $request,
-            entityName:   'Inventory\\Warehouse',
-            modelName:    'Warehouse',
-            columnSearch: ['id', 'description'],
+            request: $request,
+            entityName: 'Inventory\\Warehouse',
+            modelName: 'Warehouse',
+            columnSearch: ['id', 'name'],
+            extendQuery: $extendQuery,
         );
 
         return response()->json(new GetAllCollection(

@@ -14,11 +14,8 @@ use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-
 class UserController extends Controller
 {
-    // Constructor Property Promotion
     public function __construct(
         protected SharedService $sharedService,
         protected UserService $userService,
@@ -28,8 +25,12 @@ class UserController extends Controller
     {
         return DB::transaction(function () use ($request): JsonResponse {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
-            $data['password'] = Hash::make('password');
-            $this->userService->create($data);
+            $roleNames = Arr::pull($data, 'role_names', []);
+            $data['password'] = 'password';
+            $user = new User;
+            $user->fill($data);
+            $user->save();
+            $user->syncRoles(is_array($roleNames) ? $roleNames : []);
 
             return response()->json(['message' => 'User created successfully.'], 201);
         });
@@ -40,8 +41,13 @@ class UserController extends Controller
         return DB::transaction(function () use ($request, $user): JsonResponse {
             $this->userService->validate($user, 'User');
             $data = $this->sharedService->convertCamelToSnake($request->validated());
+            $roleNames = Arr::pull($data, 'role_names');
             $data = Arr::except($data, ['password', 'username']);
-            $this->userService->update($user, $data);
+            $user->fill($data);
+            $user->save();
+            if ($roleNames !== null) {
+                $user->syncRoles(is_array($roleNames) ? $roleNames : []);
+            }
 
             return response()->json(['message' => 'User updated successfully.']);
         });
@@ -60,15 +66,16 @@ class UserController extends Controller
     public function get(User $user): JsonResponse
     {
         $this->userService->validate($user, 'User');
+
         return response()->json(new UserResource($user));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $query = $this->sharedService->query(
-            request:      $request,
-            entityName:   'Administration\\User',
-            modelName:    'User',
+            request: $request,
+            entityName: 'Administration\\User',
+            modelName: 'User',
             columnSearch: ['username', 'email', 'name', 'surname']
         );
 

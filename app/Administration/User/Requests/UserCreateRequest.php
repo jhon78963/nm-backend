@@ -3,6 +3,7 @@
 namespace App\Administration\User\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UserCreateRequest extends FormRequest
 {
@@ -15,8 +16,6 @@ class UserCreateRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -26,8 +25,10 @@ class UserCreateRequest extends FormRequest
             'email' => 'required|email|unique:users,email|max:190',
             'name' => 'required|string|max:25',
             'surname' => 'required|string|max:25',
-            'roleId' => 'required',
-            'warehouseId' => 'required',
+            'roleNames' => ['required', 'array', 'min:1'],
+            'roleNames.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
+            'tenantId' => ['required', 'exists:tenants,id'],
+            'warehouseId' => ['required', 'exists:warehouses,id'],
             'file' => 'nullable|max:2048',
         ];
     }

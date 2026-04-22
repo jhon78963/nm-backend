@@ -5,15 +5,14 @@ namespace App\Administration\Role\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** * @mixin Role
- * @property int $id
- * @property string $name
+/**
+ * Rol Spatie (permisos RBAC).
+ *
+ * @mixin \Spatie\Permission\Models\Role
  */
 class RoleResource extends JsonResource
 {
     /**
-     * Transform the resource into an array.
-     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -21,6 +20,7 @@ class RoleResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'permissions' => PermissionResource::collection($this->whenLoaded('permissions')),
         ];
     }
 }

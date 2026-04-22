@@ -2,6 +2,7 @@
 
 namespace App\Directory\Team\Models;
 
+use App\Administration\User\Models\User;
 use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,7 @@ class Team extends Model
         'surname',
         'salary',
         'warehouse_id',
+        'user_id',
     ];
 
     /**
@@ -58,5 +60,10 @@ class Team extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

@@ -4,12 +4,15 @@ namespace App\Finance\Sale\Models;
 
 use App\Administration\User\Models\User;
 use App\Directory\Customer\Models\Customer;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Sale extends Model
 {
+    use BelongsToWarehouse;
+
     public $timestamps = false;
 
     protected $table = 'sales';
@@ -23,6 +26,7 @@ class Sale extends Model
         'status',
         'notes',
         'creation_time',
+        'warehouse_id',
     ];
 
     /**

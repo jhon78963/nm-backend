@@ -2,11 +2,13 @@
 
 namespace App\Directory\Team\Controllers;
 
+use App\Administration\User\Models\User;
 use App\Directory\Team\Models\Team;
 use App\Directory\Team\Requests\TeamCreateRequest;
 use App\Directory\Team\Requests\TeamUpdateRequest;
 use App\Directory\Team\Resources\TeamResource;
 use App\Directory\Team\Services\TeamService;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
@@ -23,11 +25,52 @@ class TeamController extends Controller
 
     public function create(TeamCreateRequest $request): JsonResponse
     {
-        return DB::transaction(function () use ($request) {
+        return DB::transaction(function () use ($request): JsonResponse {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
-            $this->teamService->create($data);
+            if (! array_key_exists('salary', $data) || $data['salary'] === null || $data['salary'] === '') {
+                $data['salary'] = 0;
+            }
 
-            return response()->json(['message' => 'Team created.'], 201);
+            /** @var Team $team */
+            $team = $this->teamService->create($data);
+
+            $warehouse = Warehouse::query()->findOrFail((int) $team->warehouse_id);
+            $tenantId = $warehouse->tenant_id;
+            if ($tenantId === null) {
+                throw new \InvalidArgumentException('La tienda seleccionada no tiene un cliente (tenant) asociado.');
+            }
+
+            $plainPassword = "password";
+
+            $email = sprintf('%s.%s@novedadesmaritex.net.pe', $team->name, $team->surname);
+            $username = sprintf('%s.%s', $team->name, $team->surname);
+
+            $user = User::query()->create([
+                'username' => $username,
+                'email' => $email,
+                'name' => $team->name,
+                'surname' => $team->surname,
+                'password' => $plainPassword,
+                'warehouse_id' => $team->warehouse_id,
+                'tenant_id' => $tenantId,
+            ]);
+
+            $user->syncRoles(['Vendedora']);
+
+            $team->user_id = $user->id;
+            $team->save();
+
+            $team->load('user');
+
+            return response()->json([
+                'message' => 'Colaborador y usuario de acceso creados.',
+                'data' => new TeamResource($team),
+                'login' => [
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'temporaryPassword' => $plainPassword,
+                ],
+            ], 201);
         });
     }
 
@@ -55,6 +98,7 @@ class TeamController extends Controller
     public function get(Team $team): JsonResponse
     {
         $this->teamService->validate($team, 'Team');
+        $team->load('user');
 
         return response()->json(new TeamResource($team));
     }

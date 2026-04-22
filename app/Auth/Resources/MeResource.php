@@ -20,7 +20,10 @@ class MeResource extends JsonResource
             'name' => $this->name,
             'surname' => $this->surname,
             'profilePicture' => $this->profile_picture,
-            'role' => $this->role->name,
+            'role' => $this->getRoleNames()->first(),
+            'roles' => $this->getRoleNames()->values()->all(),
+            'tenantId' => $this->tenant_id,
+            'warehouseId' => $this->warehouse_id,
         ];
     }
 }

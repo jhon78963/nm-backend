@@ -4,7 +4,7 @@ namespace App\Administration\User\Seeders;
 
 use App\Administration\User\Models\User;
 use Illuminate\Database\Seeder;
-use Hash;
+use Spatie\Permission\Models\Role;
 
 class UserSeeder extends Seeder
 {
@@ -13,40 +13,56 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        $user = new User();
-        $user->username = "jhon.livias";
-        $user->email = "jhonlivias3@gmail.com";
-        $user->name = "Jhon";
-        $user->surname = "Livias";
-        $user->password = Hash::make("123qwe123");
-        $user->role_id = 1;
-        $user->save();
+        $roleSuper = Role::query()->where('name', 'Super Admin')->where('guard_name', 'web')->first();
+        $roleVendedora = Role::query()->where('name', 'Vendedora')->where('guard_name', 'web')->first();
 
-        $user = new User();
-        $user->username = "user.admin";
-        $user->email = "user.admin@gmail.com";
-        $user->name = "User";
-        $user->surname = "Admin";
-        $user->password = Hash::make("password");
-        $user->role_id = 1;
-        $user->save();
+        $make = function (array $attrs, $role) {
+            $user = User::query()->firstOrCreate(
+                ['email' => $attrs['email']],
+                [
+                    'username' => $attrs['username'],
+                    'name' => $attrs['name'],
+                    'surname' => $attrs['surname'],
+                    'password' => $attrs['passwordPlain'],
+                    'tenant_id' => 1,
+                    'warehouse_id' => 1,
+                ]
+            );
+            if ($role) {
+                $user->syncRoles([$role]);
+            }
+        };
 
-        $user = new User();
-        $user->username = "maritex";
-        $user->email = "maritex@gmail.com";
-        $user->name = "User";
-        $user->surname = "Admin";
-        $user->password = Hash::make("18146819");
-        $user->role_id = 1;
-        $user->save();
+        $make([
+            'username' => 'jhon.livias',
+            'email' => 'jhonlivias3@gmail.com',
+            'name' => 'Jhon',
+            'surname' => 'Livias',
+            'passwordPlain' => '123qwe123',
+        ], $roleSuper);
 
-        $user = new User();
-        $user->username = "user.employee";
-        $user->email = "user.employee@gmail.com";
-        $user->name = "User";
-        $user->surname = "Employee";
-        $user->password = Hash::make("password");
-        $user->role_id = 2;
-        $user->save();
+        $make([
+            'username' => 'user.admin',
+            'email' => 'user.admin@gmail.com',
+            'name' => 'User',
+            'surname' => 'Admin',
+            'passwordPlain' => 'password',
+        ], $roleSuper);
+
+        $make([
+            'username' => 'maritex',
+            'email' => 'maritex@gmail.com',
+            'name' => 'User',
+            'surname' => 'Admin',
+            'passwordPlain' => '18146819',
+        ], $roleSuper);
+
+        $make([
+            'username' => 'user.employee',
+            'email' => 'user.employee@gmail.com',
+            'name' => 'User',
+            'surname' => 'Employee',
+            'passwordPlain' => 'password',
+        ], $roleVendedora);
     }
 }

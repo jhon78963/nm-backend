@@ -2,17 +2,22 @@
 
 namespace App\Administration\User\Models;
 
-use App\Administration\Role\Models\Role;
+use App\Administration\Tenant\Models\Tenant;
+use App\Directory\Team\Models\Team;
 use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+
+    protected $guard_name = 'web';
 
     /**
      * The attributes that are mass assignable.
@@ -25,8 +30,8 @@ class User extends Authenticatable
         'name',
         'surname',
         'password',
-        'role_id',
         'warehouse_id',
+        'tenant_id',
         'profile_picture',
         'creator_user_id',
     ];
@@ -69,11 +74,17 @@ class User extends Authenticatable
         ];
     }
 
-    public function role(): BelongsTo {
-        return $this->belongsTo(Role::class);
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
     }
 
     public function warehouse(): BelongsTo {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function team(): HasOne
+    {
+        return $this->hasOne(Team::class, 'user_id');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Administration\User\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UserUpdateRequest extends FormRequest
 {
@@ -15,8 +16,6 @@ class UserUpdateRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -25,7 +24,10 @@ class UserUpdateRequest extends FormRequest
             'name' => 'sometimes|max:25',
             'surname' => 'sometimes|max:25',
             'file' => 'sometimes|max:2048',
-            'warehouseId' => 'sometimes',
+            'warehouseId' => ['sometimes', 'exists:warehouses,id'],
+            'tenantId' => ['sometimes', 'exists:tenants,id'],
+            'roleNames' => ['sometimes', 'array', 'min:1'],
+            'roleNames.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
         ];
     }
 }

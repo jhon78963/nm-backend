@@ -30,6 +30,8 @@ class TeamResource extends JsonResource
             'surname' => $this->surname,
             'salary' => $this->salary,
             'warehouseId' => $this->warehouse_id,
+            'userId' => $this->user_id,
+            'userEmail' => $this->whenLoaded('user', fn () => $this->user->email),
         ];
     }
 }

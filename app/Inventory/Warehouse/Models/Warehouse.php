@@ -2,10 +2,12 @@
 
 namespace App\Inventory\Warehouse\Models;
 
+use App\Administration\Tenant\Models\Tenant;
 use App\Administration\User\Models\User;
 use App\Directory\Team\Models\Team;
 use App\Inventory\Product\Models\Product;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Warehouse extends Model
@@ -18,6 +20,7 @@ class Warehouse extends Model
     protected $fillable = [
         'id',
         'name',
+        'tenant_id',
     ];
 
     /**
@@ -34,13 +37,17 @@ class Warehouse extends Model
         'deletion_time',
     ];
 
-
     /**
      * Indicates if the model should be timestamped.
      *
      * @var bool
      */
     public $timestamps = false;
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 
     /**
      * Get the products associated with the warehouse.

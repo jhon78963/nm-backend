@@ -12,12 +12,16 @@ class WarehouseSeeder extends Seeder
      */
     public function run(): void
     {
-        $warehouse = new Warehouse();
-        $warehouse->name = 'ANTONY';
-        $warehouse->save();
+        $tenantId = 1;
 
-        $warehouse = new Warehouse();
-        $warehouse->name = 'MARY';
-        $warehouse->save();
+        $w = new Warehouse();
+        $w->name = 'ANTONY';
+        $w->tenant_id = $tenantId;
+        $w->save();
+
+        $w = new Warehouse();
+        $w->name = 'MARY';
+        $w->tenant_id = $tenantId;
+        $w->save();
     }
 }
