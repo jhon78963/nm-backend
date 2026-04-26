@@ -224,9 +224,17 @@ class PaymentController extends Controller
      *   deudaEntradaTardeMinutos: int,
      *   deudaSalidaAnticipadaMinutos: int,
      *   deudaTiempoTotalMinutos: int,
+     *   favorLlegadaTempranaTotalMinutos: int,
+     *   favorSalidaTardeTotalMinutos: int,
+     *   favorTiempoTotalMinutos: int,
+     *   saldoTiempoNetoMinutos: int,
+     *   saldoTiempoNetoSentido: 'favor'|'debe'|'cero',
+     *   saldoTiempoNetoMagnitud: array{days: int, hours: int, minutes: int},
      *   deudaEntradaTarde: array{days: int, hours: int, minutes: int},
      *   deudaSalidaAnticipada: array{days: int, hours: int, minutes: int},
      *   deudaTiempo: array{days: int, hours: int, minutes: int},
+     *   favorLlegadaTemprana: array{days: int, hours: int, minutes: int},
+     *   favorSalidaTarde: array{days: int, hours: int, minutes: int},
      *   deudaPorDia: list<array{
      *     date: string,
      *     status: string,
@@ -234,7 +242,10 @@ class PaymentController extends Controller
      *     checkOut: string|null,
      *     deudaEntradaTardeMinutos: int,
      *     deudaSalidaAnticipadaMinutos: int,
-     *     deudaTotalMinutos: int
+     *     favorLlegadaTempranaMinutos: int,
+     *     favorSalidaTardeMinutos: int,
+     *     saldoNetoMinutos: int,
+     *     saldoNetoSentido: 'favor'|'debe'|'cero'
      *   }>
      * }
      */
@@ -260,7 +271,9 @@ class PaymentController extends Controller
         $recuperacion = 0;
         $sumEntradaTarde = 0;
         $sumSalidaAnticipada = 0;
-        /** @var list<array{date: string, status: string, checkIn: ?string, checkOut: ?string, deudaEntradaTardeMinutos: int, deudaSalidaAnticipadaMinutos: int, deudaTotalMinutos: int}> $deudaPorDia */
+        $sumFavorLlegada = 0;
+        $sumFavorSalida = 0;
+        /** @var list<array{date: string, status: string, checkIn: ?string, checkOut: ?string, deudaEntradaTardeMinutos: int, deudaSalidaAnticipadaMinutos: int, favorLlegadaTempranaMinutos: int, favorSalidaTardeMinutos: int, saldoNetoMinutos: int, saldoNetoSentido: string}> $deudaPorDia */
         $deudaPorDia = [];
 
         foreach ($attendances as $row) {
@@ -284,9 +297,11 @@ class PaymentController extends Controller
             }
 
             $dateOnly = $carbon->copy()->startOfDay();
-            $debt = $this->computeRowTimeDebt($row, $dateOnly, $status);
-            $sumEntradaTarde += $debt['entrada'];
-            $sumSalidaAnticipada += $debt['salida'];
+            $bal = $this->computeRowTimeBalance($row, $dateOnly, $status);
+            $sumEntradaTarde += $bal['deudaEntrada'];
+            $sumSalidaAnticipada += $bal['deudaSalida'];
+            $sumFavorLlegada += $bal['favorLlegada'];
+            $sumFavorSalida += $bal['favorSalida'];
 
             $entryRaw = $row->check_in_time;
             $exitRaw = $row->check_out_time;
@@ -299,9 +314,12 @@ class PaymentController extends Controller
                     'status' => $status,
                     'checkIn' => $inFmt,
                     'checkOut' => $outFmt,
-                    'deudaEntradaTardeMinutos' => $debt['entrada'],
-                    'deudaSalidaAnticipadaMinutos' => $debt['salida'],
-                    'deudaTotalMinutos' => $debt['entrada'] + $debt['salida'],
+                    'deudaEntradaTardeMinutos' => $bal['deudaEntrada'],
+                    'deudaSalidaAnticipadaMinutos' => $bal['deudaSalida'],
+                    'favorLlegadaTempranaMinutos' => $bal['favorLlegada'],
+                    'favorSalidaTardeMinutos' => $bal['favorSalida'],
+                    'saldoNetoMinutos' => $bal['saldoNeto'],
+                    'saldoNetoSentido' => $this->saldoSentido($bal['saldoNeto']),
                 ];
             }
         }
@@ -311,7 +329,9 @@ class PaymentController extends Controller
         $faltasEquivalentes = $falta + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
         $descuentoPorFaltas = round($faltasADescontar * $dailyRate, 2);
-        $totalMin = $sumEntradaTarde + $sumSalidaAnticipada;
+        $totalDeudaMin = $sumEntradaTarde + $sumSalidaAnticipada;
+        $totalFavorMin = $sumFavorLlegada + $sumFavorSalida;
+        $saldoNeto = $sumFavorLlegada + $sumFavorSalida - $sumEntradaTarde - $sumSalidaAnticipada;
 
         return [
             'falta' => $falta,
@@ -322,38 +342,85 @@ class PaymentController extends Controller
             'descuentoPorFaltas' => $descuentoPorFaltas,
             'deudaEntradaTardeMinutos' => $sumEntradaTarde,
             'deudaSalidaAnticipadaMinutos' => $sumSalidaAnticipada,
-            'deudaTiempoTotalMinutos' => $totalMin,
+            'deudaTiempoTotalMinutos' => $totalDeudaMin,
+            'favorLlegadaTempranaTotalMinutos' => $sumFavorLlegada,
+            'favorSalidaTardeTotalMinutos' => $sumFavorSalida,
+            'favorTiempoTotalMinutos' => $totalFavorMin,
+            'saldoTiempoNetoMinutos' => $saldoNeto,
+            'saldoTiempoNetoSentido' => $this->saldoSentido($saldoNeto),
+            'saldoTiempoNetoMagnitud' => $this->splitMinutes(abs($saldoNeto)),
             'deudaEntradaTarde' => $this->splitMinutes($sumEntradaTarde),
             'deudaSalidaAnticipada' => $this->splitMinutes($sumSalidaAnticipada),
-            'deudaTiempo' => $this->splitMinutes($totalMin),
+            'deudaTiempo' => $this->splitMinutes($totalDeudaMin),
+            'favorLlegadaTemprana' => $this->splitMinutes($sumFavorLlegada),
+            'favorSalidaTarde' => $this->splitMinutes($sumFavorSalida),
             'deudaPorDia' => $deudaPorDia,
         ];
     }
 
     /**
-     * @return array{entrada: int, salida: int}
+     * @return array{
+     *   deudaEntrada: int,
+     *   deudaSalida: int,
+     *   favorLlegada: int,
+     *   favorSalida: int,
+     *   saldoNeto: int
+     * }
      */
-    private function computeRowTimeDebt(Attendance $row, Carbon $dateOnly, string $status): array
+    private function computeRowTimeBalance(Attendance $row, Carbon $dateOnly, string $status): array
     {
-        $entrada = 0;
-        $salida = 0;
+        $deudaEntrada = 0;
+        $deudaSalida = 0;
+        $favorLlegada = 0;
+        $favorSalida = 0;
 
         $entry = $this->combineDateAndTime($dateOnly, $row->check_in_time);
         $exit = $this->combineDateAndTime($dateOnly, $row->check_out_time);
+        $limit8 = $dateOnly->copy()->setTime(8, 0, 0);
 
         if ($this->statusUsesEntryRules($status) && $entry !== null) {
-            $limit8 = $dateOnly->copy()->setTime(8, 0, 0);
-            $entrada = $this->minutesLateAfter($limit8, $entry);
+            $deudaEntrada = $this->minutesLateAfter($limit8, $entry);
+        }
+
+        if ($this->statusCreditsEarlyArrival($status) && $entry !== null && $entry < $limit8) {
+            $favorLlegada = $this->minutesLateAfter($entry, $limit8);
         }
 
         if ($this->statusUsesShiftExit($status) && $entry !== null && $exit !== null) {
             $targetExit = $entry->copy()->addMinutes(self::SHIFT_DURATION_MINUTES);
             if ($exit < $targetExit) {
-                $salida = $this->minutesLateAfter($exit, $targetExit);
+                $deudaSalida = $this->minutesLateAfter($exit, $targetExit);
+            } elseif ($exit > $targetExit) {
+                $favorSalida = $this->minutesLateAfter($targetExit, $exit);
             }
         }
 
-        return ['entrada' => $entrada, 'salida' => $salida];
+        $saldoNeto = $favorLlegada + $favorSalida - $deudaEntrada - $deudaSalida;
+
+        return [
+            'deudaEntrada' => $deudaEntrada,
+            'deudaSalida' => $deudaSalida,
+            'favorLlegada' => $favorLlegada,
+            'favorSalida' => $favorSalida,
+            'saldoNeto' => $saldoNeto,
+        ];
+    }
+
+    private function statusCreditsEarlyArrival(string $status): bool
+    {
+        return in_array($status, ['PUNTUAL', 'TARDE', 'TOLERANCIA', 'RECUPERACION'], true);
+    }
+
+    private function saldoSentido(int $saldoNeto): string
+    {
+        if ($saldoNeto > 0) {
+            return 'favor';
+        }
+        if ($saldoNeto < 0) {
+            return 'debe';
+        }
+
+        return 'cero';
     }
 
     private function statusUsesEntryRules(string $status): bool
