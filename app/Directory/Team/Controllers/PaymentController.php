@@ -13,6 +13,8 @@ use Illuminate\Support\Collection;
 
 class PaymentController extends Controller
 {
+    /** Misma jornada que el front de asistencia (entrada + 11 h 30). */
+    private const SHIFT_DURATION_MINUTES = 11 * 60 + 30;
     /**
      * Resumen de movimientos (adelantos, pagos quincenales, descuentos) por mes.
      */
@@ -219,8 +221,21 @@ class PaymentController extends Controller
      *   faltasEquivalentes: int,
      *   faltasADescontar: int,
      *   descuentoPorFaltas: float,
-     *   tardanzaTotalMinutes: int,
-     *   tardanza: array{days: int, hours: int, minutes: int}
+     *   deudaEntradaTardeMinutos: int,
+     *   deudaSalidaAnticipadaMinutos: int,
+     *   deudaTiempoTotalMinutos: int,
+     *   deudaEntradaTarde: array{days: int, hours: int, minutes: int},
+     *   deudaSalidaAnticipada: array{days: int, hours: int, minutes: int},
+     *   deudaTiempo: array{days: int, hours: int, minutes: int},
+     *   deudaPorDia: list<array{
+     *     date: string,
+     *     status: string,
+     *     checkIn: string|null,
+     *     checkOut: string|null,
+     *     deudaEntradaTardeMinutos: int,
+     *     deudaSalidaAnticipadaMinutos: int,
+     *     deudaTotalMinutos: int
+     *   }>
      * }
      */
     private function attendanceBreakdown(
@@ -243,7 +258,10 @@ class PaymentController extends Controller
         $falta = 0;
         $valdeo = 0;
         $recuperacion = 0;
-        $tardanzaMinutes = 0;
+        $sumEntradaTarde = 0;
+        $sumSalidaAnticipada = 0;
+        /** @var list<array{date: string, status: string, checkIn: ?string, checkOut: ?string, deudaEntradaTardeMinutos: int, deudaSalidaAnticipadaMinutos: int, deudaTotalMinutos: int}> $deudaPorDia */
+        $deudaPorDia = [];
 
         foreach ($attendances as $row) {
             /** @var Attendance $row */
@@ -265,14 +283,35 @@ class PaymentController extends Controller
                 $recuperacion++;
             }
 
-            if ($status === 'TARDE' || $status === 'TOLERANCIA') {
-                $tardanzaMinutes += (int) ($row->delay_minutes ?? 0);
+            $dateOnly = $carbon->copy()->startOfDay();
+            $debt = $this->computeRowTimeDebt($row, $dateOnly, $status);
+            $sumEntradaTarde += $debt['entrada'];
+            $sumSalidaAnticipada += $debt['salida'];
+
+            $entryRaw = $row->check_in_time;
+            $exitRaw = $row->check_out_time;
+            $inFmt = $this->formatTimeHm($entryRaw);
+            $outFmt = $this->formatTimeHm($exitRaw);
+
+            if ($this->statusUsesShiftExit($status) && $inFmt !== null && $outFmt !== null) {
+                $deudaPorDia[] = [
+                    'date' => $dateOnly->format('Y-m-d'),
+                    'status' => $status,
+                    'checkIn' => $inFmt,
+                    'checkOut' => $outFmt,
+                    'deudaEntradaTardeMinutos' => $debt['entrada'],
+                    'deudaSalidaAnticipadaMinutos' => $debt['salida'],
+                    'deudaTotalMinutos' => $debt['entrada'] + $debt['salida'],
+                ];
             }
         }
+
+        usort($deudaPorDia, static fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
 
         $faltasEquivalentes = $falta + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
         $descuentoPorFaltas = round($faltasADescontar * $dailyRate, 2);
+        $totalMin = $sumEntradaTarde + $sumSalidaAnticipada;
 
         return [
             'falta' => $falta,
@@ -281,9 +320,80 @@ class PaymentController extends Controller
             'faltasEquivalentes' => $faltasEquivalentes,
             'faltasADescontar' => $faltasADescontar,
             'descuentoPorFaltas' => $descuentoPorFaltas,
-            'tardanzaTotalMinutes' => $tardanzaMinutes,
-            'tardanza' => $this->splitMinutes($tardanzaMinutes),
+            'deudaEntradaTardeMinutos' => $sumEntradaTarde,
+            'deudaSalidaAnticipadaMinutos' => $sumSalidaAnticipada,
+            'deudaTiempoTotalMinutos' => $totalMin,
+            'deudaEntradaTarde' => $this->splitMinutes($sumEntradaTarde),
+            'deudaSalidaAnticipada' => $this->splitMinutes($sumSalidaAnticipada),
+            'deudaTiempo' => $this->splitMinutes($totalMin),
+            'deudaPorDia' => $deudaPorDia,
         ];
+    }
+
+    /**
+     * @return array{entrada: int, salida: int}
+     */
+    private function computeRowTimeDebt(Attendance $row, Carbon $dateOnly, string $status): array
+    {
+        $entrada = 0;
+        $salida = 0;
+
+        $entry = $this->combineDateAndTime($dateOnly, $row->check_in_time);
+        $exit = $this->combineDateAndTime($dateOnly, $row->check_out_time);
+
+        if ($this->statusUsesEntryRules($status) && $entry !== null) {
+            $limit8 = $dateOnly->copy()->setTime(8, 0, 0);
+            $entrada = $this->minutesLateAfter($limit8, $entry);
+        }
+
+        if ($this->statusUsesShiftExit($status) && $entry !== null && $exit !== null) {
+            $targetExit = $entry->copy()->addMinutes(self::SHIFT_DURATION_MINUTES);
+            if ($exit < $targetExit) {
+                $salida = $this->minutesLateAfter($exit, $targetExit);
+            }
+        }
+
+        return ['entrada' => $entrada, 'salida' => $salida];
+    }
+
+    private function statusUsesEntryRules(string $status): bool
+    {
+        return in_array($status, ['PUNTUAL', 'TARDE', 'TOLERANCIA'], true);
+    }
+
+    private function statusUsesShiftExit(string $status): bool
+    {
+        return in_array($status, ['PUNTUAL', 'TARDE', 'TOLERANCIA', 'RECUPERACION'], true);
+    }
+
+    private function combineDateAndTime(Carbon $dateOnly, mixed $raw): ?Carbon
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        $t = Carbon::parse($raw);
+
+        return $dateOnly->copy()->setTime((int) $t->format('H'), (int) $t->format('i'), (int) $t->format('s'));
+    }
+
+    private function formatTimeHm(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        $t = Carbon::parse($raw);
+
+        return $t->format('H:i');
+    }
+
+    /** Minutos entre $anchor y $actual cuando $actual es después de $anchor (retraso a la entrada o tiempo no cumplido antes de salir). */
+    private function minutesLateAfter(Carbon $anchor, Carbon $actual): int
+    {
+        if ($actual <= $anchor) {
+            return 0;
+        }
+
+        return (int) floor(($actual->getTimestamp() - $anchor->getTimestamp()) / 60);
     }
 
     /**
