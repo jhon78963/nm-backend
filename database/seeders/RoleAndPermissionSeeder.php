@@ -25,7 +25,7 @@ class RoleAndPermissionSeeder extends Seeder
             'warehouse.create', 'warehouse.update', 'warehouse.delete', 'warehouse.getAll', 'warehouse.get',
             'tenant.create', 'tenant.update', 'tenant.delete', 'tenant.getAll', 'tenant.get',
             'team.create', 'team.update', 'team.delete', 'team.getAll', 'team.get',
-            'attendance.getByMonth', 'attendance.store',
+            'attendance.getByMonth', 'attendance.getDailySummary', 'attendance.store',
             'payment.getByMonth', 'payment.store',
             'product.create', 'product.update', 'product.delete', 'product.getAll', 'product.get',
             'productSize.add', 'productSize.modify', 'productSize.remove', 'productSize.get',

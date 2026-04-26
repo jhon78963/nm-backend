@@ -3,12 +3,61 @@
 namespace App\Directory\Team\Controllers;
 
 use App\Directory\Team\Models\Attendance;
+use App\Directory\Team\Models\Team;
 use App\Shared\Foundation\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    /**
+     * Resumen de asistencia de todos los colaboradores para una fecha.
+     */
+    public function getDailySummary(Request $request): JsonResponse
+    {
+        $request->validate([
+            'date' => 'required|date_format:Y-m-d',
+        ]);
+
+        $date = $request->input('date');
+
+        $teams = Team::query()
+            ->orderBy('name')
+            ->orderBy('surname')
+            ->with([
+                'attendances' => static fn ($q) => $q->where('date', $date),
+            ])
+            ->get();
+
+        $rows = $teams->map(static function (Team $team) use ($date) {
+            $att = $team->attendances->first();
+
+            return [
+                'teamId' => $team->id,
+                'name' => $team->name,
+                'surname' => $team->surname,
+                'date' => $date,
+                'attendance' => $att ? [
+                    'status' => $att->status,
+                    'check_in_time' => $att->check_in_time
+                        ? Carbon::parse($att->check_in_time)->format('H:i')
+                        : null,
+                    'check_out_time' => $att->check_out_time
+                        ? Carbon::parse($att->check_out_time)->format('H:i')
+                        : null,
+                    'delay_minutes' => (int) ($att->delay_minutes ?? 0),
+                    'notes' => $att->notes,
+                ] : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows,
+        ]);
+    }
+
     public function getByMonth(Request $request, $teamId): JsonResponse
     {
         $request->validate([
@@ -20,7 +69,7 @@ class AttendanceController extends Controller
             ->whereMonth('date', $request->month)
             ->whereYear('date', $request->year)
             ->get()
-            ->keyBy('date'); // Clave por fecha para fácil acceso en frontend
+            ->keyBy(fn (Attendance $row) => $row->date->format('Y-m-d'));
 
         return response()->json([
             'success' => true,
@@ -33,7 +82,7 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'team_id' => 'required|exists:teams,id',
             'date' => 'required|date',
-            'status' => 'required|in:PUNTUAL,TARDE,FALTA,DESCANSO,VACACIONES',
+            'status' => 'required|in:PUNTUAL,TARDE,FALTA,DESCANSO,VACACIONES,RECUPERACION,VALDEO,TOLERANCIA',
             'check_in_time' => 'nullable|date_format:H:i',
             'check_out_time' => 'nullable|date_format:H:i',
             'delay_minutes' => 'nullable|integer',

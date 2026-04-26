@@ -14,6 +14,7 @@ Route::controller(TeamController::class)->group(function () {
 });
 
 Route::controller(AttendanceController::class)->group(function () {
+    Route::get('/attendance/daily-summary', 'getDailySummary');
     Route::get('/attendance/{teamId}', 'getByMonth');
     Route::post('/attendance', 'store');
 });

@@ -41,6 +41,7 @@ final class PermissionLabels
     private const ACTION = [
         'getMonthlyStats' => 'Estadísticas mensuales',
         'getByMonth' => 'Consultar por mes',
+        'getDailySummary' => 'Resumen diario (todo el equipo)',
         'getAdminMonthlyReport' => 'Reporte mensual (administración)',
         'getDaily' => 'Consultar movimiento diario',
         'getAll' => 'Listar',
