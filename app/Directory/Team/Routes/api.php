@@ -20,6 +20,7 @@ Route::controller(AttendanceController::class)->group(function () {
 });
 
 Route::controller(PaymentController::class)->group(function () {
+    Route::get('/payments/payroll', 'getPayroll');
     Route::get('/payments', 'getByMonth');
     Route::post('/payments', 'store');
 });
