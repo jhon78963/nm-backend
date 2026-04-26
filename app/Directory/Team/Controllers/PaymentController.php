@@ -13,8 +13,10 @@ use Illuminate\Support\Collection;
 
 class PaymentController extends Controller
 {
-    /** Misma jornada que el front de asistencia (entrada + 11 h 30). */
-    private const SHIFT_DURATION_MINUTES = 11 * 60 + 30;
+    /** Cierre oficial del día (entrada nominal 8:00, salida nominal 19:30). */
+    private const OFFICIAL_END_HOUR = 19;
+
+    private const OFFICIAL_END_MINUTE = 30;
     /**
      * Resumen de movimientos (adelantos, pagos quincenales, descuentos) por mes.
      */
@@ -55,8 +57,8 @@ class PaymentController extends Controller
     }
 
     /**
-     * Nómina / vista de pagos: asistencia (faltas + valdeo − recuperación), tardanzas,
-     * movimientos del mes y estimado a pagar a fin de mes.
+     * Nómina / vista de pagos: asistencia (faltas + valdeo − recuperación), balance de tiempo
+     * (oficial 8:00–19:30), movimientos del mes y estimado a pagar a fin de mes.
      */
     public function getPayroll(Request $request): JsonResponse
     {
@@ -387,11 +389,11 @@ class PaymentController extends Controller
         }
 
         if ($this->statusUsesShiftExit($status) && $entry !== null && $exit !== null) {
-            $targetExit = $entry->copy()->addMinutes(self::SHIFT_DURATION_MINUTES);
-            if ($exit < $targetExit) {
-                $deudaSalida = $this->minutesLateAfter($exit, $targetExit);
-            } elseif ($exit > $targetExit) {
-                $favorSalida = $this->minutesLateAfter($targetExit, $exit);
+            $officialEnd = $dateOnly->copy()->setTime(self::OFFICIAL_END_HOUR, self::OFFICIAL_END_MINUTE, 0);
+            if ($exit < $officialEnd) {
+                $deudaSalida = $this->minutesLateAfter($exit, $officialEnd);
+            } elseif ($exit > $officialEnd) {
+                $favorSalida = $this->minutesLateAfter($officialEnd, $exit);
             }
         }
 
