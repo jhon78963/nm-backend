@@ -2,8 +2,8 @@
 
 namespace App\Inventory\Product\Providers;
 
-use App\Inventory\Product\Models\ProductHistory;
-use App\Inventory\Product\Observers\ProductHistoryObserver;
+// use App\Inventory\Product\Models\ProductHistory;
+// use App\Inventory\Product\Observers\ProductHistoryObserver;
 use Illuminate\Support\ServiceProvider;
 
 class ProductHistoryProvider extends ServiceProvider
@@ -21,6 +21,6 @@ class ProductHistoryProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        ProductHistory::observe(ProductHistoryObserver::class);
+        // ProductHistory::observe(ProductHistoryObserver::class);
     }
 }
