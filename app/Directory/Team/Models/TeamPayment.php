@@ -19,6 +19,7 @@ class TeamPayment extends Model
         'date',
         'description',
         'team_id',
+        'creator_user_id',
     ];
 
     /**

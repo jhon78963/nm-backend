@@ -5,6 +5,7 @@ namespace App\Directory\Team\Controllers;
 use App\Directory\Team\Models\Attendance;
 use App\Directory\Team\Models\Team;
 use App\Directory\Team\Models\TeamPayment;
+use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,9 @@ class PaymentController extends Controller
     private const OFFICIAL_END_HOUR = 19;
 
     private const OFFICIAL_END_MINUTE = 30;
+
+    /** Minutos después de las 8:00 sin contar como «deuda de entrada» (8:01–8:10). */
+    private const ENTRY_TOLERANCE_MINUTES = 10;
     /**
      * Resumen de movimientos (adelantos, pagos quincenales, descuentos) por mes.
      */
@@ -119,6 +123,27 @@ class PaymentController extends Controller
             2
         );
 
+        $daysInPeriod = match ($period) {
+            'q1' => 15,
+            'q2' => max(0, $daysInMonth - 15),
+            default => $daysInMonth,
+        };
+        $proporcionPeriodo = round($dailyRate * $daysInPeriod, 2);
+        $descuentoVista = $scopeVista['descuentoPorFaltas'];
+        $netoTrasFaltasPeriodo = round($proporcionPeriodo - $descuentoVista, 2);
+        $totalSalidaPeriodo = round(
+            $movPeriodo['ADVANCE'] + $movPeriodo['PAYMENT'] + $movPeriodo['DEDUCTION'],
+            2
+        );
+        $restanteAlCierre = round($netoTrasFaltasPeriodo - $totalSalidaPeriodo, 2);
+
+        $cierre = match ($period) {
+            'q1' => Carbon::create($year, $month, min(15, $daysInMonth)),
+            'q2' => Carbon::create($year, $month, $daysInMonth),
+            default => Carbon::create($year, $month, $daysInMonth),
+        };
+        $cierreLegible = $cierre->copy()->locale('es')->isoFormat('D [de] MMMM [de] YYYY');
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -169,11 +194,24 @@ class PaymentController extends Controller
                     'estimadoAPagarFinMes' => $estimadoFinMes,
                     'nota' => 'El estimado a fin de mes usa faltas y valdeos del mes completo, más adelantos, pagos quincenales (tipo PAGO) y descuentos manuales registrados en el mes.',
                 ],
+                'liquidacionPeriodo' => [
+                    'period' => $period,
+                    'diasEnPeriodo' => $daysInPeriod,
+                    'proporcionSalarioPeriodo' => $proporcionPeriodo,
+                    'descuentoAsistenciaEnAmbito' => $descuentoVista,
+                    'netoTrasFaltasPeriodo' => $netoTrasFaltasPeriodo,
+                    'adelantosPeriodo' => $movPeriodo['ADVANCE'],
+                    'pagosRegistradosPeriodo' => $movPeriodo['PAYMENT'],
+                    'descuentosManualesPeriodo' => $movPeriodo['DEDUCTION'],
+                    'totalMovimientosSalida' => $totalSalidaPeriodo,
+                    'restanteEstimadoAlCierre' => $restanteAlCierre,
+                    'fechaCierreLegible' => $cierreLegible,
+                ],
             ],
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CashflowService $cashflowService): JsonResponse
     {
         $validated = $request->validate([
             'team_id' => 'required|exists:teams,id',
@@ -181,15 +219,55 @@ class PaymentController extends Controller
             'amount' => 'required|numeric|min:0.1',
             'date' => 'required|date',
             'description' => 'nullable|string',
+            'sync_cash_movement' => 'nullable|boolean',
+            'payment_method' => 'nullable|string|max:32',
+            'image' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
 
+        $syncCash = filter_var(
+            $request->input('sync_cash_movement', false),
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        $team = Team::query()
+            ->where('is_deleted', false)
+            ->whereKey((int) $validated['team_id'])
+            ->firstOrFail();
+
         $movement = TeamPayment::create([
-            'team_id' => $validated['team_id'],
+            'team_id' => (int) $validated['team_id'],
             'type' => $validated['type'],
             'amount' => $validated['amount'],
             'date' => $validated['date'],
             'description' => $validated['description'] ?? null,
+            'creator_user_id' => auth()->id(),
         ]);
+
+        if ($syncCash) {
+            $typeLabel = match ($validated['type']) {
+                'ADVANCE' => 'Adelanto',
+                'PAYMENT' => 'Pago quincenal',
+                'DEDUCTION' => 'Descuento manual',
+            };
+            $description = 'Nómina personal: '
+                . $team->name
+                . ' '
+                . $team->surname
+                . ' — '
+                . $typeLabel;
+            if (! empty($validated['description'])) {
+                $description .= ' — ' . $validated['description'];
+            }
+
+            $cashflowService->registerMovement([
+                'type' => 'EXPENSE',
+                'category' => 'ADMINISTRATIVE',
+                'amount' => (float) $validated['amount'],
+                'description' => $description,
+                'date' => $validated['date'],
+                'payment_method' => $validated['payment_method'] ?? 'CASH',
+            ], $request->file('image'));
+        }
 
         return response()->json([
             'message' => 'Movimiento registrado correctamente',
@@ -381,7 +459,10 @@ class PaymentController extends Controller
         $limit8 = $dateOnly->copy()->setTime(8, 0, 0);
 
         if ($this->statusUsesEntryRules($status) && $entry !== null) {
-            $deudaEntrada = $this->minutesLateAfter($limit8, $entry);
+            $toleranceEnd = $limit8->copy()->addMinutes(self::ENTRY_TOLERANCE_MINUTES);
+            if ($entry > $toleranceEnd) {
+                $deudaEntrada = $this->minutesLateAfter($toleranceEnd, $entry);
+            }
         }
 
         if ($this->statusCreditsEarlyArrival($status) && $entry !== null && $entry < $limit8) {
