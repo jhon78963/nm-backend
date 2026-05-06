@@ -21,6 +21,9 @@ class PaymentController extends Controller
 
     /** Minutos después de las 8:00 sin contar como «deuda de entrada» (8:01–8:10). */
     private const ENTRY_TOLERANCE_MINUTES = 10;
+
+    /** Jornada nominal 8:00–19:30 para prorratear descuento por minutos no cumplidos. */
+    private const MINUTES_NOMINAL_SHIFT = 11 * 60 + 30;
     /**
      * Resumen de movimientos (adelantos, pagos quincenales, descuentos) por mes.
      */
@@ -137,12 +140,11 @@ class PaymentController extends Controller
         );
         $restanteAlCierre = round($netoTrasFaltasPeriodo - $totalSalidaPeriodo, 2);
 
-        $cierre = match ($period) {
-            'q1' => Carbon::create($year, $month, min(15, $daysInMonth)),
-            'q2' => Carbon::create($year, $month, $daysInMonth),
-            default => Carbon::create($year, $month, $daysInMonth),
+        $cierreDia = match ($period) {
+            'q1' => min(15, $daysInMonth),
+            default => $daysInMonth,
         };
-        $cierreLegible = $cierre->copy()->locale('es')->isoFormat('D [de] MMMM [de] YYYY');
+        $cierreLegible = $this->spanishLongDate($year, $month, $cierreDia);
 
         return response()->json([
             'success' => true,
@@ -192,13 +194,15 @@ class PaymentController extends Controller
                     'descuentoAsistenciaMesCompleto' => $descuentoAsistenciaMes,
                     'salarioTrasDescuentoFaltas' => $trasFaltas,
                     'estimadoAPagarFinMes' => $estimadoFinMes,
-                    'nota' => 'El estimado a fin de mes usa faltas y valdeos del mes completo, más adelantos, pagos quincenales (tipo PAGO) y descuentos manuales registrados en el mes.',
+                    'nota' => 'Incluye descuentos por ausencias (Falta/Valdeo netas), proporcional al tiempo no cumplido (retraso tras tolerancia y salida antes de 19:30), más adelantos, pagos quincenales y descuentos manuales del mes.',
                 ],
                 'liquidacionPeriodo' => [
                     'period' => $period,
                     'diasEnPeriodo' => $daysInPeriod,
                     'proporcionSalarioPeriodo' => $proporcionPeriodo,
                     'descuentoAsistenciaEnAmbito' => $descuentoVista,
+                    'descuentoPorAusenciasEnAmbito' => round((float) $scopeVista['descuentoPorAusencias'], 2),
+                    'descuentoPorTiempoNoCumplidoEnAmbito' => round((float) $scopeVista['descuentoPorTiempoNoCumplido'], 2),
                     'netoTrasFaltasPeriodo' => $netoTrasFaltasPeriodo,
                     'adelantosPeriodo' => $movPeriodo['ADVANCE'],
                     'pagosRegistradosPeriodo' => $movPeriodo['PAYMENT'],
@@ -356,6 +360,8 @@ class PaymentController extends Controller
         /** @var list<array{date: string, status: string, checkIn: ?string, checkOut: ?string, deudaEntradaTardeMinutos: int, deudaSalidaAnticipadaMinutos: int, favorLlegadaTempranaMinutos: int, favorSalidaTardeMinutos: int, saldoNetoMinutos: int, saldoNetoSentido: string}> $deudaPorDia */
         $deudaPorDia = [];
 
+        $diasConRetraso = 0;
+
         foreach ($attendances as $row) {
             /** @var Attendance $row */
             $carbon = Carbon::parse($row->date);
@@ -378,6 +384,9 @@ class PaymentController extends Controller
 
             $dateOnly = $carbon->copy()->startOfDay();
             $bal = $this->computeRowTimeBalance($row, $dateOnly, $status);
+            if ($bal['deudaEntrada'] > 0) {
+                $diasConRetraso++;
+            }
             $sumEntradaTarde += $bal['deudaEntrada'];
             $sumSalidaAnticipada += $bal['deudaSalida'];
             $sumFavorLlegada += $bal['favorLlegada'];
@@ -406,10 +415,14 @@ class PaymentController extends Controller
 
         usort($deudaPorDia, static fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
 
+        $totalDeudaMin = $sumEntradaTarde + $sumSalidaAnticipada;
         $faltasEquivalentes = $falta + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
-        $descuentoPorFaltas = round($faltasADescontar * $dailyRate, 2);
-        $totalDeudaMin = $sumEntradaTarde + $sumSalidaAnticipada;
+        $descuentoPorAusencias = round($faltasADescontar * $dailyRate, 2);
+        $descuentoPorTiempoNoCumplido = self::MINUTES_NOMINAL_SHIFT > 0
+            ? round(($totalDeudaMin / self::MINUTES_NOMINAL_SHIFT) * $dailyRate, 2)
+            : 0.0;
+        $descuentoPorFaltas = round($descuentoPorAusencias + $descuentoPorTiempoNoCumplido, 2);
         $totalFavorMin = $sumFavorLlegada + $sumFavorSalida;
         $saldoNeto = $sumFavorLlegada + $sumFavorSalida - $sumEntradaTarde - $sumSalidaAnticipada;
 
@@ -419,7 +432,10 @@ class PaymentController extends Controller
             'recuperacion' => $recuperacion,
             'faltasEquivalentes' => $faltasEquivalentes,
             'faltasADescontar' => $faltasADescontar,
+            'descuentoPorAusencias' => $descuentoPorAusencias,
+            'descuentoPorTiempoNoCumplido' => $descuentoPorTiempoNoCumplido,
             'descuentoPorFaltas' => $descuentoPorFaltas,
+            'diasConRetraso' => $diasConRetraso,
             'deudaEntradaTardeMinutos' => $sumEntradaTarde,
             'deudaSalidaAnticipadaMinutos' => $sumSalidaAnticipada,
             'deudaTiempoTotalMinutos' => $totalDeudaMin,
@@ -571,5 +587,16 @@ class PaymentController extends Controller
             'q2' => sprintf('2.ª quincena (días 16–%d)', $lastDay),
             default => 'Mes completo',
         };
+    }
+
+    private function spanishLongDate(int $year, int $month, int $day): string
+    {
+        $meses = [
+            1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+            5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+            9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre',
+        ];
+
+        return sprintf('%d de %s de %d', $day, $meses[$month] ?? (string) $month, $year);
     }
 }
