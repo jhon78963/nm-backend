@@ -131,7 +131,12 @@ class PaymentController extends Controller
             'q2' => max(0, $daysInMonth - 15),
             default => $daysInMonth,
         };
-        $proporcionPeriodo = round($dailyRate * $daysInPeriod, 2);
+        // Pago quincenal: base fija = 50 % del salario (como «referencia media quincena»),
+        // no prorrateo por días del mes (15/28–31).
+        $proporcionPeriodo = match ($period) {
+            'q1', 'q2' => round($salary / 2, 2),
+            default => round($salary, 2),
+        };
         $descuentoVista = $scopeVista['descuentoPorFaltas'];
         $netoTrasFaltasPeriodo = round($proporcionPeriodo - $descuentoVista, 2);
         $totalSalidaPeriodo = round(
