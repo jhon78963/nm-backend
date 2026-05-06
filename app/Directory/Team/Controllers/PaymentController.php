@@ -103,8 +103,8 @@ class PaymentController extends Controller
             ->whereMonth('date', $month)
             ->get();
 
-        $scopeVista = $this->attendanceBreakdown($attendances, $year, $month, $period, $dailyRate);
-        $scopeMes = $this->attendanceBreakdown($attendances, $year, $month, 'full', $dailyRate);
+        $scopeVista = $this->attendanceBreakdown($attendances, $year, $month, $period, $dailyRate, $salary);
+        $scopeMes = $this->attendanceBreakdown($attendances, $year, $month, 'full', $dailyRate, $salary);
 
         $movMes = $this->paymentSumsForRange($payments, 1, $daysInMonth);
         $movQ1 = $this->paymentSumsForRange($payments, 1, 15);
@@ -344,6 +344,7 @@ class PaymentController extends Controller
         int $month,
         string $period,
         float $dailyRate,
+        float $salary,
     ): array {
         $lastDay = cal_days_in_month(CAL_GREGORIAN, $month, $year);
 
@@ -424,9 +425,20 @@ class PaymentController extends Controller
         $faltasEquivalentes = $falta + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
         $descuentoPorAusencias = round($faltasADescontar * $dailyRate, 2);
-        $descuentoPorTiempoNoCumplido = self::MINUTES_NOMINAL_SHIFT > 0
-            ? round(($totalDeudaMin / self::MINUTES_NOMINAL_SHIFT) * $dailyRate, 2)
-            : 0.0;
+        // En quincena: el dinero del tiempo no cumplido sale del 50 % del sueldo repartido en
+        // 15 jornadas nominales (misma lógica que la base 625); en mes completo: 1 jornada = 1 valor día.
+        if ($period === 'q1' || $period === 'q2') {
+            $mediaQuincena = round($salary / 2, 2);
+            $minutosCapacidadQuincena = 15 * self::MINUTES_NOMINAL_SHIFT;
+            $descuentoPorTiempoNoCumplido = $minutosCapacidadQuincena > 0
+                ? round(($totalDeudaMin / $minutosCapacidadQuincena) * $mediaQuincena, 2)
+                : 0.0;
+            $descuentoPorTiempoNoCumplido = min($descuentoPorTiempoNoCumplido, $mediaQuincena);
+        } else {
+            $descuentoPorTiempoNoCumplido = self::MINUTES_NOMINAL_SHIFT > 0
+                ? round(($totalDeudaMin / self::MINUTES_NOMINAL_SHIFT) * $dailyRate, 2)
+                : 0.0;
+        }
         $descuentoPorFaltas = round($descuentoPorAusencias + $descuentoPorTiempoNoCumplido, 2);
         $totalFavorMin = $sumFavorLlegada + $sumFavorSalida;
         $saldoNeto = $sumFavorLlegada + $sumFavorSalida - $sumEntradaTarde - $sumSalidaAnticipada;
