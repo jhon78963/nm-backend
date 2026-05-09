@@ -58,3 +58,10 @@ php artisan route:cache
 php artisan view:cache
 php artisan config:cache
 ```
+ejecutar
+
+php artisan tinker
+DB::table('cash_movements')->whereNull('warehouse_id')->update(['warehouse_id' => 1]);
+exit
+php artisan tenant:backfill
+php artisan migrate

@@ -129,13 +129,14 @@ class BackfillTenantIdCommand extends Command
         $byWarehouse = 0;
 
         if (Schema::hasColumn($tableName, 'warehouse_id')) {
-            // JOIN UPDATE: MySQL permite actualizar t usando datos de w
+            // Sintaxis PostgreSQL: UPDATE target SET col = origin.col FROM origin WHERE target.fk = origin.id
             $byWarehouse = DB::affectingStatement("
-                UPDATE `{$tableName}` t
-                INNER JOIN `warehouses` w ON w.id = t.warehouse_id
-                SET t.tenant_id = w.tenant_id
-                WHERE t.tenant_id IS NULL
-                  AND t.warehouse_id IS NOT NULL
+                UPDATE \"{$tableName}\"
+                SET tenant_id = w.tenant_id
+                FROM warehouses w
+                WHERE \"{$tableName}\".warehouse_id = w.id
+                  AND \"{$tableName}\".tenant_id IS NULL
+                  AND \"{$tableName}\".warehouse_id IS NOT NULL
                   AND w.tenant_id IS NOT NULL
             ");
         }
@@ -161,14 +162,15 @@ class BackfillTenantIdCommand extends Command
         $byWarehouse = 0;
 
         if (Schema::hasColumn('users', 'warehouse_id')) {
-            $byWarehouse = DB::affectingStatement("
-                UPDATE `users` u
-                INNER JOIN `warehouses` w ON w.id = u.warehouse_id
-                SET u.tenant_id = w.tenant_id
-                WHERE u.tenant_id IS NULL
-                  AND u.warehouse_id IS NOT NULL
+            $byWarehouse = DB::affectingStatement('
+                UPDATE "users"
+                SET tenant_id = w.tenant_id
+                FROM "warehouses" w
+                WHERE "users".warehouse_id = w.id
+                  AND "users".tenant_id IS NULL
+                  AND "users".warehouse_id IS NOT NULL
                   AND w.tenant_id IS NOT NULL
-            ");
+            ');
         }
 
         $fallback = DB::table('users')
@@ -198,13 +200,14 @@ class BackfillTenantIdCommand extends Command
         }
 
         // Primero: deriva tenant_id desde el rol asignado (roles.tenant_id)
-        $byRole = DB::affectingStatement("
-            UPDATE `model_has_roles` mhr
-            INNER JOIN `roles` r ON r.id = mhr.role_id
-            SET mhr.tenant_id = r.tenant_id
-            WHERE mhr.tenant_id IS NULL
+        $byRole = DB::affectingStatement('
+            UPDATE "model_has_roles"
+            SET tenant_id = r.tenant_id
+            FROM "roles" r
+            WHERE "model_has_roles".role_id = r.id
+              AND "model_has_roles".tenant_id IS NULL
               AND r.tenant_id IS NOT NULL
-        ");
+        ');
 
         // Fallback para los que aún queden sin tenant
         $fallback = DB::table('model_has_roles')
