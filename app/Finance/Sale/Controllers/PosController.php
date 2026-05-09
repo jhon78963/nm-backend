@@ -51,6 +51,7 @@ class PosController extends Controller
                 'customer_id' => data_get($data, 'customer.id'),
                 'total' => $data['total'],
                 'payments' => $data['payments'],
+                'warehouse_id' => 1,
                 'items' => collect($data['items'])->map(function ($i) {
                     return [
                         'product_size_id' => $i['color']['product_size_id'],
