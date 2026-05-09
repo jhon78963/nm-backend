@@ -41,7 +41,8 @@ class AuthController extends Controller
     }
 
     public function getMe(): JsonResponse {
-        return response()->json(new MeResource(Auth::user()));
+        $user = Auth::user()->load('tenant');
+        return response()->json(new MeResource($user));
     }
 
     public function updateMe(UpdateMeRequest $request): JsonResponse {

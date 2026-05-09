@@ -1,6 +1,6 @@
 <?php
 
-use Spatie\Permission\DefaultTeamResolver;
+// use App\Shared\Foundation\Auth\TenantTeamResolver;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -93,11 +93,11 @@ return [
         'model_morph_key' => 'model_id',
 
         /*
-         * Change this if you want to use the teams feature and your related model's
-         * foreign key is other than `team_id`.
+         * Apunta a la columna tenant_id que ya existe en las tablas de Spatie.
+         * Permite que cada tenant tenga su propio set de roles aislado.
          */
 
-        'team_foreign_key' => 'team_id',
+        'team_foreign_key' => 'tenant_id',
     ],
 
     /*
@@ -135,12 +135,14 @@ return [
      * (view the latest version of this package's migration file)
      */
 
-    'teams' => false,
+    'teams' => true,
 
     /*
-     * The class to use to resolve the permissions team id
+     * Resolver personalizado: lee automáticamente el tenant_id del usuario
+     * autenticado en cada request. No requiere llamar a setPermissionsTeamId()
+     * manualmente en el login.
      */
-    'team_resolver' => DefaultTeamResolver::class,
+    // 'team_resolver' => TenantTeamResolver::class,
 
     /*
      * Passport Client Credentials Grant

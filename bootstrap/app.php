@@ -13,9 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            // Spatie Permission
+            'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            // Feature Toggling: bloquea rutas si el tenant no tiene el módulo activo.
+            // Uso: ->middleware('check.feature:electronic_billing')
+            'check.feature'      => \App\Shared\Foundation\Middleware\CheckTenantFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
