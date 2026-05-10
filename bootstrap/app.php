@@ -20,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Feature Toggling: bloquea rutas si el tenant no tiene el módulo activo.
             // Uso: ->middleware('check.feature:electronic_billing')
             'check.feature'      => \App\Shared\Foundation\Middleware\CheckTenantFeature::class,
+            // System Admin: restringe el acceso al tenant 1 (SaaS Provider).
+            'system.admin'       => \App\Shared\Foundation\Middleware\CheckSystemAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -40,3 +40,22 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         require $file->getRealPath();
     }
 });
+
+/*
+|--------------------------------------------------------------------------
+| 3. Cargar Rutas System Admin (system_admin_api.php)
+|--------------------------------------------------------------------------
+| Solo para tenant_id === 1 (SaaS Provider). El middleware 'system.admin'
+| se aplica dentro de cada archivo; aquí solo se agrega auth:sanctum.
+*/
+Route::group(['middleware' => 'auth:sanctum'], function () {
+
+    $systemAdminFiles = Finder::create()
+        ->in(app_path())
+        ->name('system_admin_api.php')
+        ->path('Routes');
+
+    foreach ($systemAdminFiles as $file) {
+        require $file->getRealPath();
+    }
+});
