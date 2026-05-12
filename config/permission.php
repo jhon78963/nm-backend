@@ -1,8 +1,8 @@
 <?php
 
 // use App\Shared\Foundation\Auth\TenantTeamResolver;
+use App\Administration\Role\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 return [
 
@@ -142,7 +142,7 @@ return [
      * autenticado en cada request. No requiere llamar a setPermissionsTeamId()
      * manualmente en el login.
      */
-    // 'team_resolver' => TenantTeamResolver::class,
+    // 'team_resolver' => \App\Shared\Foundation\Auth\TenantTeamResolver::class,
 
     /*
      * Passport Client Credentials Grant

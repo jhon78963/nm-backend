@@ -13,9 +13,8 @@ class UpdateSalesWarehouseSeeder extends Seeder
     public function run(): void
     {
         $updatedRows = DB::table('sales')
-            ->whereNull('warehouse_id') // Opcional: solo actualiza si está nulo
-            ->update(['warehouse_id' => 1]);
+            ->update(['warehouse_id' => 1, 'tenant_id' => 2]);
 
-        $this->command->info("¡Listo mi king! Se actualizaron {$updatedRows} ventas al warehouse_id 1.");
+        $this->command->info("¡Listo mi king! Se actualizaron {$updatedRows} ventas al warehouse_id 1 y tenant_id 2.");
     }
 }

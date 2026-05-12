@@ -108,7 +108,6 @@ class BackfillTenantIdCommand extends Command
         }
 
         $count = DB::table($tableName)
-            ->whereNull('tenant_id')
             ->update(['tenant_id' => $this->defaultTenantId]);
 
         $this->printResult($tableName, $count);
@@ -143,7 +142,6 @@ class BackfillTenantIdCommand extends Command
 
         // Fallback para registros sin warehouse_id o cuyo warehouse tampoco tiene tenant
         $fallback = DB::table($tableName)
-            ->whereNull('tenant_id')
             ->update(['tenant_id' => $this->defaultTenantId]);
 
         $this->printResult($tableName, $byWarehouse + $fallback, $byWarehouse);
@@ -174,7 +172,6 @@ class BackfillTenantIdCommand extends Command
         }
 
         $fallback = DB::table('users')
-            ->whereNull('tenant_id')
             ->update(['tenant_id' => $this->defaultTenantId]);
 
         $this->printResult('users', $byWarehouse + $fallback, $byWarehouse);
@@ -187,7 +184,6 @@ class BackfillTenantIdCommand extends Command
         }
 
         $count = DB::table('roles')
-            ->whereNull('tenant_id')
             ->update(['tenant_id' => $this->defaultTenantId]);
 
         $this->printResult('roles (Spatie)', $count);
@@ -211,7 +207,6 @@ class BackfillTenantIdCommand extends Command
 
         // Fallback para los que aún queden sin tenant
         $fallback = DB::table('model_has_roles')
-            ->whereNull('tenant_id')
             ->update(['tenant_id' => $this->defaultTenantId]);
 
         $this->printResult('model_has_roles (Spatie)', $byRole + $fallback, $byRole);

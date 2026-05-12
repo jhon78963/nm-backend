@@ -1,6 +1,6 @@
 <?php
 
-// namespace App\Shared\Foundation\Auth;
+namespace App\Shared\Foundation\Auth;
 
 // use Spatie\Permission\Contracts\TeamResolver;
 

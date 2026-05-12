@@ -2,6 +2,7 @@
 
 namespace App\Administration\Role\Controllers;
 
+use App\Administration\Role\Models\Role;
 use App\Administration\Role\Requests\RoleStoreRequest;
 use App\Administration\Role\Requests\RoleUpdateRequest;
 use App\Administration\Role\Requests\SyncRolePermissionsRequest;
@@ -13,7 +14,6 @@ use App\Shared\Foundation\Resources\GetAllCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
