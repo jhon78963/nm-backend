@@ -3,7 +3,9 @@
 namespace App\Inventory\Purchase\Services;
 
 use App\Inventory\Color\Models\Color;
+use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
+use App\Inventory\Product\Models\ProductHistory;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
@@ -18,6 +20,7 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseCancellationService
 {
+    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     public function __construct(
@@ -65,6 +68,13 @@ class PurchaseCancellationService
                 $this->revertLineStock($line);
             }
 
+            foreach ($psIds as $psIdIntegrity) {
+                $psIdIntegrity = (int) $psIdIntegrity;
+                if ($psIdIntegrity > 0) {
+                    $this->assertMasterMatchesColorsSum($psIdIntegrity);
+                }
+            }
+
             $purchase->status = PurchaseStatus::Cancelled;
             $purchase->cancelled_at = now();
             $purchase->cancellation_reason = $reason;
@@ -82,6 +92,18 @@ class PurchaseCancellationService
     {
         $line->loadMissing(['colorDeltas']);
         $productSizeId = (int) $line->product_size_id;
+        $deltaSize = (int) $line->size_stock_delta;
+
+        if ($line->has_color_breakdown) {
+            $sumColorDeltas = (int) $line->colorDeltas->sum(
+                fn ($d) => (int) $d->quantity,
+            );
+            if ($sumColorDeltas !== $deltaSize) {
+                throw new \Exception(
+                    'Inconsistencia detectada: El total a revertir en la talla no coincide con la suma de los colores.',
+                );
+            }
+        }
 
         $masterRow = DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first();
         if ($masterRow === null) {
@@ -90,7 +112,6 @@ class PurchaseCancellationService
             ]);
         }
 
-        $deltaSize = (int) $line->size_stock_delta;
         if ((int) $masterRow->stock < $deltaSize) {
             throw ValidationException::withMessages([
                 'stock' => 'No se puede anular: stock a nivel talla insuficiente para revertir.',
@@ -122,7 +143,32 @@ class PurchaseCancellationService
             $pivotWrites[] = ['color_id' => $colorId, 'new_stock' => $current - $qty];
         }
 
+        $stockBeforeMaster = (int) $masterRow->stock;
+
         DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $deltaSize);
+
+        $stockAfterMaster = (int) (DB::table('product_size')
+            ->where('id', $productSizeId)
+            ->lockForUpdate()
+            ->first()
+            ?->stock ?? 0);
+
+        ProductHistory::create([
+            'product_id' => (int) $line->product_id,
+            'entity_type' => 'PURCHASE_CANCEL',
+            'entity_id' => (int) $line->purchase_id,
+            'event_type' => 'RETURNED',
+            'old_values' => [
+                'stock' => $stockBeforeMaster,
+            ],
+            'new_values' => [
+                'stock' => $stockAfterMaster,
+                'quantity' => $deltaSize,
+                'purchase_line_id' => (int) $line->id,
+                'product_size_id' => $productSizeId,
+            ],
+            'creator_user_id' => Auth::id(),
+        ]);
 
         foreach ($pivotWrites as $op) {
             $this->productSizeColorService->set(

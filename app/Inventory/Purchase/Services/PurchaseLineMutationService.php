@@ -92,7 +92,8 @@ class PurchaseLineMutationService
                 'colors' => $colorsPayload,
             ];
 
-            $this->purchaseBulkService->applyStockForLine($stockLine, [], [], []);
+            $bulkTouchedMasterIds = [];
+            $this->purchaseBulkService->applyStockForLine($stockLine, $bulkTouchedMasterIds, [], [], []);
 
             $line->barcode = $data['barcode'] ?? null;
             $line->purchase_price = $purchasePrice;

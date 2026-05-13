@@ -165,45 +165,47 @@ class ProductSizeColorService
                 ->lockForUpdate()
                 ->first();
 
-            $pivotStock = $pivotRow ? (int) $pivotRow->stock : 0;
+            if ($pivotRow === null) {
+                $productSize->unsetRelation('productSizeColors');
 
-            $oldPivotSnapshot = null;
-            if ($pivotRow !== null) {
-                $oldPivotSnapshot = [
-                    'product_size_id' => (int) $pivotRow->product_size_id,
-                    'color_id' => (int) $pivotRow->color_id,
-                    'stock' => $pivotStock,
-                ];
-
-                $masterStock = (int) $master->stock;
-                if ($masterStock < $pivotStock) {
-                    throw new RuntimeException(
-                        'Stock maestro insuficiente respecto al color: no se puede eliminar la variante de forma segura.'
-                    );
-                }
-
-                DB::table('product_size')->where('id', $psId)->decrement('stock', $pivotStock);
+                return;
             }
 
-            $productSize->productSizeColors()->detach($colorId);
-            $productSize->unsetRelation('productSizeColors');
+            $pivotStock = (int) $pivotRow->stock;
 
-            if ($oldPivotSnapshot !== null) {
-                if (! $productSize->relationLoaded('product')) {
-                    $productSize->load('product');
-                }
-
-                $oldForLog = array_merge($oldPivotSnapshot, ['size_id_ref' => $productSize->size_id]);
-
-                $this->historyService->logChange(
-                    $productSize->product,
-                    'COLOR',
-                    $colorId,
-                    'DELETED',
-                    $oldForLog,
-                    null,
+            if ($pivotStock > 0) {
+                throw new RuntimeException(
+                    'No se puede eliminar un color que aún tiene stock.',
                 );
             }
+
+            $oldPivotSnapshot = [
+                'product_size_id' => (int) $pivotRow->product_size_id,
+                'color_id' => (int) $pivotRow->color_id,
+                'stock' => $pivotStock,
+            ];
+
+            DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $colorId)
+                ->delete();
+
+            $productSize->unsetRelation('productSizeColors');
+
+            if (! $productSize->relationLoaded('product')) {
+                $productSize->load('product');
+            }
+
+            $oldForLog = array_merge($oldPivotSnapshot, ['size_id_ref' => $productSize->size_id]);
+
+            $this->historyService->logChange(
+                $productSize->product,
+                'COLOR',
+                $colorId,
+                'DELETED',
+                $oldForLog,
+                null,
+            );
         });
     }
 

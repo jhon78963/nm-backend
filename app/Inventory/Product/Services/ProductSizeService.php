@@ -5,6 +5,7 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Support\StockAvailability;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class ProductSizeService
 {
@@ -93,24 +94,62 @@ class ProductSizeService
 
     public function remove(Product $product, int $sizeId): void
     {
-        $oldData = $product->sizes()
-            ->where('size_id', $sizeId)
-            ->first()
-            ?->pivot
-                ?->toArray();
+        DB::transaction(function () use ($product, $sizeId): void {
+            $row = DB::table('product_size')
+                ->where('product_id', $product->id)
+                ->where('size_id', $sizeId)
+                ->lockForUpdate()
+                ->first();
 
-        $product->sizes()->detach($sizeId);
+            if (! $row) {
+                return;
+            }
 
-        if ($oldData) {
+            if ((int) $row->stock > 0) {
+                throw new RuntimeException(
+                    'No se puede eliminar una talla con stock activo.',
+                );
+            }
+
+            $colorRows = DB::table('product_size_color')
+                ->where('product_size_id', $row->id)
+                ->orderBy('color_id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($colorRows as $pivot) {
+                if ((int) $pivot->stock > 0) {
+                    throw new RuntimeException(
+                        'No se puede eliminar una talla con stock activo.',
+                    );
+                }
+            }
+
+            $oldData = [
+                'barcode' => $row->barcode,
+                'stock' => (int) $row->stock,
+                'purchase_price' => $row->purchase_price,
+                'sale_price' => $row->sale_price,
+                'min_sale_price' => $row->min_sale_price,
+            ];
+
+            DB::table('product_size_color')
+                ->where('product_size_id', $row->id)
+                ->delete();
+
+            DB::table('product_size')
+                ->where('id', $row->id)
+                ->delete();
+
             $this->historyService->logChange(
                 $product,
                 'SIZE',
                 $sizeId,
                 'DELETED',
                 $oldData,
-                null
+                null,
             );
-        }
+        });
     }
 
     public function setStock(Product $product, int $sizeId, int $qty, array $data): void

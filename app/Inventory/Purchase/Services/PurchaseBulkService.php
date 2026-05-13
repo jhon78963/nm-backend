@@ -4,6 +4,7 @@ namespace App\Inventory\Purchase\Services;
 
 use App\Inventory\Color\Models\Color;
 use App\Inventory\Color\Services\ColorService;
+use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
@@ -21,6 +22,7 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseBulkService
 {
+    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     public function __construct(
@@ -52,6 +54,8 @@ class PurchaseBulkService
         $purchaseId = 0;
 
         DB::transaction(function () use ($payload, $warehouseId, $vendorId, &$productTempMap, &$sizeTempMap, &$colorTempMap, &$purchaseId): void {
+            $touchedMasterIds = [];
+
             $this->upsertCatalogProducts(
                 $payload['catalogUpserts']['products'] ?? [],
                 $warehouseId,
@@ -60,7 +64,7 @@ class PurchaseBulkService
             );
             $this->upsertCatalogSizes($payload['catalogUpserts']['sizes'] ?? [], $sizeTempMap);
             $this->upsertCatalogColors($payload['catalogUpserts']['colors'] ?? [], $colorTempMap);
-            $this->applyLines($payload['lines'] ?? [], $productTempMap, $sizeTempMap, $colorTempMap);
+            $this->applyLines($payload['lines'] ?? [], $productTempMap, $sizeTempMap, $colorTempMap, $touchedMasterIds);
             if ($vendorId !== null) {
                 $this->assignVendorToPurchaseProducts($vendorId, $payload['lines'] ?? [], $productTempMap);
             }
@@ -73,6 +77,11 @@ class PurchaseBulkService
                 $colorTempMap,
             );
             $purchaseId = (int) $document->id;
+
+            $uniqueMasterIds = array_unique($touchedMasterIds);
+            foreach ($uniqueMasterIds as $masterId) {
+                $this->assertMasterMatchesColorsSum((int) $masterId);
+            }
         });
 
         return $purchaseId;
@@ -208,6 +217,7 @@ class PurchaseBulkService
         array $productTempMap,
         array $sizeTempMap,
         array $colorTempMap,
+        array &$touchedMasterIds,
     ): void {
         $lines = array_values(array_filter($lines, 'is_array'));
         usort(
@@ -217,7 +227,7 @@ class PurchaseBulkService
         );
 
         foreach ($lines as $line) {
-            $this->applyStockForLine($line, $productTempMap, $sizeTempMap, $colorTempMap);
+            $this->applyStockForLine($line, $touchedMasterIds, $productTempMap, $sizeTempMap, $colorTempMap);
         }
     }
 
@@ -242,9 +252,11 @@ class PurchaseBulkService
      * @param  array<string, int>  $productTempMap
      * @param  array<string, int>  $sizeTempMap
      * @param  array<string, int>  $colorTempMap
+     * @param  array<int, int>  $touchedMasterIds
      */
     public function applyStockForLine(
         array $line,
+        array &$touchedMasterIds,
         array $productTempMap = [],
         array $sizeTempMap = [],
         array $colorTempMap = [],
@@ -269,6 +281,7 @@ class PurchaseBulkService
         }
 
         if (! $hasColorKeys && count($colors) === 1) {
+            $touchedMasterIds[] = (int) $productSize->id;
             $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
 
             return;
@@ -283,6 +296,8 @@ class PurchaseBulkService
         }
 
         $productSize->loadMissing('product');
+
+        $touchedMasterIds[] = (int) $productSize->id;
 
         // 1) Bloquear y actualizar siempre el maestro (product_size) primero.
         // 2) Solo después ProductSizeColorService::set(..., updateMaster: false) — nunca lock en pivote antes del maestro.

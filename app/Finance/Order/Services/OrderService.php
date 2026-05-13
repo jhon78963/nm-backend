@@ -4,6 +4,7 @@ namespace App\Finance\Order\Services;
 
 use App\Finance\Order\Models\Order;
 use App\Finance\Order\Models\OrderDetail;
+use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductHistory;
@@ -18,6 +19,7 @@ use RuntimeException;
 
 class OrderService extends ModelService
 {
+    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     public function __construct(
@@ -137,6 +139,8 @@ class OrderService extends ModelService
     public function processOrder(array $data): Order
     {
         return DB::transaction(function () use ($data) {
+            $touchedMasterIds = [];
+
             $order = $this->create([
                 'reference_date' => $data['reference_date'],
                 'code' => 'O-' . time(),
@@ -189,6 +193,7 @@ class OrderService extends ModelService
                 }
 
                 $psId = (int) $productSize->id;
+                $touchedMasterIds[] = $psId;
 
                 $masterLocked = DB::table('product_size')->where('id', $psId)->lockForUpdate()->first();
                 if ($masterLocked === null) {
@@ -286,6 +291,12 @@ class OrderService extends ModelService
                     'creator_user_id' => Auth::id(),
                 ]);
             }
+
+            $uniqueMasterIds = array_unique($touchedMasterIds);
+            foreach ($uniqueMasterIds as $masterId) {
+                $this->assertMasterMatchesColorsSum((int) $masterId);
+            }
+
             return $order;
         });
     }
@@ -293,6 +304,8 @@ class OrderService extends ModelService
     public function delete(Model $model): void
     {
         DB::transaction(function () use ($model) {
+            $touchedMasterIds = [];
+
             // 1. Cargar los detalles si no están cargados
             $model->load('details');
 
@@ -317,6 +330,7 @@ class OrderService extends ModelService
                 }
 
                 $psId = (int) $masterRow->id;
+                $touchedMasterIds[] = $psId;
 
                 // Stock bajo bloqueo (maestro primero, pivot después) antes de decrementar y auditar.
                 $currentStock = 0;
@@ -380,6 +394,11 @@ class OrderService extends ModelService
                 ]);
             }
 
+            $uniqueMasterIds = array_unique($touchedMasterIds);
+            foreach ($uniqueMasterIds as $masterId) {
+                $this->assertMasterMatchesColorsSum((int) $masterId);
+            }
+
             // 4. Marcar la orden como eliminada y cambiar estado
             // Asumiendo que usas 'is_deleted' según tus queries de estadísticas
             $model->update([
@@ -393,6 +412,7 @@ class OrderService extends ModelService
     public function update(Model $model, array $data): Model
     {
         return DB::transaction(function () use ($model, $data) {
+            $touchedMasterIds = [];
 
             // 1. Actualizar campos base
             $model->fill($data);
@@ -427,7 +447,7 @@ class OrderService extends ModelService
                     ];
 
                     if ($delta !== 0) {
-                        $this->applyOrderDetailStockDelta($model, $detail, $delta, $pivotData);
+                        $this->applyOrderDetailStockDelta($model, $detail, $delta, $pivotData, $touchedMasterIds);
                     }
 
                     $total = $newQty * $purchasePrice;
@@ -444,6 +464,11 @@ class OrderService extends ModelService
                 // Recalcular Total General
                 $newGrandTotal = $model->details()->sum('subtotal');
                 $model->update(['total_amount' => $newGrandTotal]);
+            }
+
+            $uniqueMasterIds = array_unique($touchedMasterIds);
+            foreach ($uniqueMasterIds as $masterId) {
+                $this->assertMasterMatchesColorsSum((int) $masterId);
             }
 
             return $model->fresh(['details']);
@@ -482,7 +507,7 @@ class OrderService extends ModelService
      * Ajusta inventario por cambio de cantidad en un detalle de orden (ingreso).
      * Replica la lógica de processOrder: pivot product_size + product_size_color cuando hay color.
      */
-    private function applyOrderDetailStockDelta(Model $order, OrderDetail $detail, int $delta, array $pivotData): void
+    private function applyOrderDetailStockDelta(Model $order, OrderDetail $detail, int $delta, array $pivotData, array &$touchedMasterIds): void
     {
         if ($delta === 0) {
             return;
@@ -664,5 +689,7 @@ class OrderService extends ModelService
             ],
             'creator_user_id' => Auth::id(),
         ]);
+
+        $touchedMasterIds[] = $psIdAfter;
     }
 }
