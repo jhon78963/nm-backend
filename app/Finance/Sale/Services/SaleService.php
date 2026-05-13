@@ -5,6 +5,7 @@ namespace App\Finance\Sale\Services;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Models\SaleDetail;
+use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,8 @@ use stdClass;
 
 class SaleService extends ModelService
 {
+    use ProvidesInventoryLockSortKey;
+
     public function __construct(Sale $sale)
     {
         parent::__construct($sale);
@@ -75,7 +78,7 @@ class SaleService extends ModelService
             $model->save();
 
             if (!empty($data['items']) && is_array($data['items'])) {
-                $items = $this->sortUpdateItemsByProductSizePair($model, $data['items']);
+                $items = $this->sortSaleUpdateItemsByNaturalInventoryKey($model, $data['items']);
                 foreach ($items as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail)
@@ -198,63 +201,59 @@ class SaleService extends ModelService
     }
 
     /**
-     * Anti-deadlock: orden estricto por par (product_id, size_id) del detalle, sin depender de product_size.id.
+     * Anti-deadlock: solo clave natural (product_id, size_id) ascendente, misma función que el resto del inventario.
      *
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    private function sortUpdateItemsByProductSizePair(Model $model, array $items): array
+    private function sortSaleUpdateItemsByNaturalInventoryKey(Model $model, array $items): array
     {
         $items = array_values($items);
         usort(
             $items,
-            fn (array $a, array $b): int => $this->resolveSaleUpdateItemLockSortKey($model, $a)
-                <=> $this->resolveSaleUpdateItemLockSortKey($model, $b),
+            function (array $a, array $b) use ($model): int {
+                $key = function (array $item) use ($model): string {
+                    $detail = $model->details()->where('id', $item['id'] ?? 0)->first();
+                    if (! $detail) {
+                        return $this->getInventoryLockSortKey(\PHP_INT_MAX, \PHP_INT_MAX);
+                    }
+
+                    return $this->getInventoryLockSortKey(
+                        (int) $detail->product_id,
+                        (int) $detail->size_id,
+                    );
+                };
+
+                return $key($a) <=> $key($b);
+            },
         );
 
         return $items;
     }
 
-    private function resolveSaleUpdateItemLockSortKey(Model $model, array $itemData): string
-    {
-        $detail = $model->details()->where('id', $itemData['id'] ?? 0)->first();
-        if (! $detail) {
-            return $this->inventoryLockSortKey(2147483647, 2147483647);
-        }
-
-        return $this->inventoryLockSortKey((int) $detail->product_id, (int) $detail->size_id);
-    }
-
     /**
-     * Clave lexicográfica estable para que todas las transacciones bloqueen filas en el mismo orden físico.
-     */
-    private function inventoryLockSortKey(int $productId, int $sizeId): string
-    {
-        return sprintf('%010d-%010d', $productId, $sizeId);
-    }
-
-    /**
-     * POS: orden por (product_id, size_id) del payload si vienen; si no, por el par resuelto desde product_size_id.
+     * POS: misma clave que edición de ventas — priorizar par canónico desde `product_size` cuando hay `product_size_id`.
      *
      * @param  array<string, mixed>  $line
      * @param  array<int, array{0: int, 1: int}>  $pairByProductSizeId
      */
     private function resolvePosLineInventoryLockSortKey(array $line, array $pairByProductSizeId): string
     {
-        $fromPid = isset($line['product_id']) ? (int) $line['product_id'] : 0;
-        $fromSid = isset($line['size_id']) ? (int) $line['size_id'] : 0;
-        if ($fromPid > 0 && $fromSid > 0) {
-            return $this->inventoryLockSortKey($fromPid, $fromSid);
+        $psId = (int) ($line['product_size_id'] ?? 0);
+        if ($psId > 0 && isset($pairByProductSizeId[$psId])) {
+            [$pid, $sid] = $pairByProductSizeId[$psId];
+
+            return $this->getInventoryLockSortKey($pid, $sid);
         }
 
-        $psId = (int) ($line['product_size_id'] ?? 0);
-        [$pid, $sid] = $pairByProductSizeId[$psId] ?? [0, 0];
+        $fromPid = isset($line['product_id']) ? (int) $line['product_id'] : 0;
+        $fromSid = isset($line['size_id']) ? (int) $line['size_id'] : 0;
 
-        return $this->inventoryLockSortKey($pid, $sid);
+        return $this->getInventoryLockSortKey($fromPid, $fromSid);
     }
 
     /**
-     * Bloquea filas maestras product_size en orden determinístico (evita deadlocks entre transacciones).
+     * Bloquea filas maestras product_size en orden determinístico por clave natural (product_id, size_id).
      *
      * @param  int|null  ...$psIds  IDs en product_size (null o ≤0 se ignoran)
      */
@@ -267,11 +266,26 @@ class SaleService extends ModelService
             }
         }
         $ids = array_values(array_unique($ids));
-        sort($ids, SORT_NUMERIC);
 
-        foreach ($ids as $id) {
-            $row = DB::table('product_size')->where('id', $id)->lockForUpdate()->first();
-            if (!$row) {
+        if ($ids === []) {
+            return;
+        }
+
+        $rows = DB::table('product_size')
+            ->whereIn('id', $ids)
+            ->get(['id', 'product_id', 'size_id']);
+
+        if ($rows->count() !== count($ids)) {
+            throw new Exception('Talla de producto no encontrada.');
+        }
+
+        $sorted = $rows->sortBy(
+            fn ($r) => $this->getInventoryLockSortKey((int) $r->product_id, (int) $r->size_id),
+        )->values();
+
+        foreach ($sorted as $row) {
+            $locked = DB::table('product_size')->where('id', $row->id)->lockForUpdate()->first();
+            if (! $locked) {
                 throw new Exception('Talla de producto no encontrada.');
             }
         }
@@ -412,8 +426,8 @@ class SaleService extends ModelService
 
             $details = $model->details
                 ->sort(function ($a, $b): int {
-                    return $this->inventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
-                        <=> $this->inventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
+                    return $this->getInventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
+                        <=> $this->getInventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
                 })
                 ->values();
 

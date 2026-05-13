@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\ProductSize;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -15,12 +16,40 @@ class ProductSizeColorService
         $this->historyService = $historyService;
     }
 
-    public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true): void
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  ?int  $pivotStockDelta  Si no es null, suma ese valor al stock del pivote bajo bloqueo maestro→detalle (el maestro solo se ajusta si $updateMaster).
+     */
+    public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true, ?int $pivotStockDelta = null): void
     {
-        if (! array_key_exists('stock', $data)) {
+        if ($pivotStockDelta === null && ! array_key_exists('stock', $data)) {
             return;
         }
 
+        if ($pivotStockDelta !== null) {
+            if ($pivotStockDelta === 0) {
+                return;
+            }
+            $resolve = static fn (int $current): int => $current + $pivotStockDelta;
+        } else {
+            $target = (int) $data['stock'];
+            $resolve = static fn (int $current): int => $target;
+        }
+
+        $this->lockMasterThenApplyColorStock($productSize, $colorId, $resolve, $updateMaster);
+    }
+
+    /**
+     * Maestro (product_size) bajo lockForUpdate primero; después pivote (product_size_color).
+     *
+     * @param  Closure(int): int  $resolveNewStock  Recibe stock actual del pivote bajo bloqueo; devuelve stock objetivo.
+     */
+    private function lockMasterThenApplyColorStock(
+        ProductSize $productSize,
+        int $colorId,
+        Closure $resolveNewStock,
+        bool $updateMaster,
+    ): void {
         $psId = (int) $productSize->id;
 
         $master = DB::table('product_size')
@@ -39,7 +68,7 @@ class ProductSizeColorService
             ->first();
 
         $currentColorStock = $pivotRow ? (int) $pivotRow->stock : 0;
-        $newStock = (int) $data['stock'];
+        $newStock = $resolveNewStock($currentColorStock);
         $delta = $newStock - $currentColorStock;
 
         $existingPivot = $pivotRow

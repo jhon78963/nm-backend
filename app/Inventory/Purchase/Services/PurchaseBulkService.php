@@ -4,6 +4,7 @@ namespace App\Inventory\Purchase\Services;
 
 use App\Inventory\Color\Models\Color;
 use App\Inventory\Color\Services\ColorService;
+use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
@@ -20,6 +21,8 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseBulkService
 {
+    use ProvidesInventoryLockSortKey;
+
     public function __construct(
         protected ProductService $productService,
         protected SizeService $sizeService,
@@ -229,12 +232,7 @@ class PurchaseBulkService
         $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
         $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
 
-        return $this->inventoryLockSortKey($productId, $sizeId);
-    }
-
-    private function inventoryLockSortKey(int $productId, int $sizeId): string
-    {
-        return sprintf('%010d-%010d', $productId, $sizeId);
+        return $this->getInventoryLockSortKey($productId, $sizeId);
     }
 
     /**
@@ -286,10 +284,11 @@ class PurchaseBulkService
 
         $productSize->loadMissing('product');
 
-        // Misma orden que SaleService: bloquear y actualizar maestro primero, luego pivotes por color.
+        // 1) Bloquear y actualizar siempre el maestro (product_size) primero.
+        // 2) Solo después ProductSizeColorService::set(..., updateMaster: false) — nunca lock en pivote antes del maestro.
         $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
 
-        // Bloquear pivotes en orden determinístico de color_id (reduce deadlocks entre compras concurrentes).
+        // Pivotes en orden determinístico de color_id (reduce deadlocks entre compras concurrentes).
         $colorOps = [];
         foreach ($colors as $c) {
             if ($c['quantity'] <= 0) {
@@ -366,16 +365,13 @@ class PurchaseBulkService
 
         Color::query()->where('is_deleted', false)->findOrFail($colorId);
 
-        $pivotRow = DB::table('product_size_color')
-            ->where('product_size_id', $productSize->id)
-            ->where('color_id', $colorId)
-            ->lockForUpdate()
-            ->first();
-
-        $current = $pivotRow ? (int) $pivotRow->stock : 0;
-        $newStock = $current + $delta;
-
-        $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock], updateMaster: false);
+        $this->productSizeColorService->set(
+            $productSize,
+            $colorId,
+            [],
+            updateMaster: false,
+            pivotStockDelta: $delta,
+        );
 
         $productSize->unsetRelation('productSizeColors');
     }

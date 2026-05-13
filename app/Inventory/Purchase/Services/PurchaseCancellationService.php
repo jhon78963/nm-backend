@@ -3,6 +3,7 @@
 namespace App\Inventory\Purchase\Services;
 
 use App\Inventory\Color\Models\Color;
+use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseCancellationService
 {
+    use ProvidesInventoryLockSortKey;
+
     public function __construct(
         protected ProductSizeColorService $productSizeColorService,
     ) {
@@ -34,7 +37,29 @@ class PurchaseCancellationService
         DB::transaction(function () use ($purchase, $reason): void {
             $purchase->load(['lines.colorDeltas']);
 
-            $lines = $purchase->lines->sortBy(fn (PurchaseLine $line): int => (int) $line->product_size_id)->values();
+            $lines = $purchase->lines;
+            $psIds = $lines->pluck('product_size_id')->filter()->unique()->values()->all();
+            $pairByProductSizeId = [];
+            if ($psIds !== []) {
+                foreach (
+                    DB::table('product_size')
+                        ->whereIn('id', $psIds)
+                        ->get(['id', 'product_id', 'size_id']) as $row
+                ) {
+                    $pairByProductSizeId[(int) $row->id] = [(int) $row->product_id, (int) $row->size_id];
+                }
+            }
+
+            $lines = $lines->sortBy(function (PurchaseLine $line) use ($pairByProductSizeId): string {
+                $psId = (int) $line->product_size_id;
+                if ($psId > 0 && isset($pairByProductSizeId[$psId])) {
+                    [$pid, $sid] = $pairByProductSizeId[$psId];
+
+                    return $this->getInventoryLockSortKey($pid, $sid);
+                }
+
+                return $this->getInventoryLockSortKey((int) $line->product_id, (int) $line->size_id);
+            })->values();
 
             foreach ($lines as $line) {
                 $this->revertLineStock($line);

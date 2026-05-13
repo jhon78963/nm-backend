@@ -4,6 +4,7 @@ namespace App\Finance\Order\Services;
 
 use App\Finance\Order\Models\Order;
 use App\Finance\Order\Models\OrderDetail;
+use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Inventory\Product\Models\ProductSize;
@@ -16,6 +17,8 @@ use RuntimeException;
 
 class OrderService extends ModelService
 {
+    use ProvidesInventoryLockSortKey;
+
     public function __construct(
         Order $order,
         protected ProductSizeService $productSizeService
@@ -148,10 +151,10 @@ class OrderService extends ModelService
             $items = array_values($data['items'] ?? []);
             usort(
                 $items,
-                fn (array $a, array $b): int => $this->inventoryLockSortKey(
+                fn (array $a, array $b): int => $this->getInventoryLockSortKey(
                     (int) ($a['product_id'] ?? 0),
                     (int) ($a['size_id'] ?? 0),
-                ) <=> $this->inventoryLockSortKey(
+                ) <=> $this->getInventoryLockSortKey(
                     (int) ($b['product_id'] ?? 0),
                     (int) ($b['size_id'] ?? 0),
                 ),
@@ -294,8 +297,8 @@ class OrderService extends ModelService
 
             $details = $model->details
                 ->sort(function ($a, $b): int {
-                    return $this->inventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
-                        <=> $this->inventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
+                    return $this->getInventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
+                        <=> $this->getInventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
                 })
                 ->values();
 
@@ -457,18 +460,10 @@ class OrderService extends ModelService
     {
         $detail = $order->details()->where('id', $itemData['id'] ?? 0)->first();
         if (! $detail) {
-            return $this->inventoryLockSortKey(2147483647, 2147483647);
+            return $this->getInventoryLockSortKey(2147483647, 2147483647);
         }
 
-        return $this->inventoryLockSortKey((int) $detail->product_id, (int) $detail->size_id);
-    }
-
-    /**
-     * Clave lexicográfica estable para que todas las transacciones bloqueen filas en el mismo orden físico.
-     */
-    private function inventoryLockSortKey(int $productId, int $sizeId): string
-    {
-        return sprintf('%010d-%010d', $productId, $sizeId);
+        return $this->getInventoryLockSortKey((int) $detail->product_id, (int) $detail->size_id);
     }
 
     /**
