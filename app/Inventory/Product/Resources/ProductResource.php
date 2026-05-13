@@ -15,12 +15,19 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         $stock = $this->sizes_sum_stock ?? $this->sizes->sum('pivot.stock');
+        /** Referencia desde la primera fila product–talla (las precios viven en `product_size`). */
+        $primaryPs = ($this->relationLoaded('productSizes') && $this->productSizes->isNotEmpty())
+            ? $this->productSizes->sortBy('id')->first()
+            : null;
 
         return [
             'id' => $this->id,
             'name' => $this->name ?? '',
             'barcode' => $this->barcode,
             'stock' => $stock,
+            'purchasePrice' => $primaryPs !== null ? (float) ($primaryPs->purchase_price ?? 0) : 0,
+            'salePrice' => $primaryPs !== null ? (float) ($primaryPs->sale_price ?? 0) : 0,
+            'minSalePrice' => $primaryPs !== null ? (float) ($primaryPs->min_sale_price ?? 0) : 0,
             'cashDiscount' => $this->cash_discount,
             'percentageDiscount' => $this->percentage_discount,
             'description' => $this->description,

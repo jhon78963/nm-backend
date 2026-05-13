@@ -17,6 +17,8 @@ class ProductUpdateRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * Los precios por talla se actualizan vía `products/{id}/size/{sizeId}`, no en este PATCH.
+     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -24,14 +26,10 @@ class ProductUpdateRequest extends FormRequest
         return [
             'name' => 'sometimes|string|max:50',
             'barcode' => 'nullable|string',
-            'percentageDiscount' => 'nullable|string',
-            'cashDiscount' => 'nullable|string',
+            'percentageDiscount' => 'nullable',
+            'cashDiscount' => 'nullable',
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
-            'purchase_price' => 'nullable',
-            'sale_price' => 'nullable',
-            'min_sale_price' => 'nullable',
-            'status' => 'nullable|string',
             'genderId' => 'sometimes|integer',
             'warehouseId' => 'sometimes|integer',
         ];

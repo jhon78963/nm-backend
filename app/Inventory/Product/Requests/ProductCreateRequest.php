@@ -26,10 +26,6 @@ class ProductCreateRequest extends FormRequest
             'barcode' => 'nullable|string',
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
-            'purchasePrice' => 'nullable',
-            'salePrice' => 'nullable',
-            'minSalePrice' => 'nullable',
-            'status' => 'nullable|string',
             'genderId' => 'required|integer',
             'warehouseId' => 'nullable|integer',
         ];

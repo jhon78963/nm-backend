@@ -62,6 +62,10 @@ class ProductController extends Controller
     public function get(Product $product): JsonResponse
     {
         $this->productService->validate($product, 'Product');
+        $product->load([
+            'productSizes' => static fn ($q) => $q->orderBy('id'),
+        ]);
+
         return response()->json(new ProductResource($product));
     }
 

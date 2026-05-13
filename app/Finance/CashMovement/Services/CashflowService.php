@@ -33,6 +33,7 @@ class CashflowService
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->with(['payments', 'details'])
+            ->orderBy('creation_time', 'desc') // <-- AQUÍ ESTÁ LA MAGIA (De más reciente a más antigua)
             ->get()
             ->map(function ($sale) use ($activeFilters) {
                 // AQUÍ ESTÁ EL TRUCO: Solo sumamos los pagos que coinciden con los filtros activos

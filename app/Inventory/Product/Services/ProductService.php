@@ -6,6 +6,7 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ProductService extends ModelService
 {
@@ -98,11 +99,45 @@ class ProductService extends ModelService
             return null;
         }
 
+        $product->loadMissing(['sizes']);
+
+        // Una consulta sobre `product_size`: evita leer sale_price ya en NULL por hidratación eager.
+        $salePriceByPsId = DB::table('product_size')
+            ->where('product_id', $product->id)
+            ->pluck('sale_price', 'id');
+
+        $salePriceFor = static function (
+            ProductSize $pSize,
+            Product $product,
+        ) use ($salePriceByPsId): float {
+            $pid = (int) $pSize->id;
+            $sale = $salePriceByPsId->get($pid);
+            if ($sale === null) {
+                $sale = $salePriceByPsId->get((string) $pid);
+            }
+
+            if (($sale === null || $sale === '') && $pSize->size_id) {
+                $sizeRow = $product->sizes->firstWhere('id', (int) $pSize->size_id);
+                $sale = $sizeRow?->pivot?->sale_price ?? $sale;
+            }
+
+            if ($sale === null || $sale === '') {
+                $raw = $pSize->getRawOriginal('sale_price');
+                $sale = $raw;
+            }
+
+            if ($sale === null || $sale === '') {
+                return 0.0;
+            }
+
+            return (float) $sale;
+        };
+
         // ---------------------------------------------------------
         // FASE 2: MAPEO DE DATOS (Tu lógica original)
         // ---------------------------------------------------------
         $variantsMap = [];
-        $basePrice = 0;
+        $basePrice = null;
 
         foreach ($product->productSizes as $pSize) {
             if (!$pSize->size) {
@@ -110,11 +145,14 @@ class ProductService extends ModelService
             }
 
             $tallaNombre = $pSize->size->description;
-            $currentPrice = (float) ($pSize->sale_price ?? 0);
+            $currentPrice = $salePriceFor($pSize, $product);
             $currentSku = $pSize->barcode ?? '';
 
-            if ($basePrice == 0) {
-                $basePrice = $currentPrice;
+            if ($currentPrice > 0) {
+                $basePrice =
+                    $basePrice === null
+                        ? $currentPrice
+                        : min($basePrice, $currentPrice);
             }
 
             if (!isset($variantsMap[$tallaNombre])) {
@@ -158,7 +196,7 @@ class ProductService extends ModelService
             'id'        => $product->id,
             'sku'       => $product->barcode ?? $barcode,
             'name'      => $product->name,
-            'basePrice' => (float) $basePrice,
+            'basePrice' => (float) ($basePrice ?? 0),
             'variants'  => $variantsMap
         ];
     }
