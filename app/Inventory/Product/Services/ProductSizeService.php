@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\Product;
+use App\Inventory\Support\StockAvailability;
 use Illuminate\Support\Facades\DB;
 
 class ProductSizeService
@@ -50,6 +51,7 @@ class ProductSizeService
                     if ($delta > 0) {
                         DB::table('product_size')->where('id', $row->id)->increment('stock', $delta);
                     } else {
+                        StockAvailability::assertCanDecrement($currentStock, -$delta);
                         DB::table('product_size')->where('id', $row->id)->decrement('stock', -$delta);
                     }
                 }
@@ -138,6 +140,9 @@ class ProductSizeService
                 'min_sale_price' => $data['min_sale_price'] ?? null,
             ]);
         } else {
+            if ($qty < 0) {
+                StockAvailability::assertCanDecrement((int) $row->stock, -$qty);
+            }
             $newStock = (int) $row->stock + $qty;
             DB::table('product_size')->where('id', $row->id)->update([
                 'barcode' => $data['barcode'] ?? null,

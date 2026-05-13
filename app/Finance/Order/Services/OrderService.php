@@ -9,6 +9,7 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductSizeService;
+use App\Inventory\Support\StockAvailability;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -327,6 +328,16 @@ class OrderService extends ModelService
                         ->first();
                     $currentStock = $colorRow ? (int) $colorRow->stock : 0;
 
+                    $masterStockNow = (int) (DB::table('product_size')
+                        ->where('id', $psId)
+                        ->lockForUpdate()
+                        ->first()
+                        ?->stock ?? 0);
+                    StockAvailability::assertCanDecrement($masterStockNow, $qty);
+                    if ($colorRow) {
+                        StockAvailability::assertCanDecrement($currentStock, $qty);
+                    }
+
                     DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
 
                     if ($colorRow) {
@@ -337,6 +348,7 @@ class OrderService extends ModelService
                     }
                 } else {
                     $currentStock = (int) $masterRow->stock;
+                    StockAvailability::assertCanDecrement($currentStock, $qty);
 
                     DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
                 }
@@ -596,6 +608,13 @@ class OrderService extends ModelService
                     ]);
                 }
             } else {
+                $colorPivot = DB::table('product_size_color')
+                    ->where('product_size_id', $productSize->id)
+                    ->where('color_id', $colorId)
+                    ->lockForUpdate()
+                    ->first();
+                $avail = $colorPivot ? (int) $colorPivot->stock : 0;
+                StockAvailability::assertCanDecrement($avail, abs($delta));
                 DB::table('product_size_color')
                     ->where('product_size_id', $productSize->id)
                     ->where('color_id', $colorId)

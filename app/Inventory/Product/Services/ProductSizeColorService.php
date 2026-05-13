@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\ProductSize;
+use App\Inventory\Support\StockAvailability;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -71,6 +72,10 @@ class ProductSizeColorService
         $newStock = $resolveNewStock($currentColorStock);
         $delta = $newStock - $currentColorStock;
 
+        if ($delta < 0) {
+            StockAvailability::assertCanDecrement($currentColorStock, -$delta);
+        }
+
         $existingPivot = $pivotRow
             ? [
                 'product_size_id' => $pivotRow->product_size_id,
@@ -83,6 +88,7 @@ class ProductSizeColorService
             if ($delta > 0) {
                 DB::table('product_size')->where('id', $psId)->increment('stock', $delta);
             } else {
+                StockAvailability::assertCanDecrement((int) $master->stock, -$delta);
                 DB::table('product_size')->where('id', $psId)->decrement('stock', -$delta);
             }
         }

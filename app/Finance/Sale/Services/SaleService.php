@@ -7,6 +7,7 @@ use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Models\SaleDetail;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\ProductHistory;
+use App\Inventory\Support\StockAvailability;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -326,14 +327,14 @@ class SaleService extends ModelService
 
             $colorPivotStock = $colorRow ? (int) $colorRow->stock : 0;
 
-            if (! $increment && $colorPivotStock < $qty) {
-                throw new Exception('Stock insuficiente para el color seleccionado.');
+            if (! $increment) {
+                StockAvailability::assertCanDecrement($colorPivotStock, $qty);
             }
         }
 
         $masterStock = (int) $masterRow->stock;
-        if (! $increment && $masterStock < $qty) {
-            throw new Exception('Stock insuficiente para el producto.');
+        if (! $increment) {
+            StockAvailability::assertCanDecrement($masterStock, $qty);
         }
 
         $oldStockAudited = $effectiveColorId ? $colorPivotStock : $masterStock;
@@ -606,7 +607,7 @@ class SaleService extends ModelService
             // E. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
             foreach ($lines as $item) {
                 $productSizeId = $item['product_size_id'];
-                $qty = $item['quantity'];
+                $qty = (int) $item['quantity'];
                 $colorId = (int) $item['color_id'];
 
                 $masterRow = DB::table('product_size')
@@ -625,14 +626,10 @@ class SaleService extends ModelService
                         ->lockForUpdate()
                         ->first();
                     $currentStock = $colorRow ? (int) $colorRow->stock : 0;
-                    if ($currentStock < $qty) {
-                        throw new Exception('Stock insuficiente para el color seleccionado.');
-                    }
+                    StockAvailability::assertCanDecrement($currentStock, $qty);
                 } else {
                     $currentStock = (int) $masterRow->stock;
-                    if ($currentStock < $qty) {
-                        throw new Exception('Stock insuficiente para el producto.');
-                    }
+                    StockAvailability::assertCanDecrement($currentStock, $qty);
                 }
 
                 DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $qty);
@@ -793,7 +790,7 @@ class SaleService extends ModelService
             }
 
             // B. ITEM QUE SALE (NUEVO): lecturas tras devolución por si comparte product_size con el devuelto
-            $masterInventory = DB::table('product_size')->where('id', $newPsId)->first();
+            $masterInventory = DB::table('product_size')->where('id', $newPsId)->lockForUpdate()->first();
             if (!$masterInventory) {
                 throw new Exception('Talla nueva no encontrada.');
             }
@@ -811,9 +808,13 @@ class SaleService extends ModelService
                     ->first();
                 $currentStockNew = $cRowNew ? (int) $cRowNew->stock : 0;
 
-                if ($currentStockNew < $qty) {
-                    throw new Exception('Stock insuficiente para el color seleccionado.');
-                }
+                $masterStockNow = (int) (DB::table('product_size')
+                    ->where('id', $newPsId)
+                    ->lockForUpdate()
+                    ->first()
+                    ?->stock ?? 0);
+                StockAvailability::assertCanDecrement($masterStockNow, $qty);
+                StockAvailability::assertCanDecrement($currentStockNew, $qty);
 
                 DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
 
@@ -823,9 +824,7 @@ class SaleService extends ModelService
                     ->decrement('stock', $qty);
             } else {
                 $currentStockNew = (int) $masterInventory->stock;
-                if ($currentStockNew < $qty) {
-                    throw new Exception('Stock insuficiente para el producto.');
-                }
+                StockAvailability::assertCanDecrement($currentStockNew, $qty);
 
                 DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
             }
