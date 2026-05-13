@@ -3,6 +3,8 @@
 namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\ProductSize;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class ProductSizeColorService
 {
@@ -15,23 +17,76 @@ class ProductSizeColorService
 
     public function set(ProductSize $productSize, int $colorId, array $data): void
     {
-        $existingPivot = $productSize->productSizeColors()
-            ->wherePivot('color_id', $colorId)
-            ->first()
-            ?->pivot
-                ?->toArray() ?? [];
+        if (! array_key_exists('stock', $data)) {
+            return;
+        }
 
-        $productSize->productSizeColors()->syncWithoutDetaching([
-            $colorId => ['stock' => $data['stock']]
-        ]);
+        $psId = (int) $productSize->id;
 
-        if (!$productSize->relationLoaded('product')) {
+        $master = DB::table('product_size')
+            ->where('id', $psId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($master === null) {
+            throw new RuntimeException('No se encontró la talla del producto para actualizar el color.');
+        }
+
+        $pivotRow = DB::table('product_size_color')
+            ->where('product_size_id', $psId)
+            ->where('color_id', $colorId)
+            ->lockForUpdate()
+            ->first();
+
+        $currentColorStock = $pivotRow ? (int) $pivotRow->stock : 0;
+        $newStock = (int) $data['stock'];
+        $delta = $newStock - $currentColorStock;
+
+        $existingPivot = $pivotRow
+            ? [
+                'product_size_id' => $pivotRow->product_size_id,
+                'color_id' => $pivotRow->color_id,
+                'stock' => (int) $pivotRow->stock,
+            ]
+            : [];
+
+        if ($delta !== 0) {
+            if ($delta > 0) {
+                DB::table('product_size')->where('id', $psId)->increment('stock', $delta);
+            } else {
+                DB::table('product_size')->where('id', $psId)->decrement('stock', -$delta);
+            }
+        }
+
+        if ($pivotRow) {
+            if ($delta !== 0) {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $colorId)
+                    ->update(['stock' => $newStock]);
+            }
+        } else {
+            DB::table('product_size_color')->insert([
+                'product_size_id' => $psId,
+                'color_id' => $colorId,
+                'stock' => $newStock,
+            ]);
+        }
+
+        if ($delta === 0 && $pivotRow !== null) {
+            return;
+        }
+
+        if (! $productSize->relationLoaded('product')) {
             $productSize->load('product');
         }
 
-        $eventType = empty($existingPivot) ? 'CREATED' : 'UPDATED';
-        $newData = ['stock' => $data['stock'], 'size_id_ref' => $productSize->size_id];
-        $oldData = $existingPivot ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id]) : [];
+        $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
+
+        $newData = ['stock' => $newStock, 'size_id_ref' => $productSize->size_id];
+        $oldData = $existingPivot !== []
+            ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id])
+            : [];
 
         $this->historyService->logChange(
             $productSize->product,
@@ -54,7 +109,7 @@ class ProductSizeColorService
         $productSize->productSizeColors()->detach($colorId);
 
         if ($oldData) {
-            if (!$productSize->relationLoaded('product')) {
+            if (! $productSize->relationLoaded('product')) {
                 $productSize->load('product');
             }
 

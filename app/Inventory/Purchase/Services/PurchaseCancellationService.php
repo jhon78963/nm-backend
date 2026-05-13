@@ -9,6 +9,7 @@ use App\Inventory\Purchase\Enums\PurchaseStatus;
 use App\Inventory\Purchase\Models\Purchase;
 use App\Inventory\Purchase\Models\PurchaseLine;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -51,17 +52,35 @@ class PurchaseCancellationService
     public function revertLineStock(PurchaseLine $line): void
     {
         $line->loadMissing(['colorDeltas']);
-        $productSize = ProductSize::query()->findOrFail($line->product_size_id);
+        $productSizeId = (int) $line->product_size_id;
 
-        foreach ($line->colorDeltas as $delta) {
+        $masterRow = DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first();
+        if ($masterRow === null) {
+            throw ValidationException::withMessages([
+                'stock' => 'No se encontró la talla del producto para revertir el stock.',
+            ]);
+        }
+
+        $deltaSize = (int) $line->size_stock_delta;
+        if ((int) $masterRow->stock < $deltaSize) {
+            throw ValidationException::withMessages([
+                'stock' => 'No se puede anular: stock a nivel talla insuficiente para revertir.',
+            ]);
+        }
+
+        $productSize = ProductSize::query()->findOrFail($productSizeId);
+
+        foreach ($line->colorDeltas->sortBy(fn ($d) => (int) $d->color_id) as $delta) {
             $colorId = (int) $delta->color_id;
             Color::query()->where('is_deleted', false)->findOrFail($colorId);
 
-            $existing = $productSize->productSizeColors()
-                ->wherePivot('color_id', $colorId)
+            $pivotRow = DB::table('product_size_color')
+                ->where('product_size_id', $productSizeId)
+                ->where('color_id', $colorId)
+                ->lockForUpdate()
                 ->first();
 
-            $current = (int) ($existing?->pivot?->stock ?? 0);
+            $current = $pivotRow ? (int) $pivotRow->stock : 0;
             $qty = (int) $delta->quantity;
             if ($current < $qty) {
                 throw ValidationException::withMessages([
@@ -73,14 +92,6 @@ class PurchaseCancellationService
             $productSize->unsetRelation('productSizeColors');
         }
 
-        $deltaSize = (int) $line->size_stock_delta;
-        $productSize->refresh();
-        if ((int) $productSize->stock < $deltaSize) {
-            throw ValidationException::withMessages([
-                'stock' => 'No se puede anular: stock a nivel talla insuficiente para revertir.',
-            ]);
-        }
-        $productSize->stock = (int) $productSize->stock - $deltaSize;
-        $productSize->save();
+        DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $deltaSize);
     }
 }

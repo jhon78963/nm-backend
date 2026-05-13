@@ -12,6 +12,7 @@ use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Purchase\Support\PurchasePayloadResolver;
 use App\Inventory\Size\Services\SizeService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Registro masivo de compra: crea catálogo temporal (producto/talla/color) y
@@ -227,6 +228,11 @@ class PurchaseBulkService
 
         $productSize->loadMissing('product');
 
+        // Misma orden que SaleService: bloquear y actualizar maestro primero, luego pivotes por color.
+        $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+
+        // Bloquear pivotes en orden determinístico de color_id (reduce deadlocks entre compras concurrentes).
+        $colorOps = [];
         foreach ($colors as $c) {
             if ($c['quantity'] <= 0) {
                 continue;
@@ -238,10 +244,26 @@ class PurchaseBulkService
             if ($colorId === null) {
                 continue;
             }
-            $this->incrementProductSizeColorStock($productSize, (int) $colorId, $c['quantity']);
+            $colorOps[] = ['id' => (int) $colorId, 'qty' => (int) $c['quantity']];
         }
+        usort($colorOps, fn (array $a, array $b): int => $a['id'] <=> $b['id']);
 
-        $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+        foreach ($colorOps as $op) {
+            $this->incrementProductSizeColorStock($productSize, $op['id'], $op['qty']);
+        }
+    }
+
+    /**
+     * Bloqueo pesimista del maestro talla (alineado con ventas / reduce deadlocks).
+     */
+    protected function lockProductSizeMasterRow(int $productSizeId): void
+    {
+        $row = DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first();
+        if ($row === null) {
+            throw ValidationException::withMessages([
+                'stock' => 'No se encontró la talla del producto para aplicar stock.',
+            ]);
+        }
     }
 
     /**
@@ -249,6 +271,8 @@ class PurchaseBulkService
      */
     protected function incrementProductSizeStock(ProductSize $productSize, int $delta, array $line): void
     {
+        $this->lockProductSizeMasterRow((int) $productSize->id);
+
         $this->mergeProductSizePrices($productSize, $line);
         $productSize->save();
 
@@ -284,11 +308,13 @@ class PurchaseBulkService
 
         Color::query()->where('is_deleted', false)->findOrFail($colorId);
 
-        $existing = $productSize->productSizeColors()
-            ->wherePivot('color_id', $colorId)
+        $pivotRow = DB::table('product_size_color')
+            ->where('product_size_id', $productSize->id)
+            ->where('color_id', $colorId)
+            ->lockForUpdate()
             ->first();
 
-        $current = (int) ($existing?->pivot?->stock ?? 0);
+        $current = $pivotRow ? (int) $pivotRow->stock : 0;
         $newStock = $current + $delta;
 
         $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock]);

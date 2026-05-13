@@ -291,12 +291,21 @@ class SaleService extends ModelService
                 if ($psId) {
                     $currentStock = 0;
 
-                    // 2. Bloqueamos las filas de stock para que el historial sea exacto
+                    // Orden jerárquico: maestro primero, pivot color después (alineado con ventas/compras).
+                    $masterRow = DB::table('product_size')
+                        ->where('id', $psId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$masterRow) {
+                        continue;
+                    }
+
                     if ($detail->color_id) {
                         $colorRow = DB::table('product_size_color')
                             ->where('product_size_id', $psId)
                             ->where('color_id', $detail->color_id)
-                            ->lockForUpdate() // <--- Bloqueo de fila
+                            ->lockForUpdate()
                             ->first();
 
                         $currentStock = $colorRow ? $colorRow->stock : 0;
@@ -306,14 +315,9 @@ class SaleService extends ModelService
                             ->where('color_id', $detail->color_id)
                             ->increment('stock', $detail->quantity);
                     } else {
-                        $masterRow = DB::table('product_size')
-                            ->where('id', $psId)
-                            ->lockForUpdate()
-                            ->first();
-                        $currentStock = $masterRow ? $masterRow->stock : 0;
+                        $currentStock = (int) $masterRow->stock;
                     }
 
-                    // Devolver stock a la tabla maestra
                     DB::table('product_size')->where('id', $psId)->increment('stock', $detail->quantity);
 
                     // 3. Registrar en Historial (Con valores reales bloqueados)

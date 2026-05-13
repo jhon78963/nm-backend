@@ -149,81 +149,84 @@ class OrderService extends ModelService
                 $productId = $item['product_id'];
                 $sizeId = $item['size_id'];
                 $colorId = $item['color_id'] ?? null;
-                $qty = $item['quantity'];
+                $qty = (int) $item['quantity'];
 
-                // 1. Instanciar el Producto (esto debe existir sí o sí)
                 $product = Product::findOrFail($productId);
 
-                // 2. Buscar si la talla YA existe en este producto
                 $productSize = ProductSize::where('product_id', $productId)
                     ->where('size_id', $sizeId)
                     ->first();
 
-                // 3. Obtener Stock ANTES de la orden (Para el historial)
-                $currentStock = 0;
-                if ($productSize) {
-                    if ($colorId > 0) {
-                        $colorRow = DB::table('product_size_color')
-                            ->where('product_size_id', $productSize->id)
-                            ->where('color_id', $colorId)
-                            ->first();
-                        $currentStock = $colorRow ? $colorRow->stock : 0;
-                    } else {
-                        $currentStock = $productSize->stock;
-                    }
-                }
-
-                // 4. Aumento de Stock (Esto CREA el product_size si es nuevo, o lo actualiza)
                 $pivotData = [
                     'barcode' => $item['barcode'],
                     'purchase_price' => $item['purchase_price'],
                     'sale_price' => $item['sale_price'],
                     'min_sale_price' => $item['min_sale_price'],
                 ];
-                $this->productSizeService->setStock(
-                    $product,
-                    $sizeId,
-                    $qty,
-                    $pivotData,
-                );
 
-                // 5. IMPORTANTE: Recuperar el ProductSize fresco
-                // Si no existía, la función setStock lo acaba de crear y necesitamos su nuevo ID
-                if (!$productSize) {
+                // Crear talla en catálogo si no existe (sin mover stock aún); el incremento va bajo bloqueo.
+                if (! $productSize) {
+                    $this->productSizeService->setStock($product, $sizeId, 0, $pivotData);
                     $productSize = ProductSize::where('product_id', $productId)
                         ->where('size_id', $sizeId)
-                        ->first();
+                        ->firstOrFail();
                 }
 
-                // 6. Actualizar stock por color (Protegido contra colores nuevos)
-                if ($colorId > 0) {
-                    $colorRowExists = DB::table('product_size_color')
-                        ->where('product_size_id', $productSize->id)
-                        ->where('color_id', $colorId)
-                        ->exists();
+                $psId = (int) $productSize->id;
 
-                    if ($colorRowExists) {
+                $masterLocked = DB::table('product_size')->where('id', $psId)->lockForUpdate()->first();
+                if ($masterLocked === null) {
+                    throw new RuntimeException(
+                        'No se encontró la talla del producto para registrar la orden.'
+                    );
+                }
+
+                DB::table('product_size')->where('id', $psId)->update([
+                    'barcode' => $pivotData['barcode'],
+                    'purchase_price' => $pivotData['purchase_price'],
+                    'sale_price' => $pivotData['sale_price'],
+                    'min_sale_price' => $pivotData['min_sale_price'],
+                ]);
+
+                $currentStock = 0;
+                $colorPivotRow = null;
+
+                if ($colorId > 0) {
+                    $colorPivotRow = DB::table('product_size_color')
+                        ->where('product_size_id', $psId)
+                        ->where('color_id', $colorId)
+                        ->lockForUpdate()
+                        ->first();
+                    $currentStock = $colorPivotRow ? (int) $colorPivotRow->stock : 0;
+                } else {
+                    $masterRow = DB::table('product_size')->where('id', $psId)->first();
+                    $currentStock = (int) $masterRow->stock;
+                }
+
+                DB::table('product_size')->where('id', $psId)->increment('stock', $qty);
+
+                if ($colorId > 0) {
+                    if ($colorPivotRow !== null) {
                         DB::table('product_size_color')
-                            ->where('product_size_id', $productSize->id)
+                            ->where('product_size_id', $psId)
                             ->where('color_id', $colorId)
                             ->increment('stock', $qty);
                     } else {
-                        // Si es un color nuevo para esta talla, lo insertamos
                         DB::table('product_size_color')->insert([
-                            'product_size_id' => $productSize->id,
+                            'product_size_id' => $psId,
                             'color_id' => $colorId,
-                            'stock' => $qty
+                            'stock' => $qty,
                         ]);
                     }
                 }
 
-                // 7. Recuperar nombres directos de las tablas (Sin depender de relaciones frágiles)
+                // Recuperar nombres directos de las tablas (Sin depender de relaciones frágiles)
                 $sizeName = DB::table('sizes')->where('id', $sizeId)->value('description') ?? 'Desconocida';
                 $colorName = $colorId > 0
                     ? (DB::table('colors')->where('id', $colorId)->value('description') ?? 'Desconocido')
                     : 'Único';
 
-                // 8. Guardar detalle de la orden
+                // Guardar detalle de la orden
                 $order->details()->create([
                     'product_id' => $productId,
                     'size_id' => $sizeId,
@@ -239,7 +242,7 @@ class OrderService extends ModelService
                     'subtotal' => $item['total'] ?? ($qty * $item['purchase_price']) // Por si no mandas el total en el item
                 ]);
 
-                // 9. HISTORIAL DETALLADO
+                // Historial de ingreso (orden)
                 ProductHistory::create([
                     'product_id' => $productId,
                     'entity_type' => 'ORDER',
@@ -270,53 +273,59 @@ class OrderService extends ModelService
             $model->load('details');
 
             foreach ($model->details as $detail) {
-                // Obtener el ID de la relación product_size
-                $psId = DB::table('product_size')
+                $qty = (int) $detail->quantity;
+
+                $masterRow = DB::table('product_size')
                     ->where('product_id', $detail->product_id)
                     ->where('size_id', $detail->size_id)
-                    ->value('id');
+                    ->lockForUpdate()
+                    ->first();
 
-                if ($psId) {
-                    // 2. Capturar stock actual ANTES de devolver (para el historial)
-                    $currentStock = 0;
-                    if ($detail->color_id) {
-                        $colorRow = DB::table('product_size_color')
-                            ->where('product_size_id', $psId)
-                            ->where('color_id', $detail->color_id)
-                            ->first();
-                        $currentStock = $colorRow ? $colorRow->stock : 0;
+                if (! $masterRow) {
+                    continue;
+                }
 
-                        // Devolver stock a la tabla por color
+                $psId = (int) $masterRow->id;
+
+                // Stock bajo bloqueo (maestro primero, pivot después) antes de decrementar y auditar.
+                $currentStock = 0;
+                if ($detail->color_id) {
+                    $colorRow = DB::table('product_size_color')
+                        ->where('product_size_id', $psId)
+                        ->where('color_id', $detail->color_id)
+                        ->lockForUpdate()
+                        ->first();
+                    $currentStock = $colorRow ? (int) $colorRow->stock : 0;
+
+                    if ($colorRow) {
                         DB::table('product_size_color')
                             ->where('product_size_id', $psId)
                             ->where('color_id', $detail->color_id)
-                            ->decrement('stock', $detail->quantity);
-                    } else {
-                        $masterRow = DB::table('product_size')->where('id', $psId)->first();
-                        $currentStock = $masterRow ? $masterRow->stock : 0;
+                            ->decrement('stock', $qty);
                     }
-
-                    // Devolver stock a la tabla maestra
-                    DB::table('product_size')->where('id', $psId)->decrement('stock', $detail->quantity);
-
-                    // 3. Registrar en Historial de Producto
-                    ProductHistory::create([
-                        'product_id' => $detail->product_id,
-                        'entity_type' => 'ORDER_VOIDED', // O 'ORDER'
-                        'entity_id' => $model->id,
-                        'event_type' => 'RETURNED',
-                        'old_values' => [
-                            'stock' => $currentStock
-                        ],
-                        'new_values' => [
-                            'stock' => $currentStock + $detail->quantity,
-                            'quantity' => $detail->quantity,
-                            'reason' => 'Venta anulada por el usuario',
-                            'order_code' => $model->code
-                        ],
-                        'creator_user_id' => Auth::id(),
-                    ]);
+                } else {
+                    $currentStock = (int) $masterRow->stock;
                 }
+
+                DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
+
+                // 3. Registrar en Historial de Producto
+                ProductHistory::create([
+                    'product_id' => $detail->product_id,
+                    'entity_type' => 'ORDER_VOIDED', // O 'ORDER'
+                    'entity_id' => $model->id,
+                    'event_type' => 'RETURNED',
+                    'old_values' => [
+                        'stock' => $currentStock,
+                    ],
+                    'new_values' => [
+                        'stock' => $currentStock + $qty,
+                        'quantity' => $qty,
+                        'reason' => 'Venta anulada por el usuario',
+                        'order_code' => $model->code,
+                    ],
+                    'creator_user_id' => Auth::id(),
+                ]);
             }
 
             // 4. Marcar la venta como eliminada y cambiar estado
@@ -436,6 +445,40 @@ class OrderService extends ModelService
                 throw new RuntimeException(
                     'Stock insuficiente para reducir la cantidad del ítem de la orden.'
                 );
+            }
+        } elseif ($delta > 0) {
+            $psId = DB::table('product_size')
+                ->where('product_id', $detail->product_id)
+                ->where('size_id', $detail->size_id)
+                ->lockForUpdate()
+                ->value('id');
+
+            if (! $psId) {
+                $this->productSizeService->setStock(
+                    $product,
+                    (int) $detail->size_id,
+                    0,
+                    $pivotData,
+                );
+                $psId = DB::table('product_size')
+                    ->where('product_id', $detail->product_id)
+                    ->where('size_id', $detail->size_id)
+                    ->lockForUpdate()
+                    ->value('id');
+            }
+
+            if (! $psId) {
+                throw new RuntimeException(
+                    'No se pudo crear o resolver product_size para aumentar la cantidad del ítem de la orden.'
+                );
+            }
+
+            if ($detail->color_id) {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $detail->color_id)
+                    ->lockForUpdate()
+                    ->first();
             }
         }
 
