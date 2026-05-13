@@ -81,9 +81,21 @@ class ProductSizeColorService
             $productSize->load('product');
         }
 
+        $pivotFresh = DB::table('product_size_color')
+            ->where('product_size_id', $psId)
+            ->where('color_id', $colorId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($pivotFresh === null) {
+            throw new RuntimeException(
+                'No se pudo leer el stock de color tras la mutación para auditoría.'
+            );
+        }
+
         $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
 
-        $newData = ['stock' => $newStock, 'size_id_ref' => $productSize->size_id];
+        $newData = ['stock' => (int) $pivotFresh->stock, 'size_id_ref' => $productSize->size_id];
         $oldData = $existingPivot !== []
             ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id])
             : [];

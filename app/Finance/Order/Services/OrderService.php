@@ -145,40 +145,16 @@ class OrderService extends ModelService
                 'notes' => $data['notes'] ?? null, // Le agregué el ?? null por seguridad
             ]);
 
-            $items = $data['items'] ?? [];
-            $productIdsForSort = collect($items)
-                ->pluck('product_id')
-                ->unique()
-                ->filter()
-                ->values()
-                ->all();
-
-            $psIdByPair = [];
-            if ($productIdsForSort !== []) {
-                foreach (DB::table('product_size')
-                    ->whereIn('product_id', $productIdsForSort)
-                    ->get(['id', 'product_id', 'size_id']) as $pse) {
-                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
-                    $psIdByPair[$pairKey] = (int) $pse->id;
-                }
-            }
-
-            $resolveProcessOrderProductSizeId = static function (array $item, array $psMap): int {
-                if (isset($item['product_size_id']) && (int) $item['product_size_id'] > 0) {
-                    return (int) $item['product_size_id'];
-                }
-
-                $pid = (int) ($item['product_id'] ?? 0);
-                $sid = (int) ($item['size_id'] ?? 0);
-                $psId = $psMap[sprintf('%d:%d', $pid, $sid)] ?? null;
-
-                return $psId !== null ? (int) $psId : PHP_INT_MAX;
-            };
-
+            $items = array_values($data['items'] ?? []);
             usort(
                 $items,
-                fn (array $a, array $b): int => $resolveProcessOrderProductSizeId($a, $psIdByPair)
-                    <=> $resolveProcessOrderProductSizeId($b, $psIdByPair),
+                fn (array $a, array $b): int => $this->inventoryLockSortKey(
+                    (int) ($a['product_id'] ?? 0),
+                    (int) ($a['size_id'] ?? 0),
+                ) <=> $this->inventoryLockSortKey(
+                    (int) ($b['product_id'] ?? 0),
+                    (int) ($b['size_id'] ?? 0),
+                ),
             );
 
             foreach ($items as $item) {
@@ -256,6 +232,14 @@ class OrderService extends ModelService
                     }
                 }
 
+                $newStockDb = $colorId > 0
+                    ? (int) (DB::table('product_size_color')
+                        ->where('product_size_id', $psId)
+                        ->where('color_id', $colorId)
+                        ->lockForUpdate()
+                        ->first()?->stock ?? 0)
+                    : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->first()?->stock ?? 0);
+
                 // Recuperar nombres directos de las tablas (Sin depender de relaciones frágiles)
                 $sizeName = DB::table('sizes')->where('id', $sizeId)->value('description') ?? 'Desconocida';
                 $colorName = $colorId > 0
@@ -278,7 +262,7 @@ class OrderService extends ModelService
                     'subtotal' => $item['total'] ?? ($qty * $item['purchase_price']) // Por si no mandas el total en el item
                 ]);
 
-                // Historial de ingreso (orden)
+                // Historial de ingreso (stock final = lectura post-mutación)
                 ProductHistory::create([
                     'product_id' => $productId,
                     'entity_type' => 'ORDER',
@@ -288,7 +272,7 @@ class OrderService extends ModelService
                         'stock' => $currentStock
                     ],
                     'new_values' => [
-                        'stock' => $currentStock + $qty, // ¡OJO AQUÍ! Lo cambié a + $qty porque es un ingreso
+                        'stock' => $newStockDb,
                         'quantity' => $qty,
                         'unit_price' => $item['unit_price'] ?? $item['purchase_price'], // Fallback por si acaso
                         'order_code' => $order->code,
@@ -308,25 +292,10 @@ class OrderService extends ModelService
             // 1. Cargar los detalles si no están cargados
             $model->load('details');
 
-            $details = $model->details;
-            $productIdsForSort = $details->pluck('product_id')->unique()->filter()->values()->all();
-
-            $psIdByPair = [];
-            if ($productIdsForSort !== []) {
-                foreach (DB::table('product_size')
-                    ->whereIn('product_id', $productIdsForSort)
-                    ->get(['id', 'product_id', 'size_id']) as $pse) {
-                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
-                    $psIdByPair[$pairKey] = (int) $pse->id;
-                }
-            }
-
-            $details = $details
-                ->sort(function ($a, $b) use ($psIdByPair): int {
-                    $psa = $psIdByPair[sprintf('%s:%s', $a->product_id, $a->size_id)] ?? PHP_INT_MAX;
-                    $psb = $psIdByPair[sprintf('%s:%s', $b->product_id, $b->size_id)] ?? PHP_INT_MAX;
-
-                    return $psa <=> $psb;
+            $details = $model->details
+                ->sort(function ($a, $b): int {
+                    return $this->inventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
+                        <=> $this->inventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
                 })
                 ->values();
 
@@ -369,7 +338,15 @@ class OrderService extends ModelService
                     DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
                 }
 
-                // 3. Registrar en Historial de Producto
+                $newStockDb = $detail->color_id
+                    ? (int) (DB::table('product_size_color')
+                        ->where('product_size_id', $psId)
+                        ->where('color_id', $detail->color_id)
+                        ->lockForUpdate()
+                        ->first()?->stock ?? 0)
+                    : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->first()?->stock ?? 0);
+
+                // 3. Registrar en Historial de Producto (stock final = lectura post-mutación)
                 ProductHistory::create([
                     'product_id' => $detail->product_id,
                     'entity_type' => 'ORDER_VOIDED', // O 'ORDER'
@@ -379,7 +356,7 @@ class OrderService extends ModelService
                         'stock' => $currentStock,
                     ],
                     'new_values' => [
-                        'stock' => $currentStock - $qty,
+                        'stock' => $newStockDb,
                         'quantity' => $qty,
                         'reason' => 'Orden de ingreso anulada',
                         'order_code' => $model->code,
@@ -408,7 +385,7 @@ class OrderService extends ModelService
 
             // 2. Actualizar Precios de Ítems (y stock si cambia la cantidad)
             if (!empty($data['items']) && is_array($data['items'])) {
-                $items = $this->sortOrderUpdateItemsByProductSizeId($model, $data['items']);
+                $items = $this->sortOrderUpdateItemsByProductSizePair($model, $data['items']);
                 foreach ($items as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail) {
@@ -459,43 +436,39 @@ class OrderService extends ModelService
     }
 
     /**
-     * Orden ascendente únicamente por `product_size.id`: payload `product_size_id` válido (>0) o lookup del par del detalle.
+     * Anti-deadlock: orden estricto por par (product_id, size_id) del detalle, sin depender de product_size.id.
      *
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    private function sortOrderUpdateItemsByProductSizeId(Model $order, array $items): array
+    private function sortOrderUpdateItemsByProductSizePair(Model $order, array $items): array
     {
         $items = array_values($items);
         usort(
             $items,
-            fn (array $a, array $b): int => $this->resolveOrderUpdateItemSortKeyProductSizeId($order, $a)
-                <=> $this->resolveOrderUpdateItemSortKeyProductSizeId($order, $b),
+            fn (array $a, array $b): int => $this->resolveOrderUpdateItemLockSortKey($order, $a)
+                <=> $this->resolveOrderUpdateItemLockSortKey($order, $b),
         );
 
         return $items;
     }
 
-    private function resolveOrderUpdateItemSortKeyProductSizeId(Model $order, array $itemData): int
+    private function resolveOrderUpdateItemLockSortKey(Model $order, array $itemData): string
     {
         $detail = $order->details()->where('id', $itemData['id'] ?? 0)->first();
         if (! $detail) {
-            return PHP_INT_MAX;
+            return $this->inventoryLockSortKey(2147483647, 2147483647);
         }
 
-        if (isset($itemData['product_size_id'])) {
-            $fromPayload = (int) $itemData['product_size_id'];
-            if ($fromPayload > 0) {
-                return $fromPayload;
-            }
-        }
+        return $this->inventoryLockSortKey((int) $detail->product_id, (int) $detail->size_id);
+    }
 
-        $psId = DB::table('product_size')
-            ->where('product_id', $detail->product_id)
-            ->where('size_id', $detail->size_id)
-            ->value('id');
-
-        return $psId !== null ? (int) $psId : PHP_INT_MAX;
+    /**
+     * Clave lexicográfica estable para que todas las transacciones bloqueen filas en el mismo orden físico.
+     */
+    private function inventoryLockSortKey(int $productId, int $sizeId): string
+    {
+        return sprintf('%010d-%010d', $productId, $sizeId);
     }
 
     /**
@@ -510,19 +483,20 @@ class OrderService extends ModelService
 
         $product = Product::findOrFail($detail->product_id);
 
-        if ($delta < 0) {
-            $psId = DB::table('product_size')
-                ->where('product_id', $detail->product_id)
-                ->where('size_id', $detail->size_id)
-                ->lockForUpdate()
-                ->value('id');
+        $masterRow = DB::table('product_size')
+            ->where('product_id', $detail->product_id)
+            ->where('size_id', $detail->size_id)
+            ->lockForUpdate()
+            ->first();
 
-            if (!$psId) {
+        if ($delta < 0) {
+            if (! $masterRow) {
                 throw new RuntimeException(
                     'No se encontró inventario para revertir el ajuste de cantidad en la orden.'
                 );
             }
 
+            $psId = (int) $masterRow->id;
             $need = abs($delta);
 
             if ($detail->color_id) {
@@ -540,40 +514,33 @@ class OrderService extends ModelService
                 }
             }
 
-            // Maestro ya bloqueado arriba; lectura sin re-bloqueo redundante.
-            $masterRow = DB::table('product_size')->where('id', $psId)->first();
-            $masterStock = $masterRow ? (int) $masterRow->stock : 0;
+            $masterStock = (int) $masterRow->stock;
             if ($masterStock < $need) {
                 throw new RuntimeException(
                     'Stock insuficiente para reducir la cantidad del ítem de la orden.'
                 );
             }
-        } elseif ($delta > 0) {
-            $psId = DB::table('product_size')
-                ->where('product_id', $detail->product_id)
-                ->where('size_id', $detail->size_id)
-                ->lockForUpdate()
-                ->value('id');
-
-            if (! $psId) {
+        } else {
+            if (! $masterRow) {
                 $this->productSizeService->setStock(
                     $product,
                     (int) $detail->size_id,
                     0,
                     $pivotData,
                 );
-                $psId = DB::table('product_size')
+                $masterRow = DB::table('product_size')
                     ->where('product_id', $detail->product_id)
                     ->where('size_id', $detail->size_id)
-                    ->lockForUpdate()
-                    ->value('id');
+                    ->first();
             }
 
-            if (! $psId) {
+            if (! $masterRow) {
                 throw new RuntimeException(
                     'No se pudo crear o resolver product_size para aumentar la cantidad del ítem de la orden.'
                 );
             }
+
+            $psId = (int) $masterRow->id;
 
             if ($detail->color_id) {
                 DB::table('product_size_color')
@@ -595,7 +562,7 @@ class OrderService extends ModelService
             ->where('size_id', $detail->size_id)
             ->first();
 
-        if (!$productSize) {
+        if (! $productSize) {
             throw new RuntimeException('No se pudo resolver product_size tras el ajuste de stock.');
         }
 

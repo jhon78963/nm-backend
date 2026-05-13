@@ -75,7 +75,7 @@ class SaleService extends ModelService
             $model->save();
 
             if (!empty($data['items']) && is_array($data['items'])) {
-                $items = $this->sortUpdateItemsByProductSizeId($model, $data['items']);
+                $items = $this->sortUpdateItemsByProductSizePair($model, $data['items']);
                 foreach ($items as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail)
@@ -198,47 +198,59 @@ class SaleService extends ModelService
     }
 
     /**
-     * Anti-deadlock: orden ascendente únicamente por `product_size_id` estable del ítem
-     * (valor enviado por el cliente o el maestro actual del detalle).
+     * Anti-deadlock: orden estricto por par (product_id, size_id) del detalle, sin depender de product_size.id.
      *
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    private function sortUpdateItemsByProductSizeId(Model $model, array $items): array
+    private function sortUpdateItemsByProductSizePair(Model $model, array $items): array
     {
         $items = array_values($items);
         usort(
             $items,
-            fn (array $a, array $b): int => $this->resolveSaleUpdateItemSortKeyProductSizeId($model, $a)
-                <=> $this->resolveSaleUpdateItemSortKeyProductSizeId($model, $b),
+            fn (array $a, array $b): int => $this->resolveSaleUpdateItemLockSortKey($model, $a)
+                <=> $this->resolveSaleUpdateItemLockSortKey($model, $b),
         );
 
         return $items;
     }
 
-    /**
-     * Clave estable: payload `product_size_id` (> 0); si no, `product_size.id` del par producto+talla vigente del detalle.
-     */
-    private function resolveSaleUpdateItemSortKeyProductSizeId(Model $model, array $itemData): int
+    private function resolveSaleUpdateItemLockSortKey(Model $model, array $itemData): string
     {
         $detail = $model->details()->where('id', $itemData['id'] ?? 0)->first();
         if (! $detail) {
-            return PHP_INT_MAX;
+            return $this->inventoryLockSortKey(2147483647, 2147483647);
         }
 
-        if (isset($itemData['product_size_id'])) {
-            $fromPayload = (int) $itemData['product_size_id'];
-            if ($fromPayload > 0) {
-                return $fromPayload;
-            }
+        return $this->inventoryLockSortKey((int) $detail->product_id, (int) $detail->size_id);
+    }
+
+    /**
+     * Clave lexicográfica estable para que todas las transacciones bloqueen filas en el mismo orden físico.
+     */
+    private function inventoryLockSortKey(int $productId, int $sizeId): string
+    {
+        return sprintf('%010d-%010d', $productId, $sizeId);
+    }
+
+    /**
+     * POS: orden por (product_id, size_id) del payload si vienen; si no, por el par resuelto desde product_size_id.
+     *
+     * @param  array<string, mixed>  $line
+     * @param  array<int, array{0: int, 1: int}>  $pairByProductSizeId
+     */
+    private function resolvePosLineInventoryLockSortKey(array $line, array $pairByProductSizeId): string
+    {
+        $fromPid = isset($line['product_id']) ? (int) $line['product_id'] : 0;
+        $fromSid = isset($line['size_id']) ? (int) $line['size_id'] : 0;
+        if ($fromPid > 0 && $fromSid > 0) {
+            return $this->inventoryLockSortKey($fromPid, $fromSid);
         }
 
-        $currentPsId = DB::table('product_size')
-            ->where('product_id', $detail->product_id)
-            ->where('size_id', $detail->size_id)
-            ->value('id');
+        $psId = (int) ($line['product_size_id'] ?? 0);
+        [$pid, $sid] = $pairByProductSizeId[$psId] ?? [0, 0];
 
-        return $currentPsId !== null ? (int) $currentPsId : PHP_INT_MAX;
+        return $this->inventoryLockSortKey($pid, $sid);
     }
 
     /**
@@ -332,13 +344,15 @@ class SaleService extends ModelService
             }
         }
 
-        $newStockAudited = $effectiveColorId
-            ? (int) (DB::table('product_size_color')
+        $newRow = $effectiveColorId
+            ? DB::table('product_size_color')
                 ->where('product_size_id', $psId)
                 ->where('color_id', $effectiveColorId)
                 ->lockForUpdate()
-                ->value('stock') ?? 0)
-            : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->value('stock') ?? 0);
+                ->first()
+            : DB::table('product_size')->where('id', $psId)->lockForUpdate()->first();
+
+        $newStockAudited = (int) ($newRow->stock ?? 0);
 
         ProductHistory::create([
             'product_id' => $productId,
@@ -396,25 +410,10 @@ class SaleService extends ModelService
 
             $model->load('details');
 
-            $details = $model->details;
-            $productIdsForSort = $details->pluck('product_id')->unique()->filter()->values()->all();
-
-            $psIdByPair = [];
-            if ($productIdsForSort !== []) {
-                foreach (DB::table('product_size')
-                    ->whereIn('product_id', $productIdsForSort)
-                    ->get(['id', 'product_id', 'size_id']) as $pse) {
-                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
-                    $psIdByPair[$pairKey] = (int) $pse->id;
-                }
-            }
-
-            $details = $details
-                ->sort(function ($a, $b) use ($psIdByPair): int {
-                    $psa = $psIdByPair[sprintf('%s:%s', $a->product_id, $a->size_id)] ?? PHP_INT_MAX;
-                    $psb = $psIdByPair[sprintf('%s:%s', $b->product_id, $b->size_id)] ?? PHP_INT_MAX;
-
-                    return $psa <=> $psb;
+            $details = $model->details
+                ->sort(function ($a, $b): int {
+                    return $this->inventoryLockSortKey((int) $a->product_id, (int) $a->size_id)
+                        <=> $this->inventoryLockSortKey((int) $b->product_id, (int) $b->size_id);
                 })
                 ->values();
 
@@ -459,7 +458,15 @@ class SaleService extends ModelService
                         DB::table('product_size')->where('id', $psId)->increment('stock', $detail->quantity);
                     }
 
-                    // 3. Registrar en Historial (Con valores reales bloqueados)
+                    $newStockDb = $detail->color_id
+                        ? (int) (DB::table('product_size_color')
+                            ->where('product_size_id', $psId)
+                            ->where('color_id', $detail->color_id)
+                            ->lockForUpdate()
+                            ->first()?->stock ?? 0)
+                        : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->first()?->stock ?? 0);
+
+                    // 3. Registrar en Historial (stock final = lectura post-mutación bajo el mismo bloqueo transaccional)
                     ProductHistory::create([
                         'product_id' => $detail->product_id,
                         'entity_type' => 'SALE_VOIDED',
@@ -467,7 +474,7 @@ class SaleService extends ModelService
                         'event_type' => 'RETURNED',
                         'old_values' => ['stock' => $currentStock],
                         'new_values' => [
-                            'stock' => $currentStock + $detail->quantity,
+                            'stock' => $newStockDb,
                             'quantity' => $detail->quantity,
                             'reason' => 'Venta anulada por el usuario',
                             'sale_code' => $model->code
@@ -538,9 +545,23 @@ class SaleService extends ModelService
                 $sale->payments()->create($p);
             }
 
+            $psIdsForPairs = array_values(array_unique(array_filter(array_map(
+                static fn (array $line): int => (int) ($line['product_size_id'] ?? 0),
+                $lines,
+            ))));
+            $pairByProductSizeId = [];
+            if ($psIdsForPairs !== []) {
+                foreach (DB::table('product_size')
+                    ->whereIn('id', $psIdsForPairs)
+                    ->get(['id', 'product_id', 'size_id']) as $row) {
+                    $pairByProductSizeId[(int) $row->id] = [(int) $row->product_id, (int) $row->size_id];
+                }
+            }
+
             usort(
                 $lines,
-                fn (array $a, array $b): int => ((int) ($a['product_size_id'] ?? 0)) <=> ((int) ($b['product_size_id'] ?? 0)),
+                fn (array $a, array $b): int => $this->resolvePosLineInventoryLockSortKey($a, $pairByProductSizeId)
+                    <=> $this->resolvePosLineInventoryLockSortKey($b, $pairByProductSizeId),
             );
 
             // E. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
@@ -584,6 +605,14 @@ class SaleService extends ModelService
                         ->decrement('stock', $qty);
                 }
 
+                $newStockDb = $colorId > 0
+                    ? (int) (DB::table('product_size_color')
+                        ->where('product_size_id', $productSizeId)
+                        ->where('color_id', $colorId)
+                        ->lockForUpdate()
+                        ->first()?->stock ?? 0)
+                    : (int) (DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first()?->stock ?? 0);
+
                 // 3. Recuperar nombres
                 $sizeInfo = DB::table('product_size')
                     ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
@@ -622,7 +651,7 @@ class SaleService extends ModelService
                         'stock' => $currentStock // Stock Antes
                     ],
                     'new_values' => [
-                        'stock' => $currentStock - $qty, // Stock Después
+                        'stock' => $newStockDb,
                         'quantity' => $qty,
                         'unit_price' => $item['unit_price'],
                         'sale_code' => $sale->code,
@@ -703,6 +732,14 @@ class SaleService extends ModelService
                     DB::table('product_size')->where('id', $returnedPsId)->increment('stock', $qty);
                 }
 
+                $newStockReturnedDb = $returnedDetail->color_id
+                    ? (int) (DB::table('product_size_color')
+                        ->where('product_size_id', $returnedPsId)
+                        ->where('color_id', $returnedDetail->color_id)
+                        ->lockForUpdate()
+                        ->first()?->stock ?? 0)
+                    : (int) (DB::table('product_size')->where('id', $returnedPsId)->lockForUpdate()->first()?->stock ?? 0);
+
                 ProductHistory::create([
                     'product_id' => $returnedDetail->product_id,
                     'entity_type' => 'EXCHANGE',
@@ -712,7 +749,7 @@ class SaleService extends ModelService
                         'stock' => $currentStockReturned,
                     ],
                     'new_values' => [
-                        'stock' => $currentStockReturned + $qty,
+                        'stock' => $newStockReturnedDb,
                         'quantity' => $qty,
                         'unit_price' => $returnedDetail->unit_price,
                         'sale_code' => $originalSale->code,
@@ -762,6 +799,14 @@ class SaleService extends ModelService
                 DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
             }
 
+            $newStockTakenDb = $newColorId > 0
+                ? (int) (DB::table('product_size_color')
+                    ->where('product_size_id', $newPsId)
+                    ->where('color_id', $newColorId)
+                    ->lockForUpdate()
+                    ->first()?->stock ?? 0)
+                : (int) (DB::table('product_size')->where('id', $newPsId)->lockForUpdate()->first()?->stock ?? 0);
+
             // 3. Crear Detalle Nuevo
             $originalSale->details()->create([
                 'product_id' => $newProdInfo->pid,
@@ -787,7 +832,7 @@ class SaleService extends ModelService
                     'stock' => $currentStockNew // Stock Antes
                 ],
                 'new_values' => [
-                    'stock' => $currentStockNew - $qty, // Stock Después
+                    'stock' => $newStockTakenDb,
                     'quantity' => $qty,
                     'unit_price' => $newPrice,
                     'sale_code' => $originalSale->code,

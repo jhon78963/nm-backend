@@ -209,12 +209,8 @@ class PurchaseBulkService
         $lines = array_values(array_filter($lines, 'is_array'));
         usort(
             $lines,
-            fn (array $a, array $b): int => $this->compareBulkLinesByProductSizeKey(
-                $a,
-                $b,
-                $productTempMap,
-                $sizeTempMap,
-            ),
+            fn (array $a, array $b): int => $this->bulkLineInventoryLockSortKey($a, $productTempMap, $sizeTempMap)
+                <=> $this->bulkLineInventoryLockSortKey($b, $productTempMap, $sizeTempMap),
         );
 
         foreach ($lines as $line) {
@@ -223,52 +219,22 @@ class PurchaseBulkService
     }
 
     /**
-     * Orden ascendente por product_size.id cuando existe fila; si aún no existe, por (product_id, size_id).
+     * Par (product_id, size_id) resuelto de la línea → clave anti-deadlock (sin usar product_size.id).
      */
-    private function compareBulkLinesByProductSizeKey(
-        array $a,
-        array $b,
-        array $productTempMap,
-        array $sizeTempMap,
-    ): int {
-        [$pa, $sa, $ida] = $this->bulkLineProductSizeSortTuple($a, $productTempMap, $sizeTempMap);
-        [$pb, $sb, $idb] = $this->bulkLineProductSizeSortTuple($b, $productTempMap, $sizeTempMap);
-
-        if ($ida !== null && $idb !== null && $ida !== $idb) {
-            return $ida <=> $idb;
-        }
-        if ($ida !== null && $idb === null) {
-            return -1;
-        }
-        if ($ida === null && $idb !== null) {
-            return 1;
-        }
-
-        $c = $pa <=> $pb;
-
-        return $c !== 0 ? $c : $sa <=> $sb;
-    }
-
-    /**
-     * @return array{0: int, 1: int, 2: ?int}
-     */
-    private function bulkLineProductSizeSortTuple(
+    private function bulkLineInventoryLockSortKey(
         array $line,
         array $productTempMap,
         array $sizeTempMap,
-    ): array {
+    ): string {
         $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
         $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
-        $existingId = DB::table('product_size')
-            ->where('product_id', $productId)
-            ->where('size_id', $sizeId)
-            ->value('id');
 
-        return [
-            $productId,
-            $sizeId,
-            $existingId !== null ? (int) $existingId : null,
-        ];
+        return $this->inventoryLockSortKey($productId, $sizeId);
+    }
+
+    private function inventoryLockSortKey(int $productId, int $sizeId): string
+    {
+        return sprintf('%010d-%010d', $productId, $sizeId);
     }
 
     /**

@@ -66,6 +66,7 @@ class ProductSizeService
         $fresh = DB::table('product_size')
             ->where('product_id', $product->id)
             ->where('size_id', $sizeId)
+            ->lockForUpdate()
             ->first();
 
         $pivotData = [
@@ -150,6 +151,7 @@ class ProductSizeService
         $fresh = DB::table('product_size')
             ->where('product_id', $product->id)
             ->where('size_id', $sizeId)
+            ->lockForUpdate()
             ->first();
 
         $pivotData = [
