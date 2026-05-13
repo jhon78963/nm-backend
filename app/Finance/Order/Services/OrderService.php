@@ -415,7 +415,7 @@ class OrderService extends ModelService
                     ];
 
                     if ($delta !== 0) {
-                        $this->applyOrderDetailStockDelta($detail, $delta, $pivotData);
+                        $this->applyOrderDetailStockDelta($model, $detail, $delta, $pivotData);
                     }
 
                     $total = $newQty * $purchasePrice;
@@ -470,13 +470,14 @@ class OrderService extends ModelService
      * Ajusta inventario por cambio de cantidad en un detalle de orden (ingreso).
      * Replica la lógica de processOrder: pivot product_size + product_size_color cuando hay color.
      */
-    private function applyOrderDetailStockDelta(OrderDetail $detail, int $delta, array $pivotData): void
+    private function applyOrderDetailStockDelta(Model $order, OrderDetail $detail, int $delta, array $pivotData): void
     {
         if ($delta === 0) {
             return;
         }
 
         $product = Product::findOrFail($detail->product_id);
+        $colorIdForStock = $detail->color_id ? (int) $detail->color_id : 0;
 
         $masterRow = DB::table('product_size')
             ->where('product_id', $detail->product_id)
@@ -491,12 +492,11 @@ class OrderService extends ModelService
                 );
             }
 
-            $psId = (int) $masterRow->id;
             $need = abs($delta);
 
             if ($detail->color_id) {
                 $colorRow = DB::table('product_size_color')
-                    ->where('product_size_id', $psId)
+                    ->where('product_size_id', (int) $masterRow->id)
                     ->where('color_id', $detail->color_id)
                     ->lockForUpdate()
                     ->first();
@@ -535,15 +535,28 @@ class OrderService extends ModelService
                 );
             }
 
-            $psId = (int) $masterRow->id;
-
             if ($detail->color_id) {
                 DB::table('product_size_color')
-                    ->where('product_size_id', $psId)
+                    ->where('product_size_id', (int) $masterRow->id)
                     ->where('color_id', $detail->color_id)
                     ->lockForUpdate()
                     ->first();
             }
+        }
+
+        $psId = (int) $masterRow->id;
+
+        if ($colorIdForStock > 0) {
+            $oldStock = (int) (DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $colorIdForStock)
+                ->lockForUpdate()
+                ->first()?->stock ?? 0);
+        } else {
+            $oldStock = (int) (DB::table('product_size')
+                ->where('id', $psId)
+                ->lockForUpdate()
+                ->first()?->stock ?? 0);
         }
 
         $this->productSizeService->setStock(
@@ -561,7 +574,7 @@ class OrderService extends ModelService
             throw new RuntimeException('No se pudo resolver product_size tras el ajuste de stock.');
         }
 
-        $colorId = $detail->color_id ? (int) $detail->color_id : 0;
+        $colorId = $colorIdForStock;
 
         if ($colorId > 0) {
             if ($delta > 0) {
@@ -589,5 +602,48 @@ class OrderService extends ModelService
                     ->decrement('stock', abs($delta));
             }
         }
+
+        $psIdAfter = (int) $productSize->id;
+
+        if ($colorIdForStock > 0) {
+            $newStock = (int) (DB::table('product_size_color')
+                ->where('product_size_id', $psIdAfter)
+                ->where('color_id', $colorIdForStock)
+                ->lockForUpdate()
+                ->first()?->stock ?? 0);
+        } else {
+            $newStock = (int) (DB::table('product_size')
+                ->where('id', $psIdAfter)
+                ->lockForUpdate()
+                ->first()?->stock ?? 0);
+        }
+
+        $sizeName = DB::table('sizes')->where('id', $detail->size_id)->value('description') ?? 'Desconocida';
+        $colorName = $colorIdForStock > 0
+            ? (DB::table('colors')->where('id', $colorIdForStock)->value('description') ?? 'Desconocido')
+            : 'Único';
+
+        ProductHistory::create([
+            'product_id' => (int) $detail->product_id,
+            'entity_type' => 'ORDER_UPDATE',
+            'entity_id' => (int) $order->getKey(),
+            'event_type' => $delta > 0 ? 'ADDED' : 'RETURNED',
+            'old_values' => [
+                'stock' => $oldStock,
+            ],
+            'new_values' => [
+                'stock' => $newStock,
+                'quantity_delta' => $delta,
+                'purchase_price' => $pivotData['purchase_price'],
+                'order_code' => (string) ($order->getAttribute('code') ?? ''),
+                'order_detail_id' => (int) $detail->id,
+                'product_size_id' => $psIdAfter,
+                'color_id' => $colorIdForStock > 0 ? $colorIdForStock : null,
+                'size_name' => $sizeName,
+                'color_name' => $colorName,
+                'reason' => 'Ajuste por edición de cantidad en Orden de Ingreso',
+            ],
+            'creator_user_id' => Auth::id(),
+        ]);
     }
 }

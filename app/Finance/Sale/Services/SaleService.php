@@ -389,6 +389,40 @@ class SaleService extends ModelService
     }
 
     /**
+     * Devolución de venta/cambio con color: el maestro (product_size) debe estar ya bloqueado.
+     * Si no existe fila en product_size_color (dato huérfano), la crea con stock = cantidad devuelta.
+     *
+     * @return int Stock del color antes de aplicar la devolución (0 si no había pivote).
+     */
+    private function restoreStockForReturnedSaleLineWithColor(int $psId, int $colorId, int $qty): int
+    {
+        $colorRow = DB::table('product_size_color')
+            ->where('product_size_id', $psId)
+            ->where('color_id', $colorId)
+            ->lockForUpdate()
+            ->first();
+
+        $stockBefore = $colorRow ? (int) $colorRow->stock : 0;
+
+        DB::table('product_size')->where('id', $psId)->increment('stock', $qty);
+
+        if ($colorRow) {
+            DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $colorId)
+                ->increment('stock', $qty);
+        } else {
+            DB::table('product_size_color')->insert([
+                'product_size_id' => $psId,
+                'color_id' => $colorId,
+                'stock' => $qty,
+            ]);
+        }
+
+        return $stockBefore;
+    }
+
+    /**
      * Obtiene nombres para el snapshot al cambiar producto
      */
     private function getNewProductSnapshot($psId, $colorId)
@@ -452,20 +486,11 @@ class SaleService extends ModelService
                     }
 
                     if ($detail->color_id) {
-                        $colorRow = DB::table('product_size_color')
-                            ->where('product_size_id', $psId)
-                            ->where('color_id', $detail->color_id)
-                            ->lockForUpdate()
-                            ->first();
-
-                        $currentStock = $colorRow ? $colorRow->stock : 0;
-
-                        DB::table('product_size')->where('id', $psId)->increment('stock', $detail->quantity);
-
-                        DB::table('product_size_color')
-                            ->where('product_size_id', $psId)
-                            ->where('color_id', $detail->color_id)
-                            ->increment('stock', $detail->quantity);
+                        $currentStock = $this->restoreStockForReturnedSaleLineWithColor(
+                            (int) $psId,
+                            (int) $detail->color_id,
+                            (int) $detail->quantity,
+                        );
                     } else {
                         $currentStock = (int) $masterRow->stock;
 
@@ -726,19 +751,11 @@ class SaleService extends ModelService
 
                 $currentStockReturned = 0;
                 if ($returnedDetail->color_id) {
-                    $cRow = DB::table('product_size_color')
-                        ->where('product_size_id', $returnedPsId)
-                        ->where('color_id', $returnedDetail->color_id)
-                        ->lockForUpdate()
-                        ->first();
-                    $currentStockReturned = $cRow ? (int) $cRow->stock : 0;
-
-                    DB::table('product_size')->where('id', $returnedPsId)->increment('stock', $qty);
-
-                    DB::table('product_size_color')
-                        ->where('product_size_id', $returnedPsId)
-                        ->where('color_id', $returnedDetail->color_id)
-                        ->increment('stock', $qty);
+                    $currentStockReturned = $this->restoreStockForReturnedSaleLineWithColor(
+                        $returnedPsId,
+                        (int) $returnedDetail->color_id,
+                        $qty,
+                    );
                 } else {
                     $mRow = DB::table('product_size')->where('id', $returnedPsId)->first();
                     $currentStockReturned = $mRow ? (int) $mRow->stock : 0;
