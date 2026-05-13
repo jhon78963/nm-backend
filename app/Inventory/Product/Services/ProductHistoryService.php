@@ -9,8 +9,19 @@ class ProductHistoryService
 {
     /**
      * Registra un cambio en el historial.
+     *
+     * @param  mixed  $oldData  Datos previos (array|null) para comparación y persistencia JSON
+     * @param  mixed  $newData  Datos nuevos persistidos como JSON
      */
-    public function logChange($product, string $entityType, int $entityId, string $eventType, $oldData = null, $newData = null): void
+    public function logChange(
+        $product,
+        string $entityType,
+        int $entityId,
+        string $eventType,
+        $oldData = null,
+        $newData = null,
+        ?string $reason = null,
+    ): void
     {
         // Si es un UPDATE y no hay cambios reales, no guardamos nada
         if ($eventType === 'UPDATED' && $oldData == $newData) {
@@ -32,6 +43,7 @@ class ProductHistoryService
             'entity_type' => $entityType,
             'entity_id'   => $entityId,
             'event_type'  => $eventType,
+            'reason' => $reason,
             'old_values'  => $oldData,
             'new_values'  => $newData,
             'creator_user_id'     => Auth::id(),

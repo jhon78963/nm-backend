@@ -16,7 +16,7 @@ class ProductSizeService
         $this->historyService = $historyService;
     }
 
-    public function set(Product $product, int $sizeId, array $data): void
+    public function set(Product $product, int $sizeId, array $data, ?string $auditReason = null): void
     {
         $row = DB::table('product_size')
             ->where('product_id', $product->id)
@@ -88,7 +88,8 @@ class ProductSizeService
             $sizeId,
             $eventType,
             $existingPivot,
-            $pivotData
+            $pivotData,
+            $auditReason,
         );
     }
 

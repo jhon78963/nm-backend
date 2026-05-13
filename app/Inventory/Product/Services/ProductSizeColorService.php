@@ -21,7 +21,7 @@ class ProductSizeColorService
      * @param  array<string, mixed>  $data
      * @param  ?int  $pivotStockDelta  Si no es null, suma ese valor al stock del pivote bajo bloqueo maestro→detalle (el maestro solo se ajusta si $updateMaster).
      */
-    public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true, ?int $pivotStockDelta = null): void
+    public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true, ?int $pivotStockDelta = null, ?string $auditReason = null): void
     {
         if ($pivotStockDelta === null && ! array_key_exists('stock', $data)) {
             return;
@@ -37,7 +37,7 @@ class ProductSizeColorService
             $resolve = static fn (int $current): int => $target;
         }
 
-        $this->lockMasterThenApplyColorStock($productSize, $colorId, $resolve, $updateMaster);
+        $this->lockMasterThenApplyColorStock($productSize, $colorId, $resolve, $updateMaster, $auditReason);
     }
 
     /**
@@ -50,6 +50,7 @@ class ProductSizeColorService
         int $colorId,
         Closure $resolveNewStock,
         bool $updateMaster,
+        ?string $auditReason = null,
     ): void {
         $psId = (int) $productSize->id;
 
@@ -141,13 +142,14 @@ class ProductSizeColorService
             $colorId,
             $eventType,
             $oldData,
-            $newData
+            $newData,
+            $auditReason,
         );
     }
 
-    public function remove(ProductSize $productSize, int $colorId): void
+    public function remove(ProductSize $productSize, int $colorId, ?string $auditReason = null): void
     {
-        DB::transaction(function () use ($productSize, $colorId): void {
+        DB::transaction(function () use ($productSize, $colorId, $auditReason): void {
             $psId = (int) $productSize->id;
 
             $master = DB::table('product_size')
@@ -205,7 +207,68 @@ class ProductSizeColorService
                 'DELETED',
                 $oldForLog,
                 null,
+                $auditReason,
             );
+        });
+    }
+
+    /**
+     * Trasladar todo el stock del pivote origen al color destino (misma talla).
+     * Útil cuando el nombre/catálogo del color no coincide con lo físico (ej. vino → guinda).
+     *
+     * @throws RuntimeException Si no hay pivote origen, sin stock, o colores iguales.
+     */
+    public function replacePivotColor(ProductSize $productSize, int $fromColorId, int $toColorId, ?string $auditReason = null): void
+    {
+        if ($fromColorId === $toColorId) {
+            throw new RuntimeException('El color destino debe ser distinto al actual.');
+        }
+
+        DB::transaction(function () use ($productSize, $fromColorId, $toColorId, $auditReason): void {
+            $psId = (int) $productSize->id;
+
+            $master = DB::table('product_size')
+                ->where('id', $psId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($master === null) {
+                throw new RuntimeException('No se encontró la talla del producto para reemplazar color.');
+            }
+
+            $sortedColorIds = [$fromColorId, $toColorId];
+            sort($sortedColorIds);
+            foreach ($sortedColorIds as $cid) {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $cid)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
+            $fromRow = DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $fromColorId)
+                ->first();
+
+            if ($fromRow === null) {
+                throw new RuntimeException('Este color no está asignado a la talla seleccionada.');
+            }
+
+            $s = (int) $fromRow->stock;
+            if ($s <= 0) {
+                throw new RuntimeException('No hay stock en el color origen para trasladar.');
+            }
+
+            $toRow = DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $toColorId)
+                ->first();
+            $t = $toRow ? (int) $toRow->stock : 0;
+
+            $this->set($productSize, $fromColorId, ['stock' => 0], true, null, $auditReason);
+            $this->remove($productSize, $fromColorId, $auditReason);
+            $this->set($productSize, $toColorId, ['stock' => $t + $s], true, null, $auditReason);
         });
     }
 

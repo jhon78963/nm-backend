@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Route;
 Route::controller(InventoryReconciliationController::class)->group(function (): void {
     Route::get('/inventory/reconciliation/search', 'search');
     Route::put('/inventory/reconciliation/{product}', 'update');
+    Route::post(
+        '/inventory/reconciliation/{product}/product-size/{productSize}/replace-color',
+        'replaceColor',
+    );
 });
 
 Route::controller(ProductController::class)->group(function (): void {

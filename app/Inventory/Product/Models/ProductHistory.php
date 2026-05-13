@@ -14,6 +14,7 @@ class ProductHistory extends Model
         'entity_type', // 'PRODUCT' (General), 'SIZE' (Talla), 'COLOR' (Variante)
         'entity_id',
         'event_type',  // 'CREATED', 'UPDATED', 'DELETED'
+        'reason',
         'old_values',
         'new_values',
         'creation_time',

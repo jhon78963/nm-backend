@@ -6,6 +6,7 @@ use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
+use App\Inventory\Product\Requests\InventoryReconciliationReplaceColorRequest;
 use App\Inventory\Product\Requests\InventoryReconciliationSearchRequest;
 use App\Inventory\Product\Requests\InventoryReconciliationUpdateRequest;
 use App\Inventory\Product\Resources\InventoryReconciliationProductResource;
@@ -22,6 +23,11 @@ class InventoryReconciliationController extends Controller
     use ProvidesInventoryLockSortKey;
 
     private const SEARCH_LIMIT = 20;
+
+    /** Motivo en `product_histories.reason` para ajustes manuales del cuadre físico */
+    private const AUDIT_REASON_PHYSICAL_COUNT = 'Cuadre de inventario físico';
+
+    private const AUDIT_REASON_REPLACE_COLOR_LABEL = 'Cuadre de inventario físico — sustitución de etiqueta de color';
 
     public function __construct(
         protected ProductService $productService,
@@ -112,6 +118,7 @@ class InventoryReconciliationController extends Controller
                             (int) $colorPayload['colorId'],
                             ['stock' => (int) $colorPayload['stock']],
                             updateMaster: true,
+                            auditReason: self::AUDIT_REASON_PHYSICAL_COUNT,
                         );
                     }
 
@@ -139,6 +146,7 @@ class InventoryReconciliationController extends Controller
                                 ],
                                 $this->mergeSizePayloadPricingAndBarcode($sizePayload, $masterRow),
                             ),
+                            self::AUDIT_REASON_PHYSICAL_COUNT,
                         );
                     }
 
@@ -148,6 +156,7 @@ class InventoryReconciliationController extends Controller
                         $product,
                         (int) $productSize->size_id,
                         $this->buildMasterOnlySizeData($productSize, $sizePayload),
+                        self::AUDIT_REASON_PHYSICAL_COUNT,
                     );
                     $touchedMasterIds[] = (int) $productSize->id;
                 }
@@ -169,6 +178,46 @@ class InventoryReconciliationController extends Controller
             'product' => $freshProduct !== null
                 ? new InventoryReconciliationProductResource($freshProduct)
                 : null,
+        ]);
+    }
+
+    public function replaceColor(
+        InventoryReconciliationReplaceColorRequest $request,
+        Product $product,
+        ProductSize $productSize,
+    ): JsonResponse {
+        $this->productService->validate($product, 'Product');
+
+        if ((int) $productSize->product_id !== (int) $product->id) {
+            abort(404);
+        }
+
+        $fromColorId = (int) $request->validated('fromColorId');
+        $toColorId = (int) $request->validated('toColorId');
+
+        try {
+            DB::transaction(function () use ($productSize, $fromColorId, $toColorId): void {
+                $this->productSizeColorService->replacePivotColor(
+                    $productSize,
+                    $fromColorId,
+                    $toColorId,
+                    self::AUDIT_REASON_REPLACE_COLOR_LABEL,
+                );
+                $this->assertMasterMatchesColorsSum((int) $productSize->id);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $freshProduct = $product->fresh()->load([
+            'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
+            'productSizes.size',
+            'productSizes.colors',
+        ]);
+
+        return response()->json([
+            'message' => 'Color de la variante actualizado; el stock se mantuvo en la nueva etiqueta.',
+            'product' => new InventoryReconciliationProductResource($freshProduct),
         ]);
     }
 
