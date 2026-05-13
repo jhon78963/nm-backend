@@ -21,6 +21,7 @@ class Order extends Model
         'type',
         'status',
         'notes',
+        'tenant_id',
     ];
 
     protected $hidden = [

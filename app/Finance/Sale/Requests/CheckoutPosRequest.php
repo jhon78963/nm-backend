@@ -19,13 +19,15 @@ class CheckoutPosRequest extends FormRequest
         return [
             'customer' => 'nullable|array',
             'customer.id' => 'nullable|integer',
-            'total' => 'required|numeric',
+            // El total se recalcula en servidor; el cliente puede enviarlo solo como referencia.
+            'total' => 'nullable|numeric',
             'items' => 'required|array|min:1',
             'items.*.color.product_size_id' => 'required|integer',
             'items.*.color.color_id' => 'required|integer',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unitPrice' => 'required|numeric',
-            'items.*.total' => 'required|numeric',
+            'items.*.unitPrice' => 'required|numeric|min:0',
+            // Subtotal por línea ignorado en servidor (se deriva de cantidad × precio unitario).
+            'items.*.total' => 'nullable|numeric',
             'payments' => 'required|array|min:1',
             'payments.*.method' => 'required|string',
             'payments.*.amount' => 'required|numeric',

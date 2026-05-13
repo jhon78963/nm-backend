@@ -3,6 +3,7 @@
 namespace App\Finance\Order\Services;
 
 use App\Finance\Order\Models\Order;
+use App\Finance\Order\Models\OrderDetail;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Inventory\Product\Models\ProductSize;
@@ -11,6 +12,7 @@ use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class OrderService extends ModelService
 {
@@ -335,22 +337,46 @@ class OrderService extends ModelService
             $model->fill($data);
             $model->save();
 
-            // 2. Actualizar Precios de Ítems
+            // 2. Actualizar Precios de Ítems (y stock si cambia la cantidad)
             if (!empty($data['items']) && is_array($data['items'])) {
                 foreach ($data['items'] as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
-                    if ($detail) {
-                        $quantity = (int) $itemData['quantity'];
-                        $total = $quantity * (float)$itemData['purchase_price'];
-                        $detail->update([
-                            'quantity' => $quantity,
-                            'barcode' => $itemData['barcode'],
-                            'purchase_price' => $itemData['purchase_price'],
-                            'sale_price' => $itemData['sale_price'],
-                            'min_sale_price' => $itemData['min_sale_price'],
-                            'subtotal' => $total,
-                        ]);
+                    if (!$detail) {
+                        continue;
                     }
+
+                    $oldQty = (int) $detail->quantity;
+                    $newQty = (int) $itemData['quantity'];
+                    $delta = $newQty - $oldQty;
+
+                    $purchasePrice = array_key_exists('purchase_price', $itemData)
+                        ? (float) $itemData['purchase_price']
+                        : (float) $detail->purchase_price;
+
+                    $pivotData = [
+                        'barcode' => $itemData['barcode'] ?? $detail->barcode,
+                        'purchase_price' => $purchasePrice,
+                        'sale_price' => array_key_exists('sale_price', $itemData)
+                            ? (float) $itemData['sale_price']
+                            : (float) $detail->sale_price,
+                        'min_sale_price' => array_key_exists('min_sale_price', $itemData)
+                            ? (float) $itemData['min_sale_price']
+                            : (float) $detail->min_sale_price,
+                    ];
+
+                    if ($delta !== 0) {
+                        $this->applyOrderDetailStockDelta($detail, $delta, $pivotData);
+                    }
+
+                    $total = $newQty * $purchasePrice;
+                    $detail->update([
+                        'quantity' => $newQty,
+                        'barcode' => $pivotData['barcode'],
+                        'purchase_price' => $pivotData['purchase_price'],
+                        'sale_price' => $pivotData['sale_price'],
+                        'min_sale_price' => $pivotData['min_sale_price'],
+                        'subtotal' => $total,
+                    ]);
                 }
 
                 // Recalcular Total General
@@ -360,5 +386,101 @@ class OrderService extends ModelService
 
             return $model->fresh(['details']);
         });
+    }
+
+    /**
+     * Ajusta inventario por cambio de cantidad en un detalle de orden (ingreso).
+     * Replica la lógica de processOrder: pivot product_size + product_size_color cuando hay color.
+     */
+    private function applyOrderDetailStockDelta(OrderDetail $detail, int $delta, array $pivotData): void
+    {
+        if ($delta === 0) {
+            return;
+        }
+
+        $product = Product::findOrFail($detail->product_id);
+
+        if ($delta < 0) {
+            $psId = DB::table('product_size')
+                ->where('product_id', $detail->product_id)
+                ->where('size_id', $detail->size_id)
+                ->lockForUpdate()
+                ->value('id');
+
+            if (!$psId) {
+                throw new RuntimeException(
+                    'No se encontró inventario para revertir el ajuste de cantidad en la orden.'
+                );
+            }
+
+            $need = abs($delta);
+
+            if ($detail->color_id) {
+                $colorRow = DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $detail->color_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $colorStock = $colorRow ? (int) $colorRow->stock : 0;
+                if ($colorStock < $need) {
+                    throw new RuntimeException(
+                        'Stock insuficiente en color para reducir la cantidad del ítem de la orden.'
+                    );
+                }
+            }
+
+            $masterRow = DB::table('product_size')->where('id', $psId)->lockForUpdate()->first();
+            $masterStock = $masterRow ? (int) $masterRow->stock : 0;
+            if ($masterStock < $need) {
+                throw new RuntimeException(
+                    'Stock insuficiente para reducir la cantidad del ítem de la orden.'
+                );
+            }
+        }
+
+        $this->productSizeService->setStock(
+            $product,
+            (int) $detail->size_id,
+            $delta,
+            $pivotData,
+        );
+
+        $productSize = ProductSize::where('product_id', $detail->product_id)
+            ->where('size_id', $detail->size_id)
+            ->first();
+
+        if (!$productSize) {
+            throw new RuntimeException('No se pudo resolver product_size tras el ajuste de stock.');
+        }
+
+        $colorId = $detail->color_id ? (int) $detail->color_id : 0;
+
+        if ($colorId > 0) {
+            if ($delta > 0) {
+                $colorRowExists = DB::table('product_size_color')
+                    ->where('product_size_id', $productSize->id)
+                    ->where('color_id', $colorId)
+                    ->exists();
+
+                if ($colorRowExists) {
+                    DB::table('product_size_color')
+                        ->where('product_size_id', $productSize->id)
+                        ->where('color_id', $colorId)
+                        ->increment('stock', $delta);
+                } else {
+                    DB::table('product_size_color')->insert([
+                        'product_size_id' => $productSize->id,
+                        'color_id' => $colorId,
+                        'stock' => $delta,
+                    ]);
+                }
+            } else {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $productSize->id)
+                    ->where('color_id', $colorId)
+                    ->decrement('stock', abs($delta));
+            }
+        }
     }
 }

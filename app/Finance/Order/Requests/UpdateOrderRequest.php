@@ -3,6 +3,7 @@
 namespace App\Finance\Order\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateOrderRequest extends FormRequest
 {
@@ -21,10 +22,18 @@ class UpdateOrderRequest extends FormRequest
      */
     public function rules(): array
     {
+        $order = $this->route('order');
+
         return [
             'creationTime' => 'nullable',
             'items' => 'nullable|array',
-            'items.*.id' => 'required|integer|exists:sale_details,id',
+            'items.*.id' => [
+                'required',
+                'integer',
+                Rule::exists('order_details', 'id')->where(
+                    fn ($query) => $query->where('order_id', $order->getKey())
+                ),
+            ],
             'items.*.quantity' => 'required|numeric|min:0',
             'items.*.barcode' => 'nullable|numeric|min:0',
             'items.*.purchasePrice' => 'nullable|numeric|min:0',

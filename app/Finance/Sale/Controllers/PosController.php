@@ -49,7 +49,6 @@ class PosController extends Controller
         try {
             $serviceData = [
                 'customer_id' => data_get($data, 'customer.id'),
-                'total' => $data['total'],
                 'payments' => $data['payments'],
                 'items' => collect($data['items'])->map(function ($i) {
                     return [
@@ -57,7 +56,6 @@ class PosController extends Controller
                         'color_id' => $i['color']['color_id'],
                         'quantity' => $i['quantity'],
                         'unit_price' => $i['unitPrice'],
-                        'total' => $i['total'],
                     ];
                 })->toArray(),
             ];

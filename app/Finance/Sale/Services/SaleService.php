@@ -104,8 +104,16 @@ class SaleService extends ModelService
 
                     if ($isExchange) {
                         // ESCENARIO A: CAMBIO DE PRODUCTO (Devolver stock viejo / Quitar nuevo)
-                        $this->adjustStock($oldPsId, $detail->color_id, $oldQty, 'increment');
-                        $this->adjustStock($newPsId, $newColorId, $newQty, 'decrement');
+                        $this->ensureProductSizeMastersLocked(
+                            $oldPsId ? (int) $oldPsId : null,
+                            $newPsId ? (int) $newPsId : null,
+                        );
+                        if ($oldPsId) {
+                            $this->applyStockDeltaLocked((int) $oldPsId, $detail->color_id, $oldQty, true);
+                        }
+                        if ($newPsId) {
+                            $this->applyStockDeltaLocked((int) $newPsId, $newColorId, $newQty, false);
+                        }
 
                         // Generar nuevos nombres/fotos para el detalle
                         $snap = $this->getNewProductSnapshot($newPsId, $newColorId);
@@ -114,8 +122,13 @@ class SaleService extends ModelService
                     } else {
                         // ESCENARIO B: MISMO PRODUCTO, SOLO CANTIDAD
                         $diff = $newQty - $oldQty;
-                        if ($diff !== 0) {
-                            $this->adjustStock($oldPsId, $detail->color_id, $diff, 'decrement');
+                        if ($diff !== 0 && $oldPsId) {
+                            $this->ensureProductSizeMastersLocked((int) $oldPsId);
+                            if ($diff > 0) {
+                                $this->applyStockDeltaLocked((int) $oldPsId, $detail->color_id, $diff, false);
+                            } else {
+                                $this->applyStockDeltaLocked((int) $oldPsId, $detail->color_id, abs($diff), true);
+                            }
                         }
                     }
 
@@ -152,20 +165,83 @@ class SaleService extends ModelService
     }
 
     /**
-     * Helper para no repetir lógica de incremento/decremento de stock
+     * Bloquea filas maestras product_size en orden determinístico (evita deadlocks entre transacciones).
+     *
+     * @param  int|null  ...$psIds  IDs en product_size (null o ≤0 se ignoran)
      */
-    private function adjustStock($psId, $colorId, $qty, $method)
+    private function ensureProductSizeMastersLocked(?int ...$psIds): void
     {
-        if (!$psId || $qty == 0)
+        $ids = [];
+        foreach ($psIds as $id) {
+            if ($id !== null && $id > 0) {
+                $ids[] = $id;
+            }
+        }
+        $ids = array_values(array_unique($ids));
+        sort($ids, SORT_NUMERIC);
+
+        foreach ($ids as $id) {
+            $row = DB::table('product_size')->where('id', $id)->lockForUpdate()->first();
+            if (!$row) {
+                throw new Exception('Talla de producto no encontrada.');
+            }
+        }
+    }
+
+    /**
+     * Exige que la fila maestra correspondiente ya esté bloqueada vía ensureProductSizeMastersLocked().
+     * Para decrementos valida stock en pivot y color (si aplica); bloquea la fila de color antes de modificar.
+     */
+    private function applyStockDeltaLocked(int $psId, ?int $colorId, int $qty, bool $increment): void
+    {
+        if ($qty === 0 || $psId <= 0) {
             return;
+        }
 
-        DB::table('product_size')->where('id', $psId)->$method('stock', $qty);
+        $masterRow = DB::table('product_size')->where('id', $psId)->first();
+        if (!$masterRow) {
+            throw new Exception('Talla de producto no encontrada.');
+        }
 
-        if ($colorId) {
-            DB::table('product_size_color')
-                        ->where('product_size_id', $psId)
-                        ->where('color_id', $colorId)
-                ->$method('stock', $qty);
+        $effectiveColorId = $colorId ? (int) $colorId : null;
+
+        if ($effectiveColorId) {
+            $colorRow = DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $effectiveColorId)
+                ->lockForUpdate()
+                ->first();
+
+            $colorStock = $colorRow ? (int) $colorRow->stock : 0;
+
+            if (!$increment && $colorStock < $qty) {
+                throw new Exception('Stock insuficiente para el color seleccionado.');
+            }
+        }
+
+        $masterStock = (int) $masterRow->stock;
+        if (!$increment && $masterStock < $qty) {
+            throw new Exception('Stock insuficiente para el producto.');
+        }
+
+        if ($increment) {
+            DB::table('product_size')->where('id', $psId)->increment('stock', $qty);
+
+            if ($effectiveColorId) {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $effectiveColorId)
+                    ->increment('stock', $qty);
+            }
+        } else {
+            DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
+
+            if ($effectiveColorId) {
+                DB::table('product_size_color')
+                    ->where('product_size_id', $psId)
+                    ->where('color_id', $effectiveColorId)
+                    ->decrement('stock', $qty);
+            }
         }
     }
 
@@ -273,32 +349,54 @@ class SaleService extends ModelService
     public function processPosSale(array $data): Sale
     {
         return DB::transaction(function () use ($data) {
-            // A. Preparar Pagos
+            // A. Total de venta solo desde cantidad × precio unitario (no confiar en totales del cliente)
+            $computedTotal = 0.0;
+            $lines = [];
+            foreach ($data['items'] as $item) {
+                $qty = (int) $item['quantity'];
+                $unitPrice = (float) $item['unit_price'];
+                $lineSubtotal = round($qty * $unitPrice, 2);
+                $computedTotal = round($computedTotal + $lineSubtotal, 2);
+                $lines[] = array_merge($item, ['line_subtotal' => $lineSubtotal]);
+            }
+
+            // B. Pagos deben cuadrar con el total calculado en backend
             $payments = $data['payments'] ?? [];
-            if (empty($payments)) {
-                $payments = [['method' => 'CASH', 'amount' => $data['total'], 'reference' => null]];
+            if ($payments === []) {
+                $payments = [['method' => 'CASH', 'amount' => $computedTotal, 'reference' => null]];
+            }
+
+            $paymentsSum = 0.0;
+            foreach ($payments as $p) {
+                $paymentsSum = round($paymentsSum + (float) ($p['amount'] ?? 0), 2);
+            }
+
+            if (abs($paymentsSum - $computedTotal) > 0.02) {
+                throw new Exception(
+                    'La suma de los pagos no coincide con el total calculado de la venta.'
+                );
             }
 
             $uniqueMethods = collect($payments)->pluck('method')->unique();
             $mainMethod = $uniqueMethods->count() > 1 ? 'MIXTO' : $uniqueMethods->first();
 
-            // B. Crear Cabecera
+            // C. Crear Cabecera
             $sale = $this->create([
                 'customer_id' => $data['customer_id'] ?? null,
-                'total_amount' => $data['total'],
+                'total_amount' => $computedTotal,
                 'payment_method' => $mainMethod,
                 'status' => 'COMPLETED',
                 'code' => 'V-' . time(),
                 'creation_time' => now(),
             ]);
 
-            // C. Guardar Pagos
+            // D. Guardar Pagos
             foreach ($payments as $p) {
                 $sale->payments()->create($p);
             }
 
-            // D. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
-            foreach ($data['items'] as $item) {
+            // E. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
+            foreach ($lines as $item) {
                 $productSizeId = $item['product_size_id'];
                 $qty = $item['quantity'];
                 $colorId = (int) $item['color_id'];
@@ -363,7 +461,7 @@ class SaleService extends ModelService
                     'color_name_snapshot' => $colorName,
                     'quantity' => $qty,
                     'unit_price' => $item['unit_price'],
-                    'subtotal' => $item['total']
+                    'subtotal' => $item['line_subtotal'],
                 ]);
 
                 // 4. HISTORIAL DETALLADO (Con Stock Antes y Después)
@@ -400,88 +498,116 @@ class SaleService extends ModelService
             $returnedDetail = SaleDetail::with('sale')->findOrFail($data['returned_detail_id']);
             $originalSale = $returnedDetail->sale;
 
-            // Preparamos datos del nuevo producto (para ponerlo en el log del devuelto)
             $newItemData = $data['new_item'];
-            $newPsId = $newItemData['product_size_id'];
-            $newColorId = $newItemData['color_id'];
+            $newPsId = (int) $newItemData['product_size_id'];
+            $newColorId = (int) $newItemData['color_id'];
+            $qty = (int) $returnedDetail->quantity;
 
-            // Buscar nombres del nuevo producto para el log
+            $returnedPsId = DB::table('product_size')
+                ->where('product_id', $returnedDetail->product_id)
+                ->where('size_id', $returnedDetail->size_id)
+                ->value('id');
+
+            $this->ensureProductSizeMastersLocked(
+                $returnedPsId ? (int) $returnedPsId : null,
+                $newPsId,
+            );
+
             $newProdInfo = DB::table('product_size')
                 ->join('products', 'product_size.product_id', '=', 'products.id')
                 ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
                 ->where('product_size.id', $newPsId)
                 ->select('products.name as pname', 'sizes.description as sname', 'products.id as pid', 'sizes.id as sid')
                 ->first();
-            $newColorName = $newColorId > 0 ? DB::table('colors')->where('id', $newColorId)->value('description') : 'Único';
+
+            if (!$newProdInfo) {
+                throw new Exception('Talla nueva no encontrada.');
+            }
+
+            $newColorName = $newColorId > 0
+                ? (DB::table('colors')->where('id', $newColorId)->value('description') ?? 'Único')
+                : 'Único';
             $newItemFullName = "{$newProdInfo->pname} ({$newProdInfo->sname} | {$newColorName})";
 
-
-            // 1. Restaurar Stock (Con captura de stock previo)
-            $returnedPsId = DB::table('product_size')
-                ->where('product_id', $returnedDetail->product_id)
-                ->where('size_id', $returnedDetail->size_id)
-                ->value('id');
-
+            // 1. Restaurar Stock (maestros ya bloqueados; bloqueo explícito en color si aplica)
             if ($returnedPsId) {
-                // Capturar stock actual antes de incrementar
+                $returnedPsId = (int) $returnedPsId;
+
                 $currentStockReturned = 0;
                 if ($returnedDetail->color_id) {
                     $cRow = DB::table('product_size_color')
                         ->where('product_size_id', $returnedPsId)
                         ->where('color_id', $returnedDetail->color_id)
+                        ->lockForUpdate()
                         ->first();
-                    $currentStockReturned = $cRow ? $cRow->stock : 0;
-                    DB::table('product_size_color')->where('product_size_id', $returnedPsId)->where('color_id', $returnedDetail->color_id)->increment('stock', $returnedDetail->quantity);
+                    $currentStockReturned = $cRow ? (int) $cRow->stock : 0;
+
+                    DB::table('product_size_color')
+                        ->where('product_size_id', $returnedPsId)
+                        ->where('color_id', $returnedDetail->color_id)
+                        ->increment('stock', $qty);
                 } else {
                     $mRow = DB::table('product_size')->where('id', $returnedPsId)->first();
-                    $currentStockReturned = $mRow ? $mRow->stock : 0;
+                    $currentStockReturned = $mRow ? (int) $mRow->stock : 0;
                 }
-                DB::table('product_size')->where('id', $returnedPsId)->increment('stock', $returnedDetail->quantity);
 
-                // --- HISTORIAL DEVOLUCIÓN ---
+                DB::table('product_size')->where('id', $returnedPsId)->increment('stock', $qty);
+
                 ProductHistory::create([
                     'product_id' => $returnedDetail->product_id,
                     'entity_type' => 'EXCHANGE',
                     'entity_id' => $originalSale->id,
                     'event_type' => 'RETURNED',
                     'old_values' => [
-                        'stock' => $currentStockReturned // Stock Antes
+                        'stock' => $currentStockReturned,
                     ],
                     'new_values' => [
-                        'stock' => $currentStockReturned + $returnedDetail->quantity,
-                        'quantity' => $returnedDetail->quantity,
+                        'stock' => $currentStockReturned + $qty,
+                        'quantity' => $qty,
                         'unit_price' => $returnedDetail->unit_price,
                         'sale_code' => $originalSale->code,
                         'size_name' => $returnedDetail->size_name_snapshot,
                         'color_name' => $returnedDetail->color_name_snapshot,
-                        'exchange_note' => "Cambiado por: $newItemFullName"
+                        'exchange_note' => "Cambiado por: $newItemFullName",
                     ],
                     'creator_user_id' => Auth::id(),
                 ]);
             }
 
-            // B. ITEM QUE SALE (NUEVO)
-            // PRIORIDAD: Precio final negociado
+            // B. ITEM QUE SALE (NUEVO): lecturas tras devolución por si comparte product_size con el devuelto
+            $masterInventory = DB::table('product_size')->where('id', $newPsId)->first();
+            if (!$masterInventory) {
+                throw new Exception('Talla nueva no encontrada.');
+            }
+
             $newPrice = isset($newItemData['final_price'])
                 ? (float) $newItemData['final_price']
-                : (DB::table('product_size')->where('id', $newPsId)->value('sale_price') ?? 0);
+                : (float) ($masterInventory->sale_price ?? 0);
 
-            $qty = 1;
-
-            // 2. Descontar Stock Nuevo (Con captura)
-            $masterInventory = DB::table('product_size')->where('id', $newPsId)->lockForUpdate()->first();
-            if (!$masterInventory)
-                throw new Exception("Talla nueva no encontrada.");
-
-            // Capturar stock actual antes de restar
             $currentStockNew = 0;
             if ($newColorId > 0) {
-                $cRowNew = DB::table('product_size_color')->where('product_size_id', $newPsId)->where('color_id', $newColorId)->first();
-                $currentStockNew = $cRowNew ? $cRowNew->stock : 0;
-                DB::table('product_size_color')->where('product_size_id', $newPsId)->where('color_id', $newColorId)->decrement('stock', $qty);
+                $cRowNew = DB::table('product_size_color')
+                    ->where('product_size_id', $newPsId)
+                    ->where('color_id', $newColorId)
+                    ->lockForUpdate()
+                    ->first();
+                $currentStockNew = $cRowNew ? (int) $cRowNew->stock : 0;
+
+                if ($currentStockNew < $qty) {
+                    throw new Exception('Stock insuficiente para el color seleccionado.');
+                }
+
+                DB::table('product_size_color')
+                    ->where('product_size_id', $newPsId)
+                    ->where('color_id', $newColorId)
+                    ->decrement('stock', $qty);
             } else {
-                $currentStockNew = $masterInventory->stock;
+                $currentStockNew = (int) $masterInventory->stock;
+                if ($currentStockNew < $qty) {
+                    throw new Exception('Stock insuficiente para el producto.');
+                }
             }
+
             DB::table('product_size')->where('id', $newPsId)->decrement('stock', $qty);
 
             // 3. Crear Detalle Nuevo
