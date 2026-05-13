@@ -4,8 +4,9 @@ namespace App\Report\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
-use Illuminate\Support\Facades\DB;
+use App\Inventory\Product\Models\Product;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
@@ -57,7 +58,7 @@ class ReportService
             'monthly' => $this->calculateNetBalance(
                 $selectedDate->copy()->startOfMonth()->startOfDay(),
                 $selectedDate->copy()->endOfMonth()->endOfDay()
-            )
+            ),
         ];
     }
 
@@ -78,7 +79,7 @@ class ReportService
             ->where('type', 'INCOME')->where('is_deleted', false)
             ->sum('amount');
 
-        $totalRevenue = (float)($onlySales + $otherIncomes);
+        $totalRevenue = (float) ($onlySales + $otherIncomes);
 
         // 2. COSTO DE MERCADERÍA
         $costOfGoods = DB::table('sales as s')
@@ -95,16 +96,16 @@ class ReportService
             ->where('type', 'EXPENSE')->where('is_deleted', false)
             ->sum('amount');
 
-        $grossProfit = $totalRevenue - (float)$costOfGoods;
+        $grossProfit = $totalRevenue - (float) $costOfGoods;
 
         return [
-            'period' => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
+            'period' => $start->format('d/m/Y').' - '.$end->format('d/m/Y'),
             'sales_revenue' => $totalRevenue,
             'cost_of_goods' => (float) $costOfGoods,
             'gross_profit' => $grossProfit,
             'operating_expenses' => (float) $operatingExpenses,
-            'net_utility' => $grossProfit - (float)$operatingExpenses,
-            'chart_data' => $this->getDailyChartData($start, $end)
+            'net_utility' => $grossProfit - (float) $operatingExpenses,
+            'chart_data' => $this->getDailyChartData($start, $end),
         ];
     }
 
@@ -150,16 +151,17 @@ class ReportService
             $tarjeta = ($saleData ? (float) $saleData->card_transfer_amount : 0) + ($movData ? (float) $movData->net_card_transfer : 0);
 
             $incomesAndExpenses = $movData ? ($movData->net_cash + $movData->net_yape + $movData->net_card_transfer) : 0;
-            $totalMensual = ($saleData ? (float)$saleData->total_sales_raw : 0) + (float)$incomesAndExpenses;
+            $totalMensual = ($saleData ? (float) $saleData->total_sales_raw : 0) + (float) $incomesAndExpenses;
 
             $report[] = [
                 'fecha' => $fecha,
                 'efectivo' => $efectivo,
                 'yape' => $yape,
                 'tarjeta_transferencia' => $tarjeta,
-                'total_mensual' => $totalMensual
+                'total_mensual' => $totalMensual,
             ];
         }
+
         return array_values($report);
     }
 
@@ -177,13 +179,15 @@ class ReportService
             ->groupByRaw("TO_CHAR(date, 'YYYY-MM-DD')")
             ->pluck('total', 'date');
 
-        $dates = []; $dataSales = []; $dataExpenses = [];
+        $dates = [];
+        $dataSales = [];
+        $dataExpenses = [];
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateStr = $date->format('Y-m-d');
             $dates[] = $date->format('d/m');
-            $dataSales[] = isset($sales[$dateStr]) ? (float)$sales[$dateStr] : 0;
-            $dataExpenses[] = isset($expenses[$dateStr]) ? (float)$expenses[$dateStr] : 0;
+            $dataSales[] = isset($sales[$dateStr]) ? (float) $sales[$dateStr] : 0;
+            $dataExpenses[] = isset($expenses[$dateStr]) ? (float) $expenses[$dateStr] : 0;
         }
 
         return ['labels' => $dates, 'sales' => $dataSales, 'expenses' => $dataExpenses];
@@ -197,7 +201,9 @@ class ReportService
             ->where('s.status', 'COMPLETED')->where('s.is_deleted', false)
             ->groupBy('sd.product_id')->orderByDesc('total_sold')->limit($limit)->get();
 
-        if ($topProducts->isEmpty()) return [];
+        if ($topProducts->isEmpty()) {
+            return [];
+        }
 
         $productIds = $topProducts->pluck('product_id')->toArray();
         $variants = DB::table('sale_details as sd')
@@ -210,7 +216,8 @@ class ReportService
 
         return $topProducts->map(function ($product) use ($variants) {
             $myVariants = $variants->where('product_id', $product->product_id)->values();
-            $topVariantsText = $myVariants->map(fn($v) => "{$v->variant_sold}-{$v->color}(".str_ireplace(['ESTÁNDAR','ESTANDAR'],'STD',$v->size).")")->implode(' | ');
+            $topVariantsText = $myVariants->map(fn ($v) => "{$v->variant_sold}-{$v->color}(".str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $v->size).')')->implode(' | ');
+
             return ['name' => $product->name, 'total_sold' => $product->total_sold, 'color' => "Top: {$topVariantsText}"];
         });
     }
@@ -219,14 +226,68 @@ class ReportService
     {
         return DB::table('products as p')
             ->leftJoin('sale_details as sd', 'p.id', '=', 'sd.product_id')
-            ->leftJoin('sales as s', fn($j) => $j->on('sd.sale_id','=','s.id')->where('s.status','COMPLETED')->where('s.is_deleted',false))
+            ->leftJoin('sales as s', fn ($j) => $j->on('sd.sale_id', '=', 's.id')->where('s.status', 'COMPLETED')->where('s.is_deleted', false))
             ->selectRaw('p.name, p.creation_time as reg_date, CAST(COALESCE(SUM(sd.quantity), 0) AS INTEGER) as total_sold')
             ->groupBy('p.id', 'p.name', 'p.creation_time')
             ->orderBy('total_sold', 'asc')->orderBy('p.creation_time', 'asc')->limit($limit)->get()
-            ->map(fn($item) => [
+            ->map(fn ($item) => [
                 'name' => $item->name,
                 'registration_date' => $item->reg_date ? Carbon::parse($item->reg_date)->format('d/m/Y') : 'Sin fecha',
-                'total_sold' => $item->total_sold
+                'total_sold' => $item->total_sold,
             ]);
+    }
+
+    /**
+     * Inventario por producto: tallas (precios y stock) y colores con stock por talla.
+     *
+     * @return array<int, array{id: int, name: string, sizes: array<int, mixed>}>
+     */
+    public function getProductsInventoryReport(): array
+    {
+        $products = Product::query()
+            ->where('is_deleted', false)
+            ->orderBy('name')
+            ->with([
+                'productSizes' => function ($q) {
+                    $q->with([
+                        'size',
+                        'colors' => function ($cq) {
+                            $cq->where('colors.is_deleted', false)
+                                ->orderBy('colors.description');
+                        },
+                    ]);
+                },
+            ])
+            ->get();
+
+        return $products->map(function (Product $product) {
+            $sizes = $product->productSizes
+                ->sortBy(fn ($ps) => $ps->size?->description ?? '')
+                ->values()
+                ->map(function ($ps) {
+                    $colors = $ps->colors->map(fn ($c) => [
+                        'color_id' => $c->id,
+                        'color' => $c->description,
+                        'stock' => (int) ($c->pivot->stock ?? 0),
+                    ])->values()->all();
+
+                    return [
+                        'product_size_id' => $ps->id,
+                        'size_id' => $ps->size_id,
+                        'size' => $ps->size?->description ?? '—',
+                        'purchase_price' => $ps->purchase_price !== null ? (float) $ps->purchase_price : null,
+                        'sale_price' => $ps->sale_price !== null ? (float) $ps->sale_price : null,
+                        'min_sale_price' => $ps->min_sale_price !== null ? (float) $ps->min_sale_price : null,
+                        'stock' => (int) $ps->stock,
+                        'colors' => $colors,
+                    ];
+                })->all();
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sizes' => $sizes,
+            ];
+        })->values()->all();
     }
 }

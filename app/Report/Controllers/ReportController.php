@@ -4,8 +4,10 @@ namespace App\Report\Controllers;
 
 use App\Report\Services\ReportService;
 use App\Shared\Foundation\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class ReportController extends Controller
 {
@@ -37,7 +39,6 @@ class ReportController extends Controller
 
         $allTimeMonthlyReport = $this->reportsService->getAllTimeMonthlyReport();
 
-
         return response()->json([
             'success' => true,
             'data' => [
@@ -46,7 +47,29 @@ class ReportController extends Controller
                 'least_products' => $leastProducts,
                 'financials' => $financials,
                 'all_time_monthly_report' => $allTimeMonthlyReport,
-            ]
+            ],
         ]);
+    }
+
+    public function products(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportsService->getProductsInventoryReport(),
+        ]);
+    }
+
+    public function productsPdf(): Response
+    {
+        $products = $this->reportsService->getProductsInventoryReport();
+
+        $pdf = Pdf::loadView('reports.products-inventory', [
+            'products' => $products,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'reporte-productos-inventario-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
     }
 }
