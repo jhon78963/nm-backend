@@ -317,7 +317,7 @@ class PurchaseBulkService
         $current = $pivotRow ? (int) $pivotRow->stock : 0;
         $newStock = $current + $delta;
 
-        $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock]);
+        $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock], updateMaster: false);
 
         $productSize->unsetRelation('productSizeColors');
     }

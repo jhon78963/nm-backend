@@ -31,19 +31,21 @@ class PurchaseCancellationService
             throw ValidationException::withMessages(['purchase' => 'La compra ya está anulada.']);
         }
 
-        $purchase->load(['lines.colorDeltas']);
+        DB::transaction(function () use ($purchase, $reason): void {
+            $purchase->load(['lines.colorDeltas']);
 
-        foreach ($purchase->lines as $line) {
-            $this->revertLineStock($line);
-        }
+            foreach ($purchase->lines as $line) {
+                $this->revertLineStock($line);
+            }
 
-        $purchase->status = PurchaseStatus::Cancelled;
-        $purchase->cancelled_at = now();
-        $purchase->cancellation_reason = $reason;
-        $purchase->cancellation_user_id = Auth::id();
-        $purchase->last_modifier_user_id = Auth::id();
-        $purchase->last_modification_time = now();
-        $purchase->save();
+            $purchase->status = PurchaseStatus::Cancelled;
+            $purchase->cancelled_at = now();
+            $purchase->cancellation_reason = $reason;
+            $purchase->cancellation_user_id = Auth::id();
+            $purchase->last_modifier_user_id = Auth::id();
+            $purchase->last_modification_time = now();
+            $purchase->save();
+        });
     }
 
     /**
@@ -88,7 +90,7 @@ class PurchaseCancellationService
                 ]);
             }
             $newStock = $current - $qty;
-            $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock]);
+            $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock], updateMaster: false);
             $productSize->unsetRelation('productSizeColors');
         }
 

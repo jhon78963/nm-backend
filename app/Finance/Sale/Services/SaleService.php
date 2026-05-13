@@ -281,7 +281,32 @@ class SaleService extends ModelService
 
             $model->load('details');
 
-            foreach ($model->details as $detail) {
+            $details = $model->details;
+            $productIdsForSort = $details->pluck('product_id')->unique()->filter()->values()->all();
+
+            $psIdByPair = [];
+            if ($productIdsForSort !== []) {
+                foreach (DB::table('product_size')
+                    ->whereIn('product_id', $productIdsForSort)
+                    ->get(['id', 'product_id', 'size_id']) as $pse) {
+                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
+                    $psIdByPair[$pairKey] = (int) $pse->id;
+                }
+            }
+
+            $details = $details
+                ->sort(function ($a, $b) use ($psIdByPair): int {
+                    $psa = $psIdByPair[sprintf('%s:%s', $a->product_id, $a->size_id)] ?? PHP_INT_MAX;
+                    $psb = $psIdByPair[sprintf('%s:%s', $b->product_id, $b->size_id)] ?? PHP_INT_MAX;
+                    if ($psa !== $psb) {
+                        return $psa <=> $psb;
+                    }
+
+                    return ((int) ($a->color_id ?? 0)) <=> ((int) ($b->color_id ?? 0));
+                })
+                ->values();
+
+            foreach ($details as $detail) {
                 // Buscamos el ID de la relación maestra
                 $psId = DB::table('product_size')
                     ->where('product_id', $detail->product_id)
@@ -398,6 +423,12 @@ class SaleService extends ModelService
             foreach ($payments as $p) {
                 $sale->payments()->create($p);
             }
+
+            usort($lines, function (array $a, array $b): int {
+                $cmp = ((int) ($a['product_size_id'] ?? 0)) <=> ((int) ($b['product_size_id'] ?? 0));
+
+                return $cmp !== 0 ? $cmp : (((int) ($a['color_id'] ?? 0)) <=> ((int) ($b['color_id'] ?? 0)));
+            });
 
             // E. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
             foreach ($lines as $item) {

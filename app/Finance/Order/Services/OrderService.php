@@ -145,7 +145,43 @@ class OrderService extends ModelService
                 'notes' => $data['notes'] ?? null, // Le agregué el ?? null por seguridad
             ]);
 
-            foreach ($data['items'] as $item) {
+            $items = $data['items'] ?? [];
+            $productIdsForSort = collect($items)
+                ->pluck('product_id')
+                ->unique()
+                ->filter()
+                ->values()
+                ->all();
+
+            $psIdByPair = [];
+            if ($productIdsForSort !== []) {
+                foreach (DB::table('product_size')
+                    ->whereIn('product_id', $productIdsForSort)
+                    ->get(['id', 'product_id', 'size_id']) as $pse) {
+                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
+                    $psIdByPair[$pairKey] = (int) $pse->id;
+                }
+            }
+
+            $orderStockSortKey = static function (array $item, array $psMap): array {
+                $pid = (int) ($item['product_id'] ?? 0);
+                $sid = (int) ($item['size_id'] ?? 0);
+                $cid = isset($item['color_id']) && ((int) $item['color_id']) > 0
+                    ? (int) $item['color_id']
+                    : 0;
+
+                $psId = $psMap[sprintf('%d:%d', $pid, $sid)] ?? null;
+
+                return $psId !== null
+                    ? [$psId, 0, 0, $cid]
+                    : [\PHP_INT_MAX, $pid, $sid, $cid];
+            };
+
+            usort($items, function (array $a, array $b) use ($psIdByPair, $orderStockSortKey): int {
+                return $orderStockSortKey($a, $psIdByPair) <=> $orderStockSortKey($b, $psIdByPair);
+            });
+
+            foreach ($items as $item) {
                 $productId = $item['product_id'];
                 $sizeId = $item['size_id'];
                 $colorId = $item['color_id'] ?? null;
@@ -272,7 +308,32 @@ class OrderService extends ModelService
             // 1. Cargar los detalles si no están cargados
             $model->load('details');
 
-            foreach ($model->details as $detail) {
+            $details = $model->details;
+            $productIdsForSort = $details->pluck('product_id')->unique()->filter()->values()->all();
+
+            $psIdByPair = [];
+            if ($productIdsForSort !== []) {
+                foreach (DB::table('product_size')
+                    ->whereIn('product_id', $productIdsForSort)
+                    ->get(['id', 'product_id', 'size_id']) as $pse) {
+                    $pairKey = sprintf('%s:%s', $pse->product_id, $pse->size_id);
+                    $psIdByPair[$pairKey] = (int) $pse->id;
+                }
+            }
+
+            $details = $details
+                ->sort(function ($a, $b) use ($psIdByPair): int {
+                    $psa = $psIdByPair[sprintf('%s:%s', $a->product_id, $a->size_id)] ?? PHP_INT_MAX;
+                    $psb = $psIdByPair[sprintf('%s:%s', $b->product_id, $b->size_id)] ?? PHP_INT_MAX;
+                    if ($psa !== $psb) {
+                        return $psa <=> $psb;
+                    }
+
+                    return ((int) ($a->color_id ?? 0)) <=> ((int) ($b->color_id ?? 0));
+                })
+                ->values();
+
+            foreach ($details as $detail) {
                 $qty = (int) $detail->quantity;
 
                 $masterRow = DB::table('product_size')

@@ -112,26 +112,53 @@ class ProductSizeService
 
     public function setStock(Product $product, int $sizeId, int $qty, array $data): void
     {
-        $existingPivot = $product->sizes()
+        $row = DB::table('product_size')
+            ->where('product_id', $product->id)
             ->where('size_id', $sizeId)
-            ->first()
-            ?->pivot
-                ?->toArray();
+            ->lockForUpdate()
+            ->first();
 
-        $currentStock = $existingPivot['stock'] ?? 0;
-        $newStock = $currentStock + $qty;
+        $existingPivot = $row ? [
+            'barcode' => $row->barcode,
+            'stock' => (int) $row->stock,
+            'purchase_price' => $row->purchase_price,
+            'sale_price' => $row->sale_price,
+            'min_sale_price' => $row->min_sale_price,
+        ] : [];
+
+        if (! $row) {
+            DB::table('product_size')->insert([
+                'product_id' => $product->id,
+                'size_id' => $sizeId,
+                'barcode' => $data['barcode'] ?? null,
+                'stock' => $qty,
+                'purchase_price' => $data['purchase_price'] ?? null,
+                'sale_price' => $data['sale_price'] ?? null,
+                'min_sale_price' => $data['min_sale_price'] ?? null,
+            ]);
+        } else {
+            $newStock = (int) $row->stock + $qty;
+            DB::table('product_size')->where('id', $row->id)->update([
+                'barcode' => $data['barcode'] ?? null,
+                'stock' => $newStock,
+                'purchase_price' => $data['purchase_price'] ?? null,
+                'sale_price' => $data['sale_price'] ?? null,
+                'min_sale_price' => $data['min_sale_price'] ?? null,
+            ]);
+        }
+
+        $fresh = DB::table('product_size')
+            ->where('product_id', $product->id)
+            ->where('size_id', $sizeId)
+            ->first();
 
         $pivotData = [
-                'barcode' => $data['barcode'],
-                'stock' => $newStock,
-                'purchase_price' => $data['purchase_price'],
-                'sale_price' => $data['sale_price'],
-                'min_sale_price' => $data['min_sale_price'],
-            ];
-
-        $product->sizes()->syncWithoutDetaching([
-            $sizeId => $pivotData
-        ]);
+            'barcode' => $fresh->barcode,
+            'stock' => (int) $fresh->stock,
+            'purchase_price' => $fresh->purchase_price,
+            'sale_price' => $fresh->sale_price,
+            'min_sale_price' => $fresh->min_sale_price,
+        ];
 
         $eventType = empty($existingPivot) ? 'CREATED' : 'UPDATED';
 
@@ -140,7 +167,7 @@ class ProductSizeService
             'SIZE',
             $sizeId,
             $eventType,
-            $existingPivot ?? [],
+            $existingPivot,
             $pivotData
         );
     }

@@ -15,7 +15,7 @@ class ProductSizeColorService
         $this->historyService = $historyService;
     }
 
-    public function set(ProductSize $productSize, int $colorId, array $data): void
+    public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true): void
     {
         if (! array_key_exists('stock', $data)) {
             return;
@@ -50,7 +50,7 @@ class ProductSizeColorService
             ]
             : [];
 
-        if ($delta !== 0) {
+        if ($updateMaster && $delta !== 0) {
             if ($delta > 0) {
                 DB::table('product_size')->where('id', $psId)->increment('stock', $delta);
             } else {
