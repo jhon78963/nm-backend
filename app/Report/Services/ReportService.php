@@ -274,7 +274,8 @@ class ReportService
                     return [
                         'product_size_id' => $ps->id,
                         'size_id' => $ps->size_id,
-                        'size' => $ps->size?->description ?? '—',
+                        'size' => $this->formatSizeLabelForReport($ps->size?->description),
+                        'barcode' => $ps->barcode !== null && $ps->barcode !== '' ? (string) $ps->barcode : null,
                         'purchase_price' => $ps->purchase_price !== null ? (float) $ps->purchase_price : null,
                         'sale_price' => $ps->sale_price !== null ? (float) $ps->sale_price : null,
                         'min_sale_price' => $ps->min_sale_price !== null ? (float) $ps->min_sale_price : null,
@@ -289,5 +290,17 @@ class ReportService
                 'sizes' => $sizes,
             ];
         })->values()->all();
+    }
+
+    /**
+     * Etiqueta de talla para reportes: ESTÁNDAR / ESTANDAR → STD.
+     */
+    private function formatSizeLabelForReport(?string $description): string
+    {
+        if ($description === null || trim($description) === '') {
+            return '—';
+        }
+
+        return str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $description);
     }
 }
