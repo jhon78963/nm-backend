@@ -34,7 +34,9 @@ class PurchaseCancellationService
         DB::transaction(function () use ($purchase, $reason): void {
             $purchase->load(['lines.colorDeltas']);
 
-            foreach ($purchase->lines as $line) {
+            $lines = $purchase->lines->sortBy(fn (PurchaseLine $line): int => (int) $line->product_size_id)->values();
+
+            foreach ($lines as $line) {
                 $this->revertLineStock($line);
             }
 
@@ -72,6 +74,8 @@ class PurchaseCancellationService
 
         $productSize = ProductSize::query()->findOrFail($productSizeId);
 
+        $pivotWrites = [];
+
         foreach ($line->colorDeltas->sortBy(fn ($d) => (int) $d->color_id) as $delta) {
             $colorId = (int) $delta->color_id;
             Color::query()->where('is_deleted', false)->findOrFail($colorId);
@@ -89,11 +93,20 @@ class PurchaseCancellationService
                     'stock' => "No se puede anular: stock insuficiente en color ID {$colorId} para la talla (actual {$current}, revertir {$qty}).",
                 ]);
             }
-            $newStock = $current - $qty;
-            $this->productSizeColorService->set($productSize, $colorId, ['stock' => $newStock], updateMaster: false);
-            $productSize->unsetRelation('productSizeColors');
+
+            $pivotWrites[] = ['color_id' => $colorId, 'new_stock' => $current - $qty];
         }
 
         DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $deltaSize);
+
+        foreach ($pivotWrites as $op) {
+            $this->productSizeColorService->set(
+                $productSize,
+                $op['color_id'],
+                ['stock' => $op['new_stock']],
+                updateMaster: false,
+            );
+            $productSize->unsetRelation('productSizeColors');
+        }
     }
 }

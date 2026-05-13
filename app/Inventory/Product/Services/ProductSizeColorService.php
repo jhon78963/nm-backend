@@ -100,28 +100,64 @@ class ProductSizeColorService
 
     public function remove(ProductSize $productSize, int $colorId): void
     {
-        $oldData = $productSize->productSizeColors()
-            ->wherePivot('color_id', $colorId)
-            ->first()
-            ?->pivot
-                ?->toArray();
+        DB::transaction(function () use ($productSize, $colorId): void {
+            $psId = (int) $productSize->id;
 
-        $productSize->productSizeColors()->detach($colorId);
+            $master = DB::table('product_size')
+                ->where('id', $psId)
+                ->lockForUpdate()
+                ->first();
 
-        if ($oldData) {
-            if (! $productSize->relationLoaded('product')) {
-                $productSize->load('product');
+            if ($master === null) {
+                throw new RuntimeException('No se encontró la talla del producto para eliminar el color.');
             }
 
-            $this->historyService->logChange(
-                $productSize->product,
-                'COLOR',
-                $colorId,
-                'DELETED',
-                $oldData,
-                null
-            );
-        }
+            $pivotRow = DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $colorId)
+                ->lockForUpdate()
+                ->first();
+
+            $pivotStock = $pivotRow ? (int) $pivotRow->stock : 0;
+
+            $oldPivotSnapshot = null;
+            if ($pivotRow !== null) {
+                $oldPivotSnapshot = [
+                    'product_size_id' => (int) $pivotRow->product_size_id,
+                    'color_id' => (int) $pivotRow->color_id,
+                    'stock' => $pivotStock,
+                ];
+
+                $masterStock = (int) $master->stock;
+                if ($masterStock < $pivotStock) {
+                    throw new RuntimeException(
+                        'Stock maestro insuficiente respecto al color: no se puede eliminar la variante de forma segura.'
+                    );
+                }
+
+                DB::table('product_size')->where('id', $psId)->decrement('stock', $pivotStock);
+            }
+
+            $productSize->productSizeColors()->detach($colorId);
+            $productSize->unsetRelation('productSizeColors');
+
+            if ($oldPivotSnapshot !== null) {
+                if (! $productSize->relationLoaded('product')) {
+                    $productSize->load('product');
+                }
+
+                $oldForLog = array_merge($oldPivotSnapshot, ['size_id_ref' => $productSize->size_id]);
+
+                $this->historyService->logChange(
+                    $productSize->product,
+                    'COLOR',
+                    $colorId,
+                    'DELETED',
+                    $oldForLog,
+                    null,
+                );
+            }
+        });
     }
 
     public function exists(ProductSize $productSize, int $colorId): bool

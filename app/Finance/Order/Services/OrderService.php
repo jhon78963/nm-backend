@@ -163,23 +163,23 @@ class OrderService extends ModelService
                 }
             }
 
-            $orderStockSortKey = static function (array $item, array $psMap): array {
+            $resolveProcessOrderProductSizeId = static function (array $item, array $psMap): int {
+                if (isset($item['product_size_id']) && (int) $item['product_size_id'] > 0) {
+                    return (int) $item['product_size_id'];
+                }
+
                 $pid = (int) ($item['product_id'] ?? 0);
                 $sid = (int) ($item['size_id'] ?? 0);
-                $cid = isset($item['color_id']) && ((int) $item['color_id']) > 0
-                    ? (int) $item['color_id']
-                    : 0;
-
                 $psId = $psMap[sprintf('%d:%d', $pid, $sid)] ?? null;
 
-                return $psId !== null
-                    ? [$psId, 0, 0, $cid]
-                    : [\PHP_INT_MAX, $pid, $sid, $cid];
+                return $psId !== null ? (int) $psId : PHP_INT_MAX;
             };
 
-            usort($items, function (array $a, array $b) use ($psIdByPair, $orderStockSortKey): int {
-                return $orderStockSortKey($a, $psIdByPair) <=> $orderStockSortKey($b, $psIdByPair);
-            });
+            usort(
+                $items,
+                fn (array $a, array $b): int => $resolveProcessOrderProductSizeId($a, $psIdByPair)
+                    <=> $resolveProcessOrderProductSizeId($b, $psIdByPair),
+            );
 
             foreach ($items as $item) {
                 $productId = $item['product_id'];
@@ -325,11 +325,8 @@ class OrderService extends ModelService
                 ->sort(function ($a, $b) use ($psIdByPair): int {
                     $psa = $psIdByPair[sprintf('%s:%s', $a->product_id, $a->size_id)] ?? PHP_INT_MAX;
                     $psb = $psIdByPair[sprintf('%s:%s', $b->product_id, $b->size_id)] ?? PHP_INT_MAX;
-                    if ($psa !== $psb) {
-                        return $psa <=> $psb;
-                    }
 
-                    return ((int) ($a->color_id ?? 0)) <=> ((int) ($b->color_id ?? 0));
+                    return $psa <=> $psb;
                 })
                 ->values();
 
@@ -358,6 +355,8 @@ class OrderService extends ModelService
                         ->first();
                     $currentStock = $colorRow ? (int) $colorRow->stock : 0;
 
+                    DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
+
                     if ($colorRow) {
                         DB::table('product_size_color')
                             ->where('product_size_id', $psId)
@@ -366,9 +365,9 @@ class OrderService extends ModelService
                     }
                 } else {
                     $currentStock = (int) $masterRow->stock;
-                }
 
-                DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
+                    DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
+                }
 
                 // 3. Registrar en Historial de Producto
                 ProductHistory::create([
@@ -380,21 +379,21 @@ class OrderService extends ModelService
                         'stock' => $currentStock,
                     ],
                     'new_values' => [
-                        'stock' => $currentStock + $qty,
+                        'stock' => $currentStock - $qty,
                         'quantity' => $qty,
-                        'reason' => 'Venta anulada por el usuario',
+                        'reason' => 'Orden de ingreso anulada',
                         'order_code' => $model->code,
                     ],
                     'creator_user_id' => Auth::id(),
                 ]);
             }
 
-            // 4. Marcar la venta como eliminada y cambiar estado
+            // 4. Marcar la orden como eliminada y cambiar estado
             // Asumiendo que usas 'is_deleted' según tus queries de estadísticas
             $model->update([
                 'is_deleted' => true,
                 'status' => 'CANCELED', // O 'CANCELED'
-                'notes' => substr(($model->notes ?? '') . " | VENTA ANULADA EL " . now(), -250)
+                'notes' => substr(($model->notes ?? '') . " | ORDEN DE INGRESO ANULADA EL " . now(), -250)
             ]);
         });
     }
@@ -409,7 +408,8 @@ class OrderService extends ModelService
 
             // 2. Actualizar Precios de Ítems (y stock si cambia la cantidad)
             if (!empty($data['items']) && is_array($data['items'])) {
-                foreach ($data['items'] as $itemData) {
+                $items = $this->sortOrderUpdateItemsByProductSizeId($model, $data['items']);
+                foreach ($items as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail) {
                         continue;
@@ -459,6 +459,46 @@ class OrderService extends ModelService
     }
 
     /**
+     * Orden ascendente únicamente por `product_size.id`: payload `product_size_id` válido (>0) o lookup del par del detalle.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function sortOrderUpdateItemsByProductSizeId(Model $order, array $items): array
+    {
+        $items = array_values($items);
+        usort(
+            $items,
+            fn (array $a, array $b): int => $this->resolveOrderUpdateItemSortKeyProductSizeId($order, $a)
+                <=> $this->resolveOrderUpdateItemSortKeyProductSizeId($order, $b),
+        );
+
+        return $items;
+    }
+
+    private function resolveOrderUpdateItemSortKeyProductSizeId(Model $order, array $itemData): int
+    {
+        $detail = $order->details()->where('id', $itemData['id'] ?? 0)->first();
+        if (! $detail) {
+            return PHP_INT_MAX;
+        }
+
+        if (isset($itemData['product_size_id'])) {
+            $fromPayload = (int) $itemData['product_size_id'];
+            if ($fromPayload > 0) {
+                return $fromPayload;
+            }
+        }
+
+        $psId = DB::table('product_size')
+            ->where('product_id', $detail->product_id)
+            ->where('size_id', $detail->size_id)
+            ->value('id');
+
+        return $psId !== null ? (int) $psId : PHP_INT_MAX;
+    }
+
+    /**
      * Ajusta inventario por cambio de cantidad en un detalle de orden (ingreso).
      * Replica la lógica de processOrder: pivot product_size + product_size_color cuando hay color.
      */
@@ -500,7 +540,8 @@ class OrderService extends ModelService
                 }
             }
 
-            $masterRow = DB::table('product_size')->where('id', $psId)->lockForUpdate()->first();
+            // Maestro ya bloqueado arriba; lectura sin re-bloqueo redundante.
+            $masterRow = DB::table('product_size')->where('id', $psId)->first();
             $masterStock = $masterRow ? (int) $masterRow->stock : 0;
             if ($masterStock < $need) {
                 throw new RuntimeException(

@@ -168,6 +168,33 @@ class PurchaseBulkService
     }
 
     /**
+     * Suma de cantidades de filas que resuelven a un color Id (persistido o vía tempId en map).
+     *
+     * @param  array<int, array{colorId: ?int, tempId: ?string, quantity: int}>  $colors
+     */
+    protected function sumBulkLineQtyAttributedToResolvableColors(array $colors, array $colorTempMap): int
+    {
+        $total = 0;
+        foreach ($colors as $c) {
+            if ($c['quantity'] <= 0) {
+                continue;
+            }
+
+            $colorId = $c['colorId'];
+            if ($colorId === null && $c['tempId'] !== null) {
+                $colorId = isset($colorTempMap[$c['tempId']]) ? (int) $colorTempMap[$c['tempId']] : null;
+            }
+            if ($colorId === null) {
+                continue;
+            }
+
+            $total += (int) $c['quantity'];
+        }
+
+        return $total;
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $lines
      * @param  array<string, int>  $productTempMap
      * @param  array<string, int>  $sizeTempMap
@@ -179,12 +206,69 @@ class PurchaseBulkService
         array $sizeTempMap,
         array $colorTempMap,
     ): void {
+        $lines = array_values(array_filter($lines, 'is_array'));
+        usort(
+            $lines,
+            fn (array $a, array $b): int => $this->compareBulkLinesByProductSizeKey(
+                $a,
+                $b,
+                $productTempMap,
+                $sizeTempMap,
+            ),
+        );
+
         foreach ($lines as $line) {
-            if (! is_array($line)) {
-                continue;
-            }
             $this->applyStockForLine($line, $productTempMap, $sizeTempMap, $colorTempMap);
         }
+    }
+
+    /**
+     * Orden ascendente por product_size.id cuando existe fila; si aún no existe, por (product_id, size_id).
+     */
+    private function compareBulkLinesByProductSizeKey(
+        array $a,
+        array $b,
+        array $productTempMap,
+        array $sizeTempMap,
+    ): int {
+        [$pa, $sa, $ida] = $this->bulkLineProductSizeSortTuple($a, $productTempMap, $sizeTempMap);
+        [$pb, $sb, $idb] = $this->bulkLineProductSizeSortTuple($b, $productTempMap, $sizeTempMap);
+
+        if ($ida !== null && $idb !== null && $ida !== $idb) {
+            return $ida <=> $idb;
+        }
+        if ($ida !== null && $idb === null) {
+            return -1;
+        }
+        if ($ida === null && $idb !== null) {
+            return 1;
+        }
+
+        $c = $pa <=> $pb;
+
+        return $c !== 0 ? $c : $sa <=> $sb;
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: ?int}
+     */
+    private function bulkLineProductSizeSortTuple(
+        array $line,
+        array $productTempMap,
+        array $sizeTempMap,
+    ): array {
+        $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
+        $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
+        $existingId = DB::table('product_size')
+            ->where('product_id', $productId)
+            ->where('size_id', $sizeId)
+            ->value('id');
+
+        return [
+            $productId,
+            $sizeId,
+            $existingId !== null ? (int) $existingId : null,
+        ];
     }
 
     /**
@@ -224,6 +308,14 @@ class PurchaseBulkService
             $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
 
             return;
+        }
+
+        $sumColorsQtyWithResolvedIds = $this->sumBulkLineQtyAttributedToResolvableColors($colors, $colorTempMap);
+        if ($sumColorsQtyWithResolvedIds !== $lineTotalQty) {
+            throw ValidationException::withMessages([
+                'colors' => 'En compras con desglose por color, la suma de cantidades con color definido debe ser exactamente igual al total de la línea '
+                    ."({$lineTotalQty}). Revise cada fila incluya colorId válido (o tempId resuelto) y que no falten variantes.",
+            ]);
         }
 
         $productSize->loadMissing('product');
