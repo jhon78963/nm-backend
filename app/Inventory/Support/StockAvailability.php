@@ -13,7 +13,7 @@ final class StockAvailability
     {
         if ($quantityToRemove > $availableStock) {
             throw new \Exception(
-                "Stock insuficiente. Unidades disponibles: {$availableStock}, solicitadas: {$quantityToRemove}."
+                "Stock insuficiente para la cantidad solicitada. Verifique el inventario físico."
             );
         }
     }
