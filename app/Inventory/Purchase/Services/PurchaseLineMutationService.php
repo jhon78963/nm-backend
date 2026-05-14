@@ -5,6 +5,7 @@ namespace App\Inventory\Purchase\Services;
 use App\Inventory\Purchase\Models\Purchase;
 use App\Inventory\Purchase\Models\PurchaseLine;
 use App\Inventory\Purchase\Models\PurchaseLineColorDelta;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -92,8 +93,9 @@ class PurchaseLineMutationService
                 'colors' => $colorsPayload,
             ];
 
-            $bulkTouchedMasterIds = [];
-            $this->purchaseBulkService->applyStockForLine($stockLine, $bulkTouchedMasterIds, [], [], []);
+            $warehouseId = (int) $purchase->warehouse_id;
+            $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
+            $this->purchaseBulkService->applyStockForLine($stockLine, $warehouseId, $tenantId, [], [], []);
 
             $line->barcode = $data['barcode'] ?? null;
             $line->purchase_price = $purchasePrice;

@@ -23,28 +23,28 @@ class InventoryMovementService
 
         return DB::transaction(function () use ($dto): InventoryMovement {
             $warehouse = Warehouse::query()->findOrFail($dto->warehouseId);
+            $warehouseId = (int) $warehouse->id;
+            $tenantId = (int) $warehouse->tenant_id;
 
-            if ((int) $warehouse->tenant_id !== $dto->tenantId) {
+            if ($tenantId !== $dto->tenantId) {
                 throw new InvalidArgumentException('El almacén no pertenece al tenant indicado.');
             }
 
-            ProductSize::query()->lockForUpdate()->findOrFail($dto->productSizeId);
+            $productSize = ProductSize::query()->lockForUpdate()->findOrFail($dto->productSizeId);
 
-            $balance = $this->lockBalanceRow($dto)->first();
+            $balance = $this->balanceQuery($warehouseId, $dto->productSizeId, $dto->colorId, true)->first();
 
             if ($balance === null) {
-                $productSize = ProductSize::query()->findOrFail($dto->productSizeId);
-
                 InventoryBalance::query()->create([
-                    'tenant_id' => $dto->tenantId,
-                    'warehouse_id' => $dto->warehouseId,
+                    'tenant_id' => $tenantId,
+                    'warehouse_id' => $warehouseId,
                     'product_id' => $productSize->product_id,
                     'product_size_id' => $dto->productSizeId,
                     'color_id' => $dto->colorId,
                     'quantity' => 0,
                 ]);
 
-                $balance = $this->lockBalanceRow($dto)->firstOrFail();
+                $balance = $this->balanceQuery($warehouseId, $dto->productSizeId, $dto->colorId, true)->firstOrFail();
             }
 
             $current = (int) $balance->quantity;
@@ -60,8 +60,8 @@ class InventoryMovementService
             $balance->save();
 
             return InventoryMovement::query()->create([
-                'tenant_id' => $dto->tenantId,
-                'warehouse_id' => $dto->warehouseId,
+                'tenant_id' => $tenantId,
+                'warehouse_id' => $warehouseId,
                 'product_size_id' => $dto->productSizeId,
                 'color_id' => $dto->colorId,
                 'direction' => $dto->direction,
@@ -76,20 +76,36 @@ class InventoryMovementService
         });
     }
 
+    public function getAvailableQuantity(int $warehouseId, int $productSizeId, ?int $colorId): int
+    {
+        return (int) ($this->balanceQuery($warehouseId, $productSizeId, $colorId)->value('quantity') ?? 0);
+    }
+
+    public function getTotalByProductSize(int $warehouseId, int $productSizeId): int
+    {
+        return (int) InventoryBalance::query()
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_size_id', $productSizeId)
+            ->sum('quantity');
+    }
+
     /**
      * @return Builder<InventoryBalance>
      */
-    private function lockBalanceRow(InventoryMovementDTO $dto): Builder
+    private function balanceQuery(int $warehouseId, int $productSizeId, ?int $colorId, bool $lockForUpdate = false): Builder
     {
         $q = InventoryBalance::query()
-            ->where('warehouse_id', $dto->warehouseId)
-            ->where('product_size_id', $dto->productSizeId)
-            ->lockForUpdate();
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_size_id', $productSizeId);
 
-        if ($dto->colorId === null) {
+        if ($colorId === null) {
             $q->whereNull('color_id');
         } else {
-            $q->where('color_id', $dto->colorId);
+            $q->where('color_id', $colorId);
+        }
+
+        if ($lockForUpdate) {
+            $q->lockForUpdate();
         }
 
         return $q;

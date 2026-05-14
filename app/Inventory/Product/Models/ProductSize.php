@@ -68,7 +68,7 @@ class ProductSize extends Model
             'product_size_color',
             'product_size_id',
             'color_id',
-        )->withPivot([]);
+        );
     }
 
     public function colors()
@@ -78,6 +78,6 @@ class ProductSize extends Model
             'product_size_color',
             'product_size_id',
             'color_id'
-        )->withPivot([]);
+        );
     }
 }

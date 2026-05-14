@@ -2,8 +2,7 @@
 
 namespace App\Inventory\Product\Resources;
 
-use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,16 +15,14 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $warehouseId = WarehouseIdForInventoryResolver::resolve(
-            $request,
-            $this->warehouse_id !== null ? (int) $this->warehouse_id : null,
-        );
-
-        $model = $this->resource;
-        $totalStock = isset($model->inventory_sum_qty)
-            ? (int) $model->inventory_sum_qty
-            : InventoryBalanceLookup::sumQuantityForProduct((int) $this->id, $warehouseId);
-
+        $inventoryMovementService = app(InventoryMovementService::class);
+        $warehouseId = (int) $this->warehouse_id;
+        $stock = 0;
+        if ($this->relationLoaded('productSizes')) {
+            foreach ($this->productSizes as $productSize) {
+                $stock += $inventoryMovementService->getTotalByProductSize($warehouseId, (int) $productSize->id);
+            }
+        }
         /** Referencia desde la primera fila product–talla (las precios viven en `product_size`). */
         $primaryPs = ($this->relationLoaded('productSizes') && $this->productSizes->isNotEmpty())
             ? $this->productSizes->sortBy('id')->first()
@@ -35,10 +32,7 @@ class ProductResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name ?? '',
             'barcode' => $this->barcode,
-            'inventory' => [
-                'available_quantity' => $totalStock,
-                'warehouse_id' => $warehouseId,
-            ],
+            'stock' => $stock,
             'purchasePrice' => $primaryPs !== null ? (float) ($primaryPs->purchase_price ?? 0) : 0,
             'salePrice' => $primaryPs !== null ? (float) ($primaryPs->sale_price ?? 0) : 0,
             'minSalePrice' => $primaryPs !== null ? (float) ($primaryPs->min_sale_price ?? 0) : 0,
@@ -50,7 +44,7 @@ class ProductResource extends JsonResource
             'gender' => $this->gender?->name ?? 'Sin género',
             'warehouseId' => $this->warehouse_id,
             'warehouse' => $this->warehouse?->name ?? 'Sin almacén',
-            'filter' => ! $this->sizes()->exists(),
+            'filter' => !$this->sizes()->exists(),
             'sizeTypeId' => $this->sizes->pluck('size_type_id')
                 ->unique()
                 ->sort()

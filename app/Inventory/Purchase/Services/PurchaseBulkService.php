@@ -2,17 +2,20 @@
 
 namespace App\Inventory\Purchase\Services;
 
-use App\Inventory\Color\Models\Color;
 use App\Inventory\Color\Services\ColorService;
-use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
+use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductService;
-use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Purchase\Support\PurchasePayloadResolver;
 use App\Inventory\Size\Services\SizeService;
+use App\Inventory\Warehouse\Models\Warehouse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,16 +25,15 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseBulkService
 {
-    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     public function __construct(
         protected ProductService $productService,
         protected SizeService $sizeService,
         protected ColorService $colorService,
-        protected ProductSizeColorService $productSizeColorService,
         protected PurchasePayloadResolver $resolver,
         protected PurchaseDocumentService $purchaseDocumentService,
+        protected InventoryMovementService $inventoryMovementService,
     ) {
     }
 
@@ -42,6 +44,7 @@ class PurchaseBulkService
     {
         $purchase = $payload['purchase'] ?? [];
         $warehouseId = (int) ($purchase['warehouseId'] ?? 1);
+        $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
         $vendorId = isset($purchase['vendorId']) ? (int) $purchase['vendorId'] : null;
         if ($vendorId !== null && $vendorId < 1) {
             $vendorId = null;
@@ -53,9 +56,7 @@ class PurchaseBulkService
 
         $purchaseId = 0;
 
-        DB::transaction(function () use ($payload, $warehouseId, $vendorId, &$productTempMap, &$sizeTempMap, &$colorTempMap, &$purchaseId): void {
-            $touchedMasterIds = [];
-
+        DB::transaction(function () use ($payload, $warehouseId, $tenantId, $vendorId, &$productTempMap, &$sizeTempMap, &$colorTempMap, &$purchaseId): void {
             $this->upsertCatalogProducts(
                 $payload['catalogUpserts']['products'] ?? [],
                 $warehouseId,
@@ -64,7 +65,7 @@ class PurchaseBulkService
             );
             $this->upsertCatalogSizes($payload['catalogUpserts']['sizes'] ?? [], $sizeTempMap);
             $this->upsertCatalogColors($payload['catalogUpserts']['colors'] ?? [], $colorTempMap);
-            $this->applyLines($payload['lines'] ?? [], $productTempMap, $sizeTempMap, $colorTempMap, $touchedMasterIds);
+            $this->applyLines($payload['lines'] ?? [], $productTempMap, $sizeTempMap, $colorTempMap, $warehouseId, $tenantId);
             if ($vendorId !== null) {
                 $this->assignVendorToPurchaseProducts($vendorId, $payload['lines'] ?? [], $productTempMap);
             }
@@ -78,10 +79,6 @@ class PurchaseBulkService
             );
             $purchaseId = (int) $document->id;
 
-            $uniqueMasterIds = array_unique($touchedMasterIds);
-            foreach ($uniqueMasterIds as $masterId) {
-                $this->assertMasterMatchesColorsSum((int) $masterId);
-            }
         });
 
         return $purchaseId;
@@ -217,7 +214,8 @@ class PurchaseBulkService
         array $productTempMap,
         array $sizeTempMap,
         array $colorTempMap,
-        array &$touchedMasterIds,
+        int $warehouseId,
+        int $tenantId,
     ): void {
         $lines = array_values(array_filter($lines, 'is_array'));
         usort(
@@ -227,7 +225,7 @@ class PurchaseBulkService
         );
 
         foreach ($lines as $line) {
-            $this->applyStockForLine($line, $touchedMasterIds, $productTempMap, $sizeTempMap, $colorTempMap);
+            $this->applyStockForLine($line, $warehouseId, $tenantId, $productTempMap, $sizeTempMap, $colorTempMap);
         }
     }
 
@@ -252,11 +250,11 @@ class PurchaseBulkService
      * @param  array<string, int>  $productTempMap
      * @param  array<string, int>  $sizeTempMap
      * @param  array<string, int>  $colorTempMap
-     * @param  array<int, int>  $touchedMasterIds
      */
     public function applyStockForLine(
         array $line,
-        array &$touchedMasterIds,
+        int $warehouseId,
+        int $tenantId,
         array $productTempMap = [],
         array $sizeTempMap = [],
         array $colorTempMap = [],
@@ -281,8 +279,7 @@ class PurchaseBulkService
         }
 
         if (! $hasColorKeys && count($colors) === 1) {
-            $touchedMasterIds[] = (int) $productSize->id;
-            $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
+            $this->applyProductSizePurchase($productSize, $lineTotalQty, $line, $warehouseId, $tenantId, null);
 
             return;
         }
@@ -297,13 +294,9 @@ class PurchaseBulkService
 
         $productSize->loadMissing('product');
 
-        $touchedMasterIds[] = (int) $productSize->id;
+        $this->mergeProductSizePrices($productSize, $line);
+        $productSize->save();
 
-        // 1) Bloquear y actualizar siempre el maestro (product_size) primero.
-        // 2) Solo después ProductSizeColorService::set(..., updateMaster: false) — nunca lock en pivote antes del maestro.
-        $this->incrementProductSizeStock($productSize, $lineTotalQty, $line);
-
-        // Pivotes en orden determinístico de color_id (reduce deadlocks entre compras concurrentes).
         $colorOps = [];
         foreach ($colors as $c) {
             if ($c['quantity'] <= 0) {
@@ -321,7 +314,7 @@ class PurchaseBulkService
         usort($colorOps, fn (array $a, array $b): int => $a['id'] <=> $b['id']);
 
         foreach ($colorOps as $op) {
-            $this->incrementProductSizeColorStock($productSize, $op['id'], $op['qty']);
+            $this->recordPurchaseMovement($warehouseId, $tenantId, (int) $productSize->id, $op['id'], $op['qty']);
         }
     }
 
@@ -341,16 +334,21 @@ class PurchaseBulkService
     /**
      * @param  array<string, mixed>  $line
      */
-    protected function incrementProductSizeStock(ProductSize $productSize, int $delta, array $line): void
+    protected function applyProductSizePurchase(
+        ProductSize $productSize,
+        int $delta,
+        array $line,
+        int $warehouseId,
+        int $tenantId,
+        ?int $colorId,
+    ): void
     {
         $this->lockProductSizeMasterRow((int) $productSize->id);
 
         $this->mergeProductSizePrices($productSize, $line);
         $productSize->save();
 
-        if ($delta !== 0) {
-            ProductSize::query()->whereKey($productSize->id)->increment('stock', $delta);
-        }
+        $this->recordPurchaseMovement($warehouseId, $tenantId, (int) $productSize->id, $colorId, $delta);
     }
 
     /**
@@ -372,22 +370,27 @@ class PurchaseBulkService
         }
     }
 
-    protected function incrementProductSizeColorStock(ProductSize $productSize, int $colorId, int $delta): void
+    protected function recordPurchaseMovement(
+        int $warehouseId,
+        int $tenantId,
+        int $productSizeId,
+        ?int $colorId,
+        int $quantity,
+    ): void
     {
-        if ($delta === 0) {
+        if ($quantity === 0) {
             return;
         }
 
-        Color::query()->where('is_deleted', false)->findOrFail($colorId);
-
-        $this->productSizeColorService->set(
-            $productSize,
-            $colorId,
-            [],
-            updateMaster: false,
-            pivotStockDelta: $delta,
-        );
-
-        $productSize->unsetRelation('productSizeColors');
+        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: $colorId,
+            direction: InventoryMovementDirection::In,
+            quantity: $quantity,
+            movementType: InventoryMovementType::Purchase,
+            createdByUserId: Auth::id(),
+        ));
     }
 }

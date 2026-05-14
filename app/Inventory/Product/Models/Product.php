@@ -6,7 +6,6 @@ use App\Directory\Vendor\Models\Vendor;
 use App\Inventory\Gender\Models\Gender;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Image\Models\Image;
-use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -141,21 +140,11 @@ class Product extends Model
             Size::class,
             'product_size',
         )->withPivot([
-            'purchase_price',
-            'sale_price',
-            'min_sale_price',
-            'barcode',
-        ]);
-    }
-
-    /**
-     * Saldos por variante (Política A / inventory_balances).
-     *
-     * @return HasMany<InventoryBalance, Product>
-     */
-    public function inventoryBalances(): HasMany
-    {
-        return $this->hasMany(InventoryBalance::class, 'product_id');
+                    'purchase_price',
+                    'sale_price',
+                    'min_sale_price',
+                    'barcode'
+                ]);
     }
 
     /**

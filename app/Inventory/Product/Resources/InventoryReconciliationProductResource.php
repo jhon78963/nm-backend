@@ -2,8 +2,7 @@
 
 namespace App\Inventory\Product\Resources;
 
-use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,12 +16,8 @@ class InventoryReconciliationProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $warehouseId = WarehouseIdForInventoryResolver::resolve(
-            $request,
-            $this->warehouse_id !== null ? (int) $this->warehouse_id : null,
-        );
-
-        $balanceMap = InventoryBalanceLookup::mapForProductWarehouse((int) $this->id, $warehouseId);
+        $inventoryMovementService = app(InventoryMovementService::class);
+        $warehouseId = (int) $this->warehouse_id;
 
         return [
             'id' => $this->id,
@@ -31,19 +26,12 @@ class InventoryReconciliationProductResource extends JsonResource
             'genderId' => $this->gender_id,
             'warehouseId' => $this->warehouse_id,
             'status' => $this->status,
-            'sizes' => $this->productSizes->map(function ($productSize) use ($balanceMap, $warehouseId): array {
-                $psId = (int) $productSize->id;
-                $masterKey = InventoryBalanceLookup::key($psId, null);
-                $masterQty = $balanceMap[$masterKey] ?? 0;
-
+            'sizes' => $this->productSizes->map(function ($productSize) use ($inventoryMovementService, $warehouseId): array {
                 return [
                     'id' => $productSize->id,
                     'sizeId' => $productSize->size_id,
                     'barcode' => $productSize->barcode,
-                    'inventory' => [
-                        'available_quantity' => $masterQty,
-                        'warehouse_id' => $warehouseId,
-                    ],
+                    'stock' => $inventoryMovementService->getTotalByProductSize($warehouseId, (int) $productSize->id),
                     'purchasePrice' => $productSize->purchase_price,
                     'salePrice' => $productSize->sale_price,
                     'minSalePrice' => $productSize->min_sale_price,
@@ -51,18 +39,13 @@ class InventoryReconciliationProductResource extends JsonResource
                         'id' => $productSize->size->id,
                         'description' => $productSize->size->description,
                     ] : null,
-                    'colors' => $productSize->colors->map(function ($color) use ($balanceMap, $warehouseId, $psId): array {
-                        $k = InventoryBalanceLookup::key($psId, (int) $color->id);
-
+                    'colors' => $productSize->colors->map(static function ($color) use ($inventoryMovementService, $warehouseId, $productSize): array {
                         return [
                             'id' => $color->id,
                             'colorId' => $color->id,
                             'description' => $color->description,
                             'hash' => $color->hash,
-                            'inventory' => [
-                                'available_quantity' => $balanceMap[$k] ?? 0,
-                                'warehouse_id' => $warehouseId,
-                            ],
+                            'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, (int) $productSize->id, (int) $color->id),
                         ];
                     })->values()->all(),
                 ];

@@ -2,8 +2,11 @@
 
 namespace App\Inventory\Product\Controllers;
 
-use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
+use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Requests\InventoryReconciliationReplaceColorRequest;
@@ -13,13 +16,14 @@ use App\Inventory\Product\Resources\InventoryReconciliationProductResource;
 use App\Inventory\Product\Services\ProductService;
 use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Product\Services\ProductSizeService;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class InventoryReconciliationController extends Controller
 {
-    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     private const SEARCH_LIMIT = 20;
@@ -33,6 +37,7 @@ class InventoryReconciliationController extends Controller
         protected ProductService $productService,
         protected ProductSizeService $productSizeService,
         protected ProductSizeColorService $productSizeColorService,
+        protected InventoryMovementService $inventoryMovementService,
     ) {}
 
     public function search(InventoryReconciliationSearchRequest $request): JsonResponse
@@ -79,8 +84,6 @@ class InventoryReconciliationController extends Controller
         $freshProduct = null;
 
         DB::transaction(function () use ($product, $validated, &$freshProduct): void {
-            $touchedMasterIds = [];
-
             $sizeRows = collect($validated['sizes']);
             $productSizes = ProductSize::query()
                 ->where('product_id', $product->id)
@@ -113,57 +116,21 @@ class InventoryReconciliationController extends Controller
                         static fn ($c) => (int) ($c['colorId'] ?? 0),
                     );
                     foreach ($colorRows as $colorPayload) {
-                        $this->productSizeColorService->set(
-                            $productSize,
+                        $this->recordReconciliationMovement(
+                            (int) $product->warehouse_id,
+                            (int) $productSize->id,
                             (int) $colorPayload['colorId'],
-                            ['stock' => (int) $colorPayload['stock']],
-                            updateMaster: true,
-                            auditReason: self::AUDIT_REASON_PHYSICAL_COUNT,
+                            (int) $colorPayload['stock'],
                         );
                     }
-
-                    /*
-                     * Si la BD ya venía descuadrada (maestro ≠ suma de colores), los deltas de color
-                     * pueden ser 0 y el maestro no se corrige solo. Forzamos coherencia vía el
-                     * servicio de talla (stock absoluto = suma de pivotes), sin reimplementar lógica.
-                     */
-                    $masterRow = DB::table('product_size')
-                        ->where('id', $productSize->id)
-                        ->lockForUpdate()
-                        ->first();
-
-                    if ($masterRow !== null) {
-                        $sumColors = (int) DB::table('product_size_color')
-                            ->where('product_size_id', $productSize->id)
-                            ->sum('stock');
-
-                        $this->productSizeService->set(
-                            $product,
-                            (int) $masterRow->size_id,
-                            array_merge(
-                                [
-                                    'stock' => $sumColors,
-                                ],
-                                $this->mergeSizePayloadPricingAndBarcode($sizePayload, $masterRow),
-                            ),
-                            self::AUDIT_REASON_PHYSICAL_COUNT,
-                        );
-                    }
-
-                    $touchedMasterIds[] = (int) $productSize->id;
                 } elseif (array_key_exists('stock', $sizePayload)) {
-                    $this->productSizeService->set(
-                        $product,
-                        (int) $productSize->size_id,
-                        $this->buildMasterOnlySizeData($productSize, $sizePayload),
-                        self::AUDIT_REASON_PHYSICAL_COUNT,
+                    $this->recordReconciliationMovement(
+                        (int) $product->warehouse_id,
+                        (int) $productSize->id,
+                        null,
+                        (int) $sizePayload['stock'],
                     );
-                    $touchedMasterIds[] = (int) $productSize->id;
                 }
-            }
-
-            foreach (array_unique($touchedMasterIds) as $psId) {
-                $this->assertMasterMatchesColorsSum((int) $psId);
             }
 
             $freshProduct = $product->fresh()->load([
@@ -203,7 +170,6 @@ class InventoryReconciliationController extends Controller
                     $toColorId,
                     self::AUDIT_REASON_REPLACE_COLOR_LABEL,
                 );
-                $this->assertMasterMatchesColorsSum((int) $productSize->id);
             });
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -221,49 +187,28 @@ class InventoryReconciliationController extends Controller
         ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $sizePayload
-     * @param  object{barcode: ?string, purchase_price: mixed, sale_price: mixed, min_sale_price: mixed}  $masterRow
-     * @return array<string, mixed>
-     */
-    private function mergeSizePayloadPricingAndBarcode(array $sizePayload, object $masterRow): array
+    private function recordReconciliationMovement(int $warehouseId, int $productSizeId, ?int $colorId, int $physicalQuantity): void
     {
-        return [
-            'barcode' => array_key_exists('barcode', $sizePayload)
-                ? $sizePayload['barcode']
-                : $masterRow->barcode,
-            'purchasePrice' => array_key_exists('purchasePrice', $sizePayload)
-                ? $sizePayload['purchasePrice']
-                : $masterRow->purchase_price,
-            'salePrice' => array_key_exists('salePrice', $sizePayload)
-                ? $sizePayload['salePrice']
-                : $masterRow->sale_price,
-            'minSalePrice' => array_key_exists('minSalePrice', $sizePayload)
-                ? $sizePayload['minSalePrice']
-                : $masterRow->min_sale_price,
-        ];
-    }
+        $systemQuantity = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, $colorId);
+        $diff = $physicalQuantity - $systemQuantity;
 
-    /**
-     * @param  array<string, mixed>  $sizePayload
-     * @return array<string, mixed>
-     */
-    private function buildMasterOnlySizeData(ProductSize $productSize, array $sizePayload): array
-    {
-        return [
-            'stock' => (int) $sizePayload['stock'],
-            'barcode' => array_key_exists('barcode', $sizePayload)
-                ? $sizePayload['barcode']
-                : $productSize->barcode,
-            'purchasePrice' => array_key_exists('purchasePrice', $sizePayload)
-                ? $sizePayload['purchasePrice']
-                : $productSize->purchase_price,
-            'salePrice' => array_key_exists('salePrice', $sizePayload)
-                ? $sizePayload['salePrice']
-                : $productSize->sale_price,
-            'minSalePrice' => array_key_exists('minSalePrice', $sizePayload)
-                ? $sizePayload['minSalePrice']
-                : $productSize->min_sale_price,
-        ];
+        if ($diff === 0) {
+            return;
+        }
+
+        $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
+
+        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: $colorId,
+            direction: $diff > 0 ? InventoryMovementDirection::In : InventoryMovementDirection::Out,
+            quantity: abs($diff),
+            movementType: InventoryMovementType::ManualAdjustment,
+            referenceType: self::class,
+            referenceId: null,
+            createdByUserId: Auth::id(),
+        ));
     }
 }
