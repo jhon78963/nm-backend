@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withCommands([
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
+        \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
         \App\Inventory\Product\Jobs\SyncZeroToMultikartJob::class,
     ])
     ->create();
