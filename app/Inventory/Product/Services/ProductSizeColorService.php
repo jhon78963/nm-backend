@@ -20,6 +20,8 @@ class ProductSizeColorService
     /**
      * @param  array<string, mixed>  $data
      * @param  ?int  $pivotStockDelta  Si no es null, suma ese valor al stock del pivote bajo bloqueo maestro→detalle (el maestro solo se ajusta si $updateMaster).
+     *                                 Con $updateMaster true (formularios/API de color), el maestro solo sube ante desborde:
+     *                                 la suma de pivotes supera al maestro y además esa suma aumentó con esta operación.
      */
     public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true, ?int $pivotStockDelta = null, ?string $auditReason = null): void
     {
@@ -41,7 +43,9 @@ class ProductSizeColorService
     }
 
     /**
-     * Maestro (product_size) bajo lockForUpdate primero; después pivote (product_size_color).
+     * Maestro (product_size) bajo lockForUpdate primero; pivote después.
+     * Con `updateMaster` true: el maestro sólo sube si SUM(pivotes) supera al maestro y la suma total
+     * aumentó respecto al instante previo a este cambio (desborde por incremento, no reconciliación bajando hijos).
      *
      * @param  Closure(int): int  $resolveNewStock  Recibe stock actual del pivote bajo bloqueo; devuelve stock objetivo.
      */
@@ -85,14 +89,9 @@ class ProductSizeColorService
             ]
             : [];
 
-        if ($updateMaster && $delta !== 0) {
-            if ($delta > 0) {
-                DB::table('product_size')->where('id', $psId)->increment('stock', $delta);
-            } else {
-                StockAvailability::assertCanDecrement((int) $master->stock, -$delta);
-                DB::table('product_size')->where('id', $psId)->decrement('stock', -$delta);
-            }
-        }
+        $sumPivotBefore = (int) DB::table('product_size_color')
+            ->where('product_size_id', $psId)
+            ->sum('stock');
 
         if ($pivotRow) {
             if ($delta !== 0) {
@@ -107,6 +106,29 @@ class ProductSizeColorService
                 'color_id' => $colorId,
                 'stock' => $newStock,
             ]);
+        }
+
+        if ($updateMaster) {
+            $sumPivotAfter = (int) DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->sum('stock');
+
+            $masterFresh = DB::table('product_size')
+                ->where('id', $psId)
+                ->lockForUpdate()
+                ->first();
+
+            $masterStock = $masterFresh !== null ? (int) $masterFresh->stock : 0;
+
+            if (
+                $masterFresh !== null
+                && $sumPivotAfter > $masterStock
+                && $sumPivotAfter > $sumPivotBefore
+            ) {
+                DB::table('product_size')
+                    ->where('id', $psId)
+                    ->update(['stock' => $sumPivotAfter]);
+            }
         }
 
         if ($delta === 0 && $pivotRow !== null) {

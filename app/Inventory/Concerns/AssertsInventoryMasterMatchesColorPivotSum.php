@@ -6,8 +6,8 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Garantiza coherencia maestro vs sum(pivotes por color). Solo vigila registros donde
- * ya existen pivotes `product_size_color`: tallas sólo-maestro (sin pivotes) quedan fuera del chequeo.
+ * Garantiza coherencia: la suma de stocks por color no puede superar el stock maestro (`product_size`).
+ * El maestro puede ser mayor (unidades sin desglose o techo fijado desde tallas); antes se exigía igualdad estricta maestro/suma.
  */
 trait AssertsInventoryMasterMatchesColorPivotSum
 {
@@ -32,9 +32,9 @@ trait AssertsInventoryMasterMatchesColorPivotSum
             ->where('id', $psId)
             ->value('stock') ?? 0);
 
-        if ($stock_maestro !== $suma_colores) {
+        if ($stock_maestro < $suma_colores) {
             throw new Exception(
-                "Inconsistencia crítica prevenida: El stock del maestro ({$stock_maestro}) no coincide con la suma de sus colores ({$suma_colores}). Operación abortada.",
+                "Inconsistencia crítica prevenida: La suma de stock por color ({$suma_colores}) supera el stock maestro de la talla ({$stock_maestro}). Operación abortada.",
             );
         }
     }
