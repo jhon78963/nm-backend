@@ -73,17 +73,23 @@ class ColorController extends Controller
 
         $sizes = ProductSize::query()
             ->join('sizes as s', 'product_size.size_id', '=', 's.id')
+            ->join('products as p', 'p.id', '=', 'product_size.product_id')
+            ->leftJoin('inventory_balances as ib', function ($join): void {
+                $join->on('ib.product_size_id', '=', 'product_size.id')
+                    ->on('ib.warehouse_id', '=', 'p.warehouse_id')
+                    ->whereNull('ib.color_id');
+            })
             ->where('product_size.product_id', $productId)
             ->when(
                 $size,
-                fn(Builder $query): Builder =>
+                fn (Builder $query): Builder =>
                 $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
             )
             ->select([
                 's.id',
                 'product_size.id as productSizeId',
                 's.description',
-                'product_size.stock',
+                DB::raw('COALESCE(ib.quantity, 0) as stock'),
                 'product_size.barcode',
                 'product_size.purchase_price',
                 'product_size.sale_price',
@@ -151,10 +157,32 @@ class ColorController extends Controller
         $productSizeColors = collect();
 
         if ($productSizeId) {
-            $productSizeColors = DB::table('product_size_color')
+            $warehouseId = (int) (DB::table('product_size as ps')
+                ->join('products as p', 'p.id', '=', 'ps.product_id')
+                ->where('ps.id', $productSizeId)
+                ->value('p.warehouse_id') ?? 0);
+
+            $attachedColorIds = DB::table('product_size_color')
                 ->where('product_size_id', '=', $productSizeId)
-                ->get()
-                ->keyBy('color_id');
+                ->pluck('color_id');
+
+            if ($warehouseId > 0 && $attachedColorIds->isNotEmpty()) {
+                $qtyByColor = DB::table('inventory_balances')
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('product_size_id', $productSizeId)
+                    ->whereIn('color_id', $attachedColorIds->all())
+                    ->pluck('quantity', 'color_id')
+                    ->map(static fn ($q): int => (int) $q)
+                    ->all();
+            } else {
+                $qtyByColor = [];
+            }
+
+            $productSizeColors = $attachedColorIds->mapWithKeys(function ($colorId) use ($qtyByColor): array {
+                $cid = (int) $colorId;
+
+                return [$cid => (object) ['stock' => $qtyByColor[$cid] ?? 0]];
+            });
         }
 
         return Color::where('is_deleted', '=', false)

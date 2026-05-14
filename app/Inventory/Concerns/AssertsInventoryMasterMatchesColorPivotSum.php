@@ -6,8 +6,7 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Garantiza coherencia: la suma de stocks por color no puede superar el stock maestro (`product_size`).
- * El maestro puede ser mayor (unidades sin desglose o techo fijado desde tallas); antes se exigía igualdad estricta maestro/suma.
+ * Tras Política A: coherencia entre stock maestro (balance color_id null) y suma de variantes por color en inventory_balances.
  */
 trait AssertsInventoryMasterMatchesColorPivotSum
 {
@@ -17,24 +16,38 @@ trait AssertsInventoryMasterMatchesColorPivotSum
             return;
         }
 
-        $agg = DB::table('product_size_color')
+        $pivotCount = (int) DB::table('product_size_color')
             ->where('product_size_id', $psId)
-            ->selectRaw('COUNT(*) AS pivot_rows, COALESCE(SUM(stock), 0) AS sum_stock')
-            ->first();
+            ->count();
 
-        if ($agg === null || (int) $agg->pivot_rows === 0) {
+        if ($pivotCount === 0) {
             return;
         }
 
-        $suma_colores = (int) $agg->sum_stock;
+        $warehouseId = (int) (DB::table('product_size as ps')
+            ->join('products as p', 'p.id', '=', 'ps.product_id')
+            ->where('ps.id', $psId)
+            ->value('p.warehouse_id') ?? 0);
 
-        $stock_maestro = (int) (DB::table('product_size')
-            ->where('id', $psId)
-            ->value('stock') ?? 0);
+        if ($warehouseId < 1) {
+            return;
+        }
 
-        if ($stock_maestro < $suma_colores) {
+        $masterQty = (int) (DB::table('inventory_balances')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_size_id', $psId)
+            ->whereNull('color_id')
+            ->value('quantity') ?? 0);
+
+        $sumColors = (int) DB::table('inventory_balances')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_size_id', $psId)
+            ->whereNotNull('color_id')
+            ->sum('quantity');
+
+        if ($masterQty < $sumColors) {
             throw new Exception(
-                "Inconsistencia crítica prevenida: La suma de stock por color ({$suma_colores}) supera el stock maestro de la talla ({$stock_maestro}). Operación abortada.",
+                "Inconsistencia crítica prevenida: La suma de stock por color ({$sumColors}) supera el saldo maestro de la talla ({$masterQty}). Operación abortada.",
             );
         }
     }

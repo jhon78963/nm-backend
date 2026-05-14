@@ -25,7 +25,6 @@ class ProductSize extends Model
         'product_id',
         'size_id',
         'barcode',
-        'stock',
         'purchase_price',
         'sale_price',
         'min_sale_price',
@@ -46,7 +45,6 @@ class ProductSize extends Model
     protected function casts(): array
     {
         return [
-            'stock' => 'int',
             'purchase_price' => 'float',
             'sale_price' => 'float',
             'min_sale_price' => 'float',
@@ -70,7 +68,7 @@ class ProductSize extends Model
             'product_size_color',
             'product_size_id',
             'color_id',
-        )->withPivot(['stock']);
+        )->withPivot([]);
     }
 
     public function colors()
@@ -80,6 +78,6 @@ class ProductSize extends Model
             'product_size_color',
             'product_size_id',
             'color_id'
-        )->withPivot('stock');
+        )->withPivot([]);
     }
 }

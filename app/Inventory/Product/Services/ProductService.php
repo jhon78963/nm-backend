@@ -4,6 +4,7 @@ namespace App\Inventory\Product\Services;
 
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
+use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -140,13 +141,14 @@ class ProductService extends ModelService
         $basePrice = null;
 
         foreach ($product->productSizes as $pSize) {
-            if (!$pSize->size) {
+            if (! $pSize->size) {
                 continue;
             }
 
             $tallaNombre = $pSize->size->description;
             $currentPrice = $salePriceFor($pSize, $product);
             $currentSku = $pSize->barcode ?? '';
+            $warehouseId = (int) ($product->warehouse_id ?? 0);
 
             if ($currentPrice > 0) {
                 $basePrice =
@@ -155,40 +157,49 @@ class ProductService extends ModelService
                         : min($basePrice, $currentPrice);
             }
 
-            if (!isset($variantsMap[$tallaNombre])) {
+            if (! isset($variantsMap[$tallaNombre])) {
                 $variantsMap[$tallaNombre] = [];
             }
 
             $hasColorVariants = false;
             if ($pSize->productSizeColors && $pSize->productSizeColors->count() > 0) {
                 foreach ($pSize->productSizeColors as $color) {
-                    $stock = $color->pivot->stock;
+                    $qty = InventoryBalanceLookup::quantityFor($warehouseId, (int) $pSize->id, (int) $color->id);
 
-                    if ($stock > 0) {
+                    if ($qty > 0) {
                         $hasColorVariants = true;
                         $variantsMap[$tallaNombre][] = [
                             'product_size_id' => $pSize->id,
-                            'color_id'      => $color->id,
-                            'colorName'     => $color->description,
-                            'hex'           => $color->hash ?? '#000000',
-                            'stock'         => $stock,
-                            'price'         => $currentPrice,
-                            'sku'           => $currentSku
+                            'color_id' => $color->id,
+                            'colorName' => $color->description,
+                            'hex' => $color->hash ?? '#000000',
+                            'inventory' => [
+                                'available_quantity' => $qty,
+                                'warehouse_id' => $warehouseId,
+                            ],
+                            'price' => $currentPrice,
+                            'sku' => $currentSku,
                         ];
                     }
                 }
             }
 
-            if (!$hasColorVariants && $pSize->stock > 0) {
-                $variantsMap[$tallaNombre][] = [
-                    'product_size_id' => $pSize->id,
-                    'color_id'      => 0,
-                    'colorName'     => 'Único',
-                    'hex'           => '#E5E7EB',
-                    'stock'         => (int) $pSize->stock,
-                    'price'         => $currentPrice,
-                    'sku'           => $currentSku
-                ];
+            if (! $hasColorVariants) {
+                $qtyMaster = InventoryBalanceLookup::quantityFor($warehouseId, (int) $pSize->id, null);
+                if ($qtyMaster > 0) {
+                    $variantsMap[$tallaNombre][] = [
+                        'product_size_id' => $pSize->id,
+                        'color_id' => 0,
+                        'colorName' => 'Único',
+                        'hex' => '#E5E7EB',
+                        'inventory' => [
+                            'available_quantity' => $qtyMaster,
+                            'warehouse_id' => $warehouseId,
+                        ],
+                        'price' => $currentPrice,
+                        'sku' => $currentSku,
+                    ];
+                }
             }
         }
 

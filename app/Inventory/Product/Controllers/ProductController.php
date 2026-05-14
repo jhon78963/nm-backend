@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Product\Controllers;
 
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Requests\ProductCreateRequest;
 use App\Inventory\Product\Requests\ProductUpdateRequest;
@@ -62,9 +63,19 @@ class ProductController extends Controller
     public function get(Product $product): JsonResponse
     {
         $this->productService->validate($product, 'Product');
+        $warehouseId = WarehouseIdForInventoryResolver::resolve(request(), $product->warehouse_id !== null ? (int) $product->warehouse_id : null);
+
         $product->load([
             'productSizes' => static fn ($q) => $q->orderBy('id'),
         ]);
+
+        if ($warehouseId > 0) {
+            $product->loadSum([
+                'inventoryBalances as inventory_sum_qty' => static fn ($q) => $q->where('inventory_balances.warehouse_id', $warehouseId),
+            ], 'quantity');
+        } else {
+            $product->loadSum('inventoryBalances as inventory_sum_qty', 'quantity');
+        }
 
         return response()->json(new ProductResource($product));
     }
@@ -75,7 +86,13 @@ class ProductController extends Controller
             'gender_id' => $request->input('genderId'),
         ]);
 
-        $stockSubquery = '(SELECT COALESCE(SUM(stock), 0) FROM product_size WHERE product_size.product_id = products.id)';
+        $warehouseId = WarehouseIdForInventoryResolver::resolve($request, null);
+
+        $stockSubquery = '(SELECT COALESCE(SUM(quantity), 0) FROM inventory_balances WHERE inventory_balances.product_id = products.id';
+        $stockSubquery .= $warehouseId > 0
+            ? ' AND inventory_balances.warehouse_id = '.(int) $warehouseId
+            : '';
+        $stockSubquery .= ')';
 
         $queryResult = $this->sharedService->query(
             request:      $request,
@@ -83,7 +100,15 @@ class ProductController extends Controller
             modelName:    'Product',
             columnSearch: ['id', 'name', 'gender.name', $stockSubquery],
             filters:      $filters,
-            extendQuery:  fn($q) => $q->withSum('sizes as sizes_sum_stock', 'product_size.stock'),
+            extendQuery: function ($q) use ($warehouseId) {
+                if ($warehouseId > 0) {
+                    return $q->withSum([
+                        'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel->where('inventory_balances.warehouse_id', $warehouseId),
+                    ], 'quantity');
+                }
+
+                return $q->withSum('inventoryBalances as inventory_sum_qty', 'quantity');
+            },
         );
 
         return response()->json(new GetAllCollection(
