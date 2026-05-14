@@ -2,15 +2,15 @@
 
 namespace App\Inventory\Purchase\Services;
 
-use App\Inventory\Color\Models\Color;
-use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
-use App\Inventory\Product\Models\ProductHistory;
-use App\Inventory\Product\Models\ProductSize;
-use App\Inventory\Product\Services\ProductSizeColorService;
+use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
 use App\Inventory\Purchase\Models\Purchase;
 use App\Inventory\Purchase\Models\PurchaseLine;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,11 +20,10 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseCancellationService
 {
-    use AssertsInventoryMasterMatchesColorPivotSum;
     use ProvidesInventoryLockSortKey;
 
     public function __construct(
-        protected ProductSizeColorService $productSizeColorService,
+        protected InventoryMovementService $inventoryMovementService,
     ) {
     }
 
@@ -65,14 +64,7 @@ class PurchaseCancellationService
             })->values();
 
             foreach ($lines as $line) {
-                $this->revertLineStock($line);
-            }
-
-            foreach ($psIds as $psIdIntegrity) {
-                $psIdIntegrity = (int) $psIdIntegrity;
-                if ($psIdIntegrity > 0) {
-                    $this->assertMasterMatchesColorsSum($psIdIntegrity);
-                }
+                $this->revertLineStock($line, $purchase);
             }
 
             $purchase->status = PurchaseStatus::Cancelled;
@@ -88,9 +80,12 @@ class PurchaseCancellationService
     /**
      * Revierte en inventario el efecto de una sola línea de compra (deltas de color + stock talla).
      */
-    public function revertLineStock(PurchaseLine $line): void
+    public function revertLineStock(PurchaseLine $line, ?Purchase $purchase = null): void
     {
         $line->loadMissing(['colorDeltas']);
+        $purchase ??= $line->purchase()->firstOrFail();
+        $warehouseId = (int) $purchase->warehouse_id;
+        $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
         $productSizeId = (int) $line->product_size_id;
         $deltaSize = (int) $line->size_stock_delta;
 
@@ -105,79 +100,62 @@ class PurchaseCancellationService
             }
         }
 
-        $masterRow = DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first();
-        if ($masterRow === null) {
+        if (! DB::table('product_size')->where('id', $productSizeId)->exists()) {
             throw ValidationException::withMessages([
                 'stock' => 'No se encontró la talla del producto para revertir el stock.',
             ]);
         }
 
-        if ((int) $masterRow->stock < $deltaSize) {
-            throw ValidationException::withMessages([
-                'stock' => 'No se puede anular: stock a nivel talla insuficiente para revertir.',
-            ]);
-        }
-
-        $productSize = ProductSize::query()->findOrFail($productSizeId);
-
-        $pivotWrites = [];
-
-        foreach ($line->colorDeltas->sortBy(fn ($d) => (int) $d->color_id) as $delta) {
-            $colorId = (int) $delta->color_id;
-            Color::query()->where('is_deleted', false)->findOrFail($colorId);
-
-            $pivotRow = DB::table('product_size_color')
-                ->where('product_size_id', $productSizeId)
-                ->where('color_id', $colorId)
-                ->lockForUpdate()
-                ->first();
-
-            $current = $pivotRow ? (int) $pivotRow->stock : 0;
-            $qty = (int) $delta->quantity;
-            if ($current < $qty) {
+        if (! $line->has_color_breakdown) {
+            $available = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, null);
+            if ($available < $deltaSize) {
                 throw ValidationException::withMessages([
-                    'stock' => "No se puede anular: stock insuficiente en color ID {$colorId} para la talla (actual {$current}, revertir {$qty}).",
+                    'stock' => "No se puede anular: stock insuficiente en la talla (actual {$available}, revertir {$deltaSize}).",
                 ]);
             }
 
-            $pivotWrites[] = ['color_id' => $colorId, 'new_stock' => $current - $qty];
+            $this->recordPurchaseCancelMovement($warehouseId, $tenantId, $productSizeId, null, $deltaSize, (int) $line->purchase_id);
+
+            return;
         }
 
-        $stockBeforeMaster = (int) $masterRow->stock;
+        foreach ($line->colorDeltas->sortBy(fn ($d) => (int) $d->color_id) as $delta) {
+            $colorId = (int) $delta->color_id;
+            $qty = (int) $delta->quantity;
+            $available = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, $colorId);
+            if ($available < $qty) {
+                throw ValidationException::withMessages([
+                    'stock' => "No se puede anular: stock insuficiente en color ID {$colorId} para la talla (actual {$available}, revertir {$qty}).",
+                ]);
+            }
 
-        DB::table('product_size')->where('id', $productSizeId)->decrement('stock', $deltaSize);
-
-        $stockAfterMaster = (int) (DB::table('product_size')
-            ->where('id', $productSizeId)
-            ->lockForUpdate()
-            ->first()
-            ?->stock ?? 0);
-
-        ProductHistory::create([
-            'product_id' => (int) $line->product_id,
-            'entity_type' => 'PURCHASE_CANCEL',
-            'entity_id' => (int) $line->purchase_id,
-            'event_type' => 'RETURNED',
-            'old_values' => [
-                'stock' => $stockBeforeMaster,
-            ],
-            'new_values' => [
-                'stock' => $stockAfterMaster,
-                'quantity' => $deltaSize,
-                'purchase_line_id' => (int) $line->id,
-                'product_size_id' => $productSizeId,
-            ],
-            'creator_user_id' => Auth::id(),
-        ]);
-
-        foreach ($pivotWrites as $op) {
-            $this->productSizeColorService->set(
-                $productSize,
-                $op['color_id'],
-                ['stock' => $op['new_stock']],
-                updateMaster: false,
-            );
-            $productSize->unsetRelation('productSizeColors');
+            $this->recordPurchaseCancelMovement($warehouseId, $tenantId, $productSizeId, $colorId, $qty, (int) $line->purchase_id);
         }
+    }
+
+    private function recordPurchaseCancelMovement(
+        int $warehouseId,
+        int $tenantId,
+        int $productSizeId,
+        ?int $colorId,
+        int $quantity,
+        int $purchaseId,
+    ): void {
+        if ($quantity === 0) {
+            return;
+        }
+
+        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: $colorId,
+            direction: InventoryMovementDirection::Out,
+            quantity: $quantity,
+            movementType: InventoryMovementType::PurchaseCancel,
+            referenceType: Purchase::class,
+            referenceId: $purchaseId,
+            createdByUserId: Auth::id(),
+        ));
     }
 }

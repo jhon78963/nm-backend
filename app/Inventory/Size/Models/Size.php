@@ -50,7 +50,7 @@ class Size extends Model
             Product::class,
             'product_size',
         )->withPivot([
-           'stock', 'purchase_price', 'sale_price', 'min_sale_price', 'barcode'
+           'purchase_price', 'sale_price', 'min_sale_price', 'barcode'
         ]);
     }
 
@@ -61,7 +61,7 @@ class Size extends Model
             'product_size_color',
             'product_size_id',
             'color_id'
-        )->withPivot(['stock']);
+        );
     }
 
     public function sizeType(): BelongsTo {
