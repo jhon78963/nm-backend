@@ -4,6 +4,7 @@ namespace App\Report\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Models\Product;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -244,6 +245,8 @@ class ReportService
      */
     public function getProductsInventoryReport(): array
     {
+        $inventoryMovementService = app(InventoryMovementService::class);
+
         $products = Product::query()
             ->where('is_deleted', false)
             ->orderBy('name')
@@ -264,11 +267,13 @@ class ReportService
             $sizes = $product->productSizes
                 ->sortBy(fn ($ps) => $ps->size?->description ?? '')
                 ->values()
-                ->map(function ($ps) {
+                ->map(function ($ps) use ($inventoryMovementService, $product) {
+                    $warehouseId = (int) $product->warehouse_id;
+                    $productSizeId = (int) $ps->id;
                     $colors = $ps->colors->map(fn ($c) => [
                         'color_id' => $c->id,
                         'color' => $c->description,
-                        'stock' => (int) ($c->pivot->stock ?? 0),
+                        'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, (int) $c->id),
                     ])->values()->all();
 
                     return [
@@ -279,7 +284,7 @@ class ReportService
                         'purchase_price' => $ps->purchase_price !== null ? (float) $ps->purchase_price : null,
                         'sale_price' => $ps->sale_price !== null ? (float) $ps->sale_price : null,
                         'min_sale_price' => $ps->min_sale_price !== null ? (float) $ps->min_sale_price : null,
-                        'stock' => (int) $ps->stock,
+                        'stock' => $inventoryMovementService->getTotalByProductSize($warehouseId, $productSizeId),
                         'colors' => $colors,
                     ];
                 })->all();

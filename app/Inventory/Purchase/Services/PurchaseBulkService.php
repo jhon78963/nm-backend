@@ -18,6 +18,7 @@ use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 /**
  * Registro masivo de compra: crea catálogo temporal (producto/talla/color) y
@@ -43,7 +44,11 @@ class PurchaseBulkService
     public function handle(array $payload): int
     {
         $purchase = $payload['purchase'] ?? [];
-        $warehouseId = (int) ($purchase['warehouseId'] ?? 1);
+        $warehouseId = (int) ($purchase['warehouseId'] ?? 0);
+        if ($warehouseId < 1) {
+            throw new InvalidArgumentException('Debe enviar un warehouseId válido para registrar la compra.');
+        }
+
         $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
         $vendorId = isset($purchase['vendorId']) ? (int) $purchase['vendorId'] : null;
         if ($vendorId !== null && $vendorId < 1) {

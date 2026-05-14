@@ -21,6 +21,7 @@ use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class InventoryReconciliationController extends Controller
 {
@@ -81,9 +82,14 @@ class InventoryReconciliationController extends Controller
         $this->productService->validate($product, 'Product');
 
         $validated = $request->validated();
+        $warehouseId = (int) ($product->warehouse_id ?? 0);
+        if ($warehouseId < 1) {
+            throw new InvalidArgumentException('El producto no tiene un almacén configurado para la reconciliación');
+        }
+
         $freshProduct = null;
 
-        DB::transaction(function () use ($product, $validated, &$freshProduct): void {
+        DB::transaction(function () use ($product, $validated, $warehouseId, &$freshProduct): void {
             $sizeRows = collect($validated['sizes']);
             $productSizes = ProductSize::query()
                 ->where('product_id', $product->id)
@@ -117,7 +123,7 @@ class InventoryReconciliationController extends Controller
                     );
                     foreach ($colorRows as $colorPayload) {
                         $this->recordReconciliationMovement(
-                            (int) $product->warehouse_id,
+                            $warehouseId,
                             (int) $productSize->id,
                             (int) $colorPayload['colorId'],
                             (int) $colorPayload['stock'],
@@ -125,7 +131,7 @@ class InventoryReconciliationController extends Controller
                     }
                 } elseif (array_key_exists('stock', $sizePayload)) {
                     $this->recordReconciliationMovement(
-                        (int) $product->warehouse_id,
+                        $warehouseId,
                         (int) $productSize->id,
                         null,
                         (int) $sizePayload['stock'],
@@ -189,6 +195,10 @@ class InventoryReconciliationController extends Controller
 
     private function recordReconciliationMovement(int $warehouseId, int $productSizeId, ?int $colorId, int $physicalQuantity): void
     {
+        if ($warehouseId < 1) {
+            throw new InvalidArgumentException('El producto no tiene un almacén configurado para la reconciliación');
+        }
+
         $systemQuantity = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, $colorId);
         $diff = $physicalQuantity - $systemQuantity;
 
