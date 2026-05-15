@@ -12,11 +12,11 @@ use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Services\ModelService;
+use Exception;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Exception;
-use Illuminate\Support\Collection;
 use stdClass;
 
 class SaleService extends ModelService
@@ -66,12 +66,36 @@ class SaleService extends ModelService
             throw new Exception('Stock insuficiente para la cantidad solicitada. Verifique el inventario físico.');
         }
 
+        $this->recordSaleMovement(
+            $warehouseId,
+            $tenantId,
+            $productSizeId,
+            $colorId,
+            InventoryMovementDirection::Out,
+            $quantity,
+            $saleId,
+        );
+    }
+
+    private function recordSaleMovement(
+        int $warehouseId,
+        int $tenantId,
+        int $productSizeId,
+        ?int $colorId,
+        InventoryMovementDirection $direction,
+        int $quantity,
+        int $saleId,
+    ): void {
+        if ($quantity < 1) {
+            return;
+        }
+
         $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
             tenantId: $tenantId,
             warehouseId: $warehouseId,
             productSizeId: $productSizeId,
             colorId: $colorId,
-            direction: InventoryMovementDirection::Out,
+            direction: $direction,
             quantity: $quantity,
             movementType: InventoryMovementType::Sale,
             referenceType: Sale::class,
@@ -167,10 +191,6 @@ class SaleService extends ModelService
 
                     if ($isExchange) {
                         // ESCENARIO A: CAMBIO DE PRODUCTO (Devolver stock viejo / Quitar nuevo)
-                        $this->ensureProductSizeMastersLocked(
-                            $oldPsId ? (int) $oldPsId : null,
-                            $newPsId ? (int) $newPsId : null,
-                        );
                         if ($oldPsId) {
                             $this->applyStockDeltaLocked(
                                 (int) $oldPsId,
@@ -206,7 +226,6 @@ class SaleService extends ModelService
                         // ESCENARIO B: MISMO PRODUCTO, SOLO CANTIDAD
                         $diff = $newQty - $oldQty;
                         if ($diff !== 0 && $oldPsId) {
-                            $this->ensureProductSizeMastersLocked((int) $oldPsId);
                             if ($diff > 0) {
                                 $this->applyStockDeltaLocked(
                                     (int) $oldPsId,
@@ -319,45 +338,6 @@ class SaleService extends ModelService
         return $this->getInventoryLockSortKey($fromPid, $fromSid);
     }
 
-    /**
-     * Bloquea filas maestras product_size en orden determinístico por clave natural (product_id, size_id).
-     *
-     * @param  int|null  ...$psIds  IDs en product_size (null o ≤0 se ignoran)
-     */
-    private function ensureProductSizeMastersLocked(?int ...$psIds): void
-    {
-        $ids = [];
-        foreach ($psIds as $id) {
-            if ($id !== null && $id > 0) {
-                $ids[] = $id;
-            }
-        }
-        $ids = array_values(array_unique($ids));
-
-        if ($ids === []) {
-            return;
-        }
-
-        $rows = DB::table('product_size')
-            ->whereIn('id', $ids)
-            ->get(['id', 'product_id', 'size_id']);
-
-        if ($rows->count() !== count($ids)) {
-            throw new Exception('Talla de producto no encontrada.');
-        }
-
-        $sorted = $rows->sortBy(
-            fn ($r) => $this->getInventoryLockSortKey((int) $r->product_id, (int) $r->size_id),
-        )->values();
-
-        foreach ($sorted as $row) {
-            $locked = DB::table('product_size')->where('id', $row->id)->lockForUpdate()->first();
-            if (! $locked) {
-                throw new Exception('Talla de producto no encontrada.');
-            }
-        }
-    }
-
     private function applyStockDeltaLocked(
         int $psId,
         ?int $colorId,
@@ -378,6 +358,16 @@ class SaleService extends ModelService
         }
 
         if ($increment) {
+            $this->recordSaleMovement(
+                $warehouseId,
+                $tenantId,
+                $psId,
+                $colorId ? (int) $colorId : null,
+                InventoryMovementDirection::In,
+                $qty,
+                $saleId,
+            );
+
             return;
         }
 

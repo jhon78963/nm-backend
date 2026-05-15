@@ -22,7 +22,7 @@ use InvalidArgumentException;
 
 /**
  * Registro masivo de compra: crea catálogo temporal (producto/talla/color) y
- * actualiza stock en `product_size` y `product_size_color`; persiste documento `purchases`.
+ * registra movimientos de inventario; persiste documento `purchases`.
  */
 class PurchaseBulkService
 {
@@ -323,12 +323,9 @@ class PurchaseBulkService
         }
     }
 
-    /**
-     * Bloqueo pesimista del maestro talla (alineado con ventas / reduce deadlocks).
-     */
     protected function lockProductSizeMasterRow(int $productSizeId): void
     {
-        $row = DB::table('product_size')->where('id', $productSizeId)->lockForUpdate()->first();
+        $row = DB::table('product_size')->where('id', $productSizeId)->first();
         if ($row === null) {
             throw ValidationException::withMessages([
                 'stock' => 'No se encontró la talla del producto para aplicar stock.',

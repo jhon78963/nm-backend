@@ -21,7 +21,9 @@ use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Throwable;
 
 class InventoryReconciliationController extends Controller
 {
@@ -89,62 +91,71 @@ class InventoryReconciliationController extends Controller
 
         $freshProduct = null;
 
-        DB::transaction(function () use ($product, $validated, $warehouseId, &$freshProduct): void {
-            $sizeRows = collect($validated['sizes']);
-            $productSizes = ProductSize::query()
-                ->where('product_id', $product->id)
-                ->whereIn('id', $sizeRows->pluck('id')->all())
-                ->get()
-                ->keyBy('id');
+        try {
+            DB::transaction(function () use ($product, $validated, $warehouseId, &$freshProduct): void {
+                $sizeRows = collect($validated['sizes']);
+                $productSizes = ProductSize::query()
+                    ->where('product_id', $product->id)
+                    ->whereIn('id', $sizeRows->pluck('id')->all())
+                    ->get()
+                    ->keyBy('id');
 
-            $ordered = $sizeRows->sortBy(function (array $row) use ($productSizes, $product): string {
-                /** @var ProductSize|null $ps */
-                $ps = $productSizes->get($row['id']);
+                $ordered = $sizeRows->sortBy(function (array $row) use ($productSizes, $product): string {
+                    /** @var ProductSize|null $ps */
+                    $ps = $productSizes->get($row['id']);
 
-                return $ps !== null
-                    ? $this->getInventoryLockSortKey((int) $product->id, (int) $ps->size_id)
-                    : (string) $row['id'];
-            });
+                    return $ps !== null
+                        ? $this->getInventoryLockSortKey((int) $product->id, (int) $ps->size_id)
+                        : (string) $row['id'];
+                });
 
-            foreach ($ordered as $sizePayload) {
-                /** @var ProductSize|null $productSize */
-                $productSize = $productSizes->get($sizePayload['id']);
-                if ($productSize === null) {
-                    continue;
-                }
+                foreach ($ordered as $sizePayload) {
+                    /** @var ProductSize|null $productSize */
+                    $productSize = $productSizes->get($sizePayload['id']);
+                    if ($productSize === null) {
+                        continue;
+                    }
 
-                $colors = isset($sizePayload['colors']) && is_array($sizePayload['colors'])
-                    ? $sizePayload['colors']
-                    : [];
+                    $colors = isset($sizePayload['colors']) && is_array($sizePayload['colors'])
+                        ? $sizePayload['colors']
+                        : [];
 
-                if ($colors !== []) {
-                    $colorRows = collect($colors)->sortBy(
-                        static fn ($c) => (int) ($c['colorId'] ?? 0),
-                    );
-                    foreach ($colorRows as $colorPayload) {
+                    if ($colors !== []) {
+                        $colorRows = collect($colors)->sortBy(
+                            static fn ($c) => (int) ($c['colorId'] ?? 0),
+                        );
+                        foreach ($colorRows as $colorPayload) {
+                            $this->recordReconciliationMovement(
+                                $warehouseId,
+                                (int) $productSize->id,
+                                (int) $colorPayload['colorId'],
+                                (int) $colorPayload['stock'],
+                            );
+                        }
+                    } elseif (array_key_exists('stock', $sizePayload)) {
                         $this->recordReconciliationMovement(
                             $warehouseId,
                             (int) $productSize->id,
-                            (int) $colorPayload['colorId'],
-                            (int) $colorPayload['stock'],
+                            null,
+                            (int) $sizePayload['stock'],
                         );
                     }
-                } elseif (array_key_exists('stock', $sizePayload)) {
-                    $this->recordReconciliationMovement(
-                        $warehouseId,
-                        (int) $productSize->id,
-                        null,
-                        (int) $sizePayload['stock'],
-                    );
                 }
-            }
 
-            $freshProduct = $product->fresh()->load([
-                'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
-                'productSizes.size',
-                'productSizes.colors',
-            ]);
-        });
+                $freshProduct = $product->fresh()->load([
+                    'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
+                    'productSizes.size',
+                    'productSizes.colors',
+                ]);
+            });
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => 'No se pudo reconciliar el inventario.',
+                'error' => $e->getMessage(),
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Inventario actualizado correctamente.',
@@ -199,26 +210,19 @@ class InventoryReconciliationController extends Controller
             throw new InvalidArgumentException('El producto no tiene un almacén configurado para la reconciliación');
         }
 
-        $systemQuantity = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, $colorId);
-        $diff = $physicalQuantity - $systemQuantity;
-
-        if ($diff === 0) {
-            return;
-        }
-
         $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
 
-        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+        $this->inventoryMovementService->reconcileToPhysicalQuantity(new InventoryMovementDTO(
             tenantId: $tenantId,
             warehouseId: $warehouseId,
             productSizeId: $productSizeId,
             colorId: $colorId,
-            direction: $diff > 0 ? InventoryMovementDirection::In : InventoryMovementDirection::Out,
-            quantity: abs($diff),
-            movementType: InventoryMovementType::ManualAdjustment,
+            direction: InventoryMovementDirection::In,
+            quantity: 1,
+            movementType: InventoryMovementType::Reconciliation,
             referenceType: self::class,
             referenceId: null,
             createdByUserId: Auth::id(),
-        ));
+        ), $physicalQuantity);
     }
 }

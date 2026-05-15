@@ -4,6 +4,7 @@ namespace App\Inventory\InventoryLedger\Enums;
 
 enum InventoryMovementType: string
 {
+    case InitialInventory = 'INITIAL_INVENTORY';
     case Sale = 'SALE';
     case Purchase = 'PURCHASE';
     case PurchaseCancel = 'PURCHASE_CANCEL';

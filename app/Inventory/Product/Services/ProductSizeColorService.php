@@ -2,7 +2,13 @@
 
 namespace App\Inventory\Product\Services;
 
+use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
+use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
 use App\Inventory\Product\Models\ProductSize;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -10,68 +16,83 @@ class ProductSizeColorService
 {
     protected ProductHistoryService $historyService;
 
-    public function __construct(ProductHistoryService $historyService)
-    {
+    public function __construct(
+        ProductHistoryService $historyService,
+        protected InventoryMovementService $inventoryMovementService,
+    ) {
         $this->historyService = $historyService;
     }
 
     public function set(ProductSize $productSize, int $colorId, array $data, bool $updateMaster = true, ?string $auditReason = null): void
     {
-        $psId = (int) $productSize->id;
+        DB::transaction(function () use ($productSize, $colorId, $data, $auditReason): void {
+            $psId = (int) $productSize->id;
 
-        $master = DB::table('product_size')
-            ->where('id', $psId)
-            ->lockForUpdate()
-            ->first();
+            $master = DB::table('product_size')
+                ->where('id', $psId)
+                ->lockForUpdate()
+                ->first();
 
-        if ($master === null) {
-            throw new RuntimeException('No se encontró la talla del producto para actualizar el color.');
-        }
+            if ($master === null) {
+                throw new RuntimeException('No se encontró la talla del producto para actualizar el color.');
+            }
 
-        $pivotRow = DB::table('product_size_color')
-            ->where('product_size_id', $psId)
-            ->where('color_id', $colorId)
-            ->lockForUpdate()
-            ->first();
+            $pivotRow = DB::table('product_size_color')
+                ->where('product_size_id', $psId)
+                ->where('color_id', $colorId)
+                ->lockForUpdate()
+                ->first();
 
-        $existingPivot = $pivotRow
-            ? [
-                'product_size_id' => $pivotRow->product_size_id,
-                'color_id' => $pivotRow->color_id,
-            ]
-            : [];
+            $existingPivot = $pivotRow
+                ? [
+                    'product_size_id' => $pivotRow->product_size_id,
+                    'color_id' => $pivotRow->color_id,
+                ]
+                : [];
 
-        if (! $pivotRow) {
-            DB::table('product_size_color')->insert([
-                'product_size_id' => $psId,
-                'color_id' => $colorId,
-            ]);
-        }
+            if (! $pivotRow) {
+                DB::table('product_size_color')->insert([
+                    'product_size_id' => $psId,
+                    'color_id' => $colorId,
+                ]);
+            }
 
-        if ($pivotRow !== null) {
-            return;
-        }
+            if ($pivotRow !== null) {
+                return;
+            }
 
+            if (! $productSize->relationLoaded('product')) {
+                $productSize->load('product');
+            }
+
+            $this->recordInitialInventory($productSize, $colorId, (int) ($data['stock'] ?? 0));
+
+            $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
+
+            $newData = ['product_size_id' => $psId, 'color_id' => $colorId, 'size_id_ref' => $productSize->size_id];
+            $oldData = $existingPivot !== []
+                ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id])
+                : [];
+
+            $this->historyService->logChange(
+                $productSize->product,
+                'COLOR',
+                $colorId,
+                $eventType,
+                $oldData,
+                $newData,
+                $auditReason,
+            );
+        });
+    }
+
+    public function currentStock(ProductSize $productSize, int $colorId): int
+    {
         if (! $productSize->relationLoaded('product')) {
             $productSize->load('product');
         }
 
-        $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
-
-        $newData = ['product_size_id' => $psId, 'color_id' => $colorId, 'size_id_ref' => $productSize->size_id];
-        $oldData = $existingPivot !== []
-            ? array_merge($existingPivot, ['size_id_ref' => $productSize->size_id])
-            : [];
-
-        $this->historyService->logChange(
-            $productSize->product,
-            'COLOR',
-            $colorId,
-            $eventType,
-            $oldData,
-            $newData,
-            $auditReason,
-        );
+        return InventoryBalanceLookup::quantityFor((int) $productSize->product->warehouse_id, (int) $productSize->id, $colorId);
     }
 
     public function remove(ProductSize $productSize, int $colorId, ?string $auditReason = null): void
@@ -177,5 +198,41 @@ class ProductSizeColorService
         return $productSize->productSizeColors()
             ->wherePivot('color_id', $colorId)
             ->exists();
+    }
+
+    private function recordInitialInventory(ProductSize $productSize, int $colorId, int $quantity): void
+    {
+        if ($quantity < 1) {
+            return;
+        }
+
+        if (! $productSize->relationLoaded('product')) {
+            $productSize->load('product');
+        }
+
+        $warehouseId = (int) $productSize->product->warehouse_id;
+        if ($warehouseId < 1) {
+            throw new RuntimeException('No se puede registrar inventario inicial sin almacén asociado al producto.');
+        }
+
+        if (! $productSize->product->relationLoaded('warehouse')) {
+            $productSize->product->load('warehouse');
+        }
+
+        $tenantId = (int) $productSize->product->warehouse?->tenant_id;
+        if ($tenantId < 1) {
+            throw new RuntimeException('No se puede registrar inventario inicial sin tenant asociado al almacén.');
+        }
+
+        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: (int) $productSize->id,
+            colorId: $colorId,
+            direction: InventoryMovementDirection::In,
+            quantity: $quantity,
+            movementType: InventoryMovementType::InitialInventory,
+            createdByUserId: Auth::id(),
+        ));
     }
 }
