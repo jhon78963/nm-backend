@@ -16,10 +16,10 @@ use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
+use DB;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
-use DB;
 
 class ColorController extends Controller
 {
@@ -76,8 +76,7 @@ class ColorController extends Controller
             ->join('products as p', 'p.id', '=', 'product_size.product_id')
             ->leftJoin('inventory_balances as ib', function ($join): void {
                 $join->on('ib.product_size_id', '=', 'product_size.id')
-                    ->on('ib.warehouse_id', '=', 'p.warehouse_id')
-                    ->whereNull('ib.color_id');
+                    ->on('ib.warehouse_id', '=', 'p.warehouse_id');
             })
             ->where('product_size.product_id', $productId)
             ->when(
@@ -89,12 +88,21 @@ class ColorController extends Controller
                 's.id',
                 'product_size.id as productSizeId',
                 's.description',
-                DB::raw('COALESCE(ib.quantity, 0) as stock'),
+                DB::raw('COALESCE(SUM(ib.quantity), 0) as stock'),
                 'product_size.barcode',
                 'product_size.purchase_price',
                 'product_size.sale_price',
                 'product_size.min_sale_price',
             ])
+            ->groupBy(
+                's.id',
+                'product_size.id',
+                's.description',
+                'product_size.barcode',
+                'product_size.purchase_price',
+                'product_size.sale_price',
+                'product_size.min_sale_price',
+            )
             ->orderByRaw("CASE WHEN s.description ~ '^[0-9]+$' THEN s.description::integer ELSE NULL END ASC")
             ->orderBy('s.id', 'asc')
             ->get();
@@ -162,15 +170,17 @@ class ColorController extends Controller
                 ->where('ps.id', $productSizeId)
                 ->value('p.warehouse_id') ?? 0);
 
-            $attachedColorIds = DB::table('product_size_color')
+            $pivotColorIds = DB::table('product_size_color')
                 ->where('product_size_id', '=', $productSizeId)
                 ->pluck('color_id');
 
-            if ($warehouseId > 0 && $attachedColorIds->isNotEmpty()) {
+            if ($warehouseId > 0) {
                 $qtyByColor = DB::table('inventory_balances')
                     ->where('warehouse_id', $warehouseId)
                     ->where('product_size_id', $productSizeId)
-                    ->whereIn('color_id', $attachedColorIds->all())
+                    ->whereNotNull('color_id')
+                    ->select('color_id', DB::raw('SUM(quantity) as quantity'))
+                    ->groupBy('color_id')
                     ->pluck('quantity', 'color_id')
                     ->map(static fn ($q): int => (int) $q)
                     ->all();
@@ -178,10 +188,14 @@ class ColorController extends Controller
                 $qtyByColor = [];
             }
 
-            $productSizeColors = $attachedColorIds->mapWithKeys(function ($colorId) use ($qtyByColor): array {
-                $cid = (int) $colorId;
+            $attachedColorIds = $pivotColorIds
+                ->merge(array_keys($qtyByColor))
+                ->map(static fn ($colorId): int => (int) $colorId)
+                ->unique()
+                ->values();
 
-                return [$cid => (object) ['stock' => $qtyByColor[$cid] ?? 0]];
+            $productSizeColors = $attachedColorIds->mapWithKeys(function (int $colorId) use ($qtyByColor): array {
+                return [$colorId => (object) ['stock' => $qtyByColor[$colorId] ?? 0]];
             });
         }
 
@@ -190,8 +204,9 @@ class ColorController extends Controller
             ->get()
             ->map(function ($color) use ($productSizeColors, $productSizeId): Color {
                 if ($productSizeColors->has($color->id)) {
+                    $productSizeColor = $productSizeColors->get($color->id);
                     $color->isExists = true;
-                    $color->stock = $productSizeColors[$color->id]->stock;
+                    $color->stock = (int) ($productSizeColor->stock ?? 0);
                 } else {
                     $color->isExists = false;
                     $color->stock = null;

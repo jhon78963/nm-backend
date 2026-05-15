@@ -2,7 +2,6 @@
 
 namespace App\Inventory\Product\Resources;
 
-use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -15,14 +14,7 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $inventoryMovementService = app(InventoryMovementService::class);
-        $warehouseId = (int) $this->warehouse_id;
-        $stock = 0;
-        if ($this->relationLoaded('productSizes')) {
-            foreach ($this->productSizes as $productSize) {
-                $stock += $inventoryMovementService->getTotalByProductSize($warehouseId, (int) $productSize->id);
-            }
-        }
+        $stock = (int) ($this->inventory_sum_qty ?? 0);
         /** Referencia desde la primera fila product–talla (las precios viven en `product_size`). */
         $primaryPs = ($this->relationLoaded('productSizes') && $this->productSizes->isNotEmpty())
             ? $this->productSizes->sortBy('id')->first()

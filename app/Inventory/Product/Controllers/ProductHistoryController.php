@@ -2,10 +2,13 @@
 
 namespace App\Inventory\Product\Controllers;
 
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Models\InventoryMovement;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Shared\Foundation\Controllers\Controller;
-use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class ProductHistoryController extends Controller
@@ -28,6 +31,7 @@ class ProductHistoryController extends Controller
 
                 return [
                     'id' => $log->id,
+                    'timestamp' => Carbon::parse($log->creation_time)->timestamp,
                     'date' => Carbon::parse($log->creation_time)->format('d/m/Y'),
                     'time' => Carbon::parse($log->creation_time)->format('h:i A'),
                     'user' => $fullName,
@@ -37,6 +41,43 @@ class ProductHistoryController extends Controller
                     'icon' => $this->getIcon($log->event_type, $log->entity_type)
                 ];
             });
+
+        $ledgerHistory = InventoryMovement::query()
+            ->whereHas('productSize', static fn ($q) => $q->where('product_id', $productId))
+            ->with(['productSize.size', 'color', 'createdBy', 'reference'])
+            ->orderBy('occurred_at', 'desc')
+            ->get()
+            ->map(function (InventoryMovement $movement) {
+                $date = Carbon::parse($movement->occurred_at);
+                $user = $movement->createdBy;
+                $fullName = 'Sistema';
+                if ($user) {
+                    $surname = $user->paternal_surname ?? $user->surname ?? '';
+                    $fullName = trim($user->name.' '.$surname);
+                }
+
+                return [
+                    'id' => 'movement-'.$movement->id,
+                    'timestamp' => $date->timestamp,
+                    'date' => $date->format('d/m/Y'),
+                    'time' => $date->format('h:i A'),
+                    'user' => $fullName,
+                    'action_title' => $this->getMovementActionTitle($movement),
+                    'changes' => $this->formatMovementChanges($movement),
+                    'severity' => $this->getMovementSeverity($movement),
+                    'icon' => $this->getMovementIcon($movement),
+                ];
+            });
+
+        $history = $history
+            ->concat($ledgerHistory)
+            ->sortByDesc('timestamp')
+            ->map(function (array $row): array {
+                unset($row['timestamp']);
+
+                return $row;
+            })
+            ->values();
 
         return response()->json([
             'success' => true,
@@ -206,5 +247,71 @@ class ProductHistoryController extends Controller
             'color_id', 'color_name', 'product_size_id',
             'sale_code', 'exchange_note'
         ]);
+    }
+
+    private function getMovementActionTitle(InventoryMovement $movement): string
+    {
+        $reference = $movement->reference;
+        $code = $reference?->code ?? null;
+
+        if ($movement->movement_type === InventoryMovementType::Sale) {
+            return $code ? "Venta Registrada ($code)" : 'Venta Registrada';
+        }
+
+        $action = $movement->direction === InventoryMovementDirection::In ? 'Ingreso' : 'Salida';
+        $type = match ($movement->movement_type) {
+            InventoryMovementType::InitialInventory => 'Inventario Inicial',
+            InventoryMovementType::Purchase => 'Compra / Orden',
+            InventoryMovementType::PurchaseCancel => 'Anulación de Compra',
+            InventoryMovementType::ManualAdjustment => 'Ajuste Manual',
+            InventoryMovementType::Reconciliation => 'Reconciliación',
+            InventoryMovementType::Transfer => 'Transferencia',
+            default => 'Movimiento Kardex',
+        };
+
+        return "{$action} de {$type}";
+    }
+
+    private function formatMovementChanges(InventoryMovement $movement): array
+    {
+        $size = $movement->productSize?->size?->description ?? '-';
+        $color = $movement->color?->description ?? 'Único';
+        $quantity = (int) $movement->quantity;
+        $balanceAfter = (int) $movement->balance_after_movement;
+        $balanceBefore = $movement->direction === InventoryMovementDirection::In
+            ? $balanceAfter - $quantity
+            : $balanceAfter + $quantity;
+
+        return [
+            [
+                'field' => 'Stock',
+                'from' => $balanceBefore,
+                'to' => $balanceAfter,
+            ],
+            [
+                'field' => 'Cantidad',
+                'from' => '-',
+                'to' => $quantity,
+            ],
+            [
+                'field' => 'Detalle',
+                'from' => '-',
+                'to' => "{$size} / {$color}",
+            ],
+        ];
+    }
+
+    private function getMovementSeverity(InventoryMovement $movement): string
+    {
+        return $movement->direction === InventoryMovementDirection::In ? 'success' : 'warning';
+    }
+
+    private function getMovementIcon(InventoryMovement $movement): string
+    {
+        if ($movement->movement_type === InventoryMovementType::Sale) {
+            return 'pi pi-shopping-cart';
+        }
+
+        return $movement->direction === InventoryMovementDirection::In ? 'pi pi-plus' : 'pi pi-minus';
     }
 }

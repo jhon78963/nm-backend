@@ -30,7 +30,8 @@ class SizeService extends ModelService
                 $balanceByProductSizeId = DB::table('inventory_balances')
                     ->where('warehouse_id', $warehouseId)
                     ->whereIn('product_size_id', $psIds)
-                    ->whereNull('color_id')
+                    ->select('product_size_id', DB::raw('SUM(quantity) as quantity'))
+                    ->groupBy('product_size_id')
                     ->pluck('quantity', 'product_size_id')
                     ->map(static fn ($qty): int => (int) $qty)
                     ->all();
