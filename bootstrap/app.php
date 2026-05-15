@@ -25,5 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
         \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
         \App\Inventory\Product\Jobs\SyncZeroToMultikartJob::class,
+        \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
+        \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,
     ])
     ->create();

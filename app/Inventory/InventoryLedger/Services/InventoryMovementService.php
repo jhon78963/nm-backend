@@ -33,20 +33,13 @@ class InventoryMovementService
             $productSize = ProductSize::query()->findOrFail($dto->productSizeId);
             $productId = (int) $productSize->product_id;
 
-            $balance = $this->balanceQuery($tenantId, $warehouseId, $productId, $dto->productSizeId, $dto->colorId, true)->first();
-
-            if ($balance === null) {
-                InventoryBalance::query()->create([
-                    'tenant_id' => $tenantId,
-                    'warehouse_id' => $warehouseId,
-                    'product_id' => $productId,
-                    'product_size_id' => $dto->productSizeId,
-                    'color_id' => $dto->colorId,
-                    'quantity' => 0,
-                ]);
-
-                $balance = $this->balanceQuery($tenantId, $warehouseId, $productId, $dto->productSizeId, $dto->colorId, true)->firstOrFail();
-            }
+            $balance = $this->findOrCreateBalance(
+                $tenantId,
+                $warehouseId,
+                $productId,
+                $dto->productSizeId,
+                $dto->colorId,
+            );
 
             $current = (int) $balance->quantity;
 
@@ -109,20 +102,13 @@ class InventoryMovementService
             $productSize = ProductSize::query()->findOrFail($dto->productSizeId);
             $productId = (int) $productSize->product_id;
 
-            $balance = $this->balanceQuery($tenantId, $warehouseId, $productId, $dto->productSizeId, $dto->colorId, true)->first();
-
-            if ($balance === null) {
-                InventoryBalance::query()->create([
-                    'tenant_id' => $tenantId,
-                    'warehouse_id' => $warehouseId,
-                    'product_id' => $productId,
-                    'product_size_id' => $dto->productSizeId,
-                    'color_id' => $dto->colorId,
-                    'quantity' => 0,
-                ]);
-
-                $balance = $this->balanceQuery($tenantId, $warehouseId, $productId, $dto->productSizeId, $dto->colorId, true)->firstOrFail();
-            }
+            $balance = $this->findOrCreateBalance(
+                $tenantId,
+                $warehouseId,
+                $productId,
+                $dto->productSizeId,
+                $dto->colorId,
+            );
 
             $current = (int) $balance->quantity;
             $diff = $physicalQuantity - $current;
@@ -188,5 +174,29 @@ class InventoryMovementService
         }
 
         return $q;
+    }
+
+    private function findOrCreateBalance(int $tenantId, int $warehouseId, int $productId, int $productSizeId, ?int $colorId): InventoryBalance
+    {
+        $balance = $this->balanceQuery($tenantId, $warehouseId, $productId, $productSizeId, $colorId, true)->first();
+
+        if ($balance !== null) {
+            return $balance;
+        }
+
+        InventoryBalance::query()->firstOrCreate(
+            [
+                'warehouse_id' => $warehouseId,
+                'product_size_id' => $productSizeId,
+                'color_id' => $colorId,
+            ],
+            [
+                'tenant_id' => $tenantId,
+                'product_id' => $productId,
+                'quantity' => 0,
+            ],
+        );
+
+        return $this->balanceQuery($tenantId, $warehouseId, $productId, $productSizeId, $colorId, true)->firstOrFail();
     }
 }
