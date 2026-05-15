@@ -202,26 +202,24 @@ class ColorController extends Controller
         return Color::where('is_deleted', '=', false)
             ->orderBy('description', 'asc')
             ->get()
-            ->map(function ($color) use ($productSizeColors, $productSizeId): Color {
+            ->map(function (Color $color) use ($productSizeColors, $productSizeId): Color {
                 if ($productSizeColors->has($color->id)) {
                     $productSizeColor = $productSizeColors->get($color->id);
-                    $color->isExists = true;
-                    $color->stock = (int) ($productSizeColor->stock ?? 0);
+                    $color->setAttribute('isExists', true);
+                    $color->setAttribute('stock', (int) ($productSizeColor->stock ?? 0));
                 } else {
-                    $color->isExists = false;
-                    $color->stock = null;
+                    $color->setAttribute('isExists', false);
+                    $color->setAttribute('stock', null);
                 }
 
-                $color->productSizeId = $productSizeId;
+                $color->setAttribute('productSizeId', $productSizeId);
 
                 return $color;
             })
-            ->sortBy(function ($color): array {
-                if ($color->isExists) {
-                    $priority = ($color->stock > 0) ? 0 : 1;
-                } else {
-                    $priority = 2;
-                }
+            ->sortBy(function (Color $color): array {
+                $isExists = (bool) $color->getAttribute('isExists');
+                $stock = (int) ($color->getAttribute('stock') ?? 0);
+                $priority = $isExists ? (($stock > 0) ? 0 : 1) : 2;
 
                 return [$priority, strtolower($color->description)];
             })
