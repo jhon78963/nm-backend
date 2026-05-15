@@ -4,10 +4,11 @@ namespace App\Inventory\Product\Models;
 
 use App\Directory\Vendor\Models\Vendor;
 use App\Inventory\Gender\Models\Gender;
-use App\Inventory\Warehouse\Models\Warehouse;
-use App\Shared\Image\Models\Image;
+use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
+use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Image\Models\Image;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -155,5 +156,10 @@ class Product extends Model
     public function productSizes(): HasMany
     {
         return $this->hasMany(ProductSize::class, 'product_id');
+    }
+
+    public function inventoryBalances(): HasMany
+    {
+        return $this->hasMany(InventoryBalance::class, 'product_id');
     }
 }

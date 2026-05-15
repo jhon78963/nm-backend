@@ -6,11 +6,16 @@ use App\Finance\Order\Models\Order;
 use App\Finance\Order\Models\OrderDetail;
 use App\Inventory\Concerns\AssertsInventoryMasterMatchesColorPivotSum;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
+use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductHistory;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductSizeService;
 use App\Inventory\Support\StockAvailability;
+use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Services\ModelService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -24,7 +29,8 @@ class OrderService extends ModelService
 
     public function __construct(
         Order $order,
-        protected ProductSizeService $productSizeService
+        protected ProductSizeService $productSizeService,
+        protected InventoryMovementService $inventoryMovementService,
     ) {
         parent::__construct($order);
     }
@@ -186,7 +192,13 @@ class OrderService extends ModelService
 
                 // Crear talla en catálogo si no existe (sin mover stock aún); el incremento va bajo bloqueo.
                 if (! $productSize) {
-                    $this->productSizeService->setStock($product, $sizeId, 0, $pivotData);
+                    $this->productSizeService->set($product, $sizeId, [
+                        'barcode' => $pivotData['barcode'],
+                        'purchasePrice' => $pivotData['purchase_price'],
+                        'salePrice' => $pivotData['sale_price'],
+                        'minSalePrice' => $pivotData['min_sale_price'],
+                        'stock' => 0,
+                    ]);
                     $productSize = ProductSize::where('product_id', $productId)
                         ->where('size_id', $sizeId)
                         ->firstOrFail();
@@ -209,45 +221,18 @@ class OrderService extends ModelService
                     'min_sale_price' => $pivotData['min_sale_price'],
                 ]);
 
-                $currentStock = 0;
-                $colorPivotRow = null;
-
                 if ($colorId > 0) {
-                    $colorPivotRow = DB::table('product_size_color')
-                        ->where('product_size_id', $psId)
-                        ->where('color_id', $colorId)
-                        ->lockForUpdate()
-                        ->first();
-                    $currentStock = $colorPivotRow ? (int) $colorPivotRow->stock : 0;
-                } else {
-                    $masterRow = DB::table('product_size')->where('id', $psId)->first();
-                    $currentStock = (int) $masterRow->stock;
+                    DB::table('product_size_color')->updateOrInsert([
+                        'product_size_id' => $psId,
+                        'color_id' => $colorId,
+                    ]);
                 }
 
-                DB::table('product_size')->where('id', $psId)->increment('stock', $qty);
-
-                if ($colorId > 0) {
-                    if ($colorPivotRow !== null) {
-                        DB::table('product_size_color')
-                            ->where('product_size_id', $psId)
-                            ->where('color_id', $colorId)
-                            ->increment('stock', $qty);
-                    } else {
-                        DB::table('product_size_color')->insert([
-                            'product_size_id' => $psId,
-                            'color_id' => $colorId,
-                            'stock' => $qty,
-                        ]);
-                    }
-                }
-
-                $newStockDb = $colorId > 0
-                    ? (int) (DB::table('product_size_color')
-                        ->where('product_size_id', $psId)
-                        ->where('color_id', $colorId)
-                        ->lockForUpdate()
-                        ->first()?->stock ?? 0)
-                    : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->first()?->stock ?? 0);
+                $warehouseId = (int) $order->destination_warehouse_id;
+                $tenantId = $this->resolveTenantId($warehouseId);
+                $currentStock = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $colorId > 0 ? (int) $colorId : null);
+                $this->recordOrderInventoryMovement($warehouseId, $tenantId, $psId, $colorId > 0 ? (int) $colorId : null, InventoryMovementDirection::In, $qty, (int) $order->id);
+                $newStockDb = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $colorId > 0 ? (int) $colorId : null);
 
                 // Recuperar nombres directos de las tablas (Sin depender de relaciones frágiles)
                 $sizeName = DB::table('sizes')->where('id', $sizeId)->value('description') ?? 'Desconocida';
@@ -330,50 +315,13 @@ class OrderService extends ModelService
                 }
 
                 $psId = (int) $masterRow->id;
-                $touchedMasterIds[] = $psId;
-
-                // Stock bajo bloqueo (maestro primero, pivot después) antes de decrementar y auditar.
-                $currentStock = 0;
-                if ($detail->color_id) {
-                    $colorRow = DB::table('product_size_color')
-                        ->where('product_size_id', $psId)
-                        ->where('color_id', $detail->color_id)
-                        ->lockForUpdate()
-                        ->first();
-                    $currentStock = $colorRow ? (int) $colorRow->stock : 0;
-
-                    $masterStockNow = (int) (DB::table('product_size')
-                        ->where('id', $psId)
-                        ->lockForUpdate()
-                        ->first()
-                        ?->stock ?? 0);
-                    StockAvailability::assertCanDecrement($masterStockNow, $qty);
-                    if ($colorRow) {
-                        StockAvailability::assertCanDecrement($currentStock, $qty);
-                    }
-
-                    DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
-
-                    if ($colorRow) {
-                        DB::table('product_size_color')
-                            ->where('product_size_id', $psId)
-                            ->where('color_id', $detail->color_id)
-                            ->decrement('stock', $qty);
-                    }
-                } else {
-                    $currentStock = (int) $masterRow->stock;
-                    StockAvailability::assertCanDecrement($currentStock, $qty);
-
-                    DB::table('product_size')->where('id', $psId)->decrement('stock', $qty);
-                }
-
-                $newStockDb = $detail->color_id
-                    ? (int) (DB::table('product_size_color')
-                        ->where('product_size_id', $psId)
-                        ->where('color_id', $detail->color_id)
-                        ->lockForUpdate()
-                        ->first()?->stock ?? 0)
-                    : (int) (DB::table('product_size')->where('id', $psId)->lockForUpdate()->first()?->stock ?? 0);
+                $warehouseId = (int) $model->destination_warehouse_id;
+                $tenantId = $this->resolveTenantId($warehouseId);
+                $colorId = $detail->color_id ? (int) $detail->color_id : null;
+                $currentStock = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $colorId);
+                StockAvailability::assertCanDecrement($currentStock, $qty);
+                $this->recordOrderInventoryMovement($warehouseId, $tenantId, $psId, $colorId, InventoryMovementDirection::Out, $qty, (int) $model->id);
+                $newStockDb = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $colorId);
 
                 // 3. Registrar en Historial de Producto (stock final = lectura post-mutación)
                 ProductHistory::create([
@@ -513,7 +461,6 @@ class OrderService extends ModelService
             return;
         }
 
-        $product = Product::findOrFail($detail->product_id);
         $colorIdForStock = $detail->color_id ? (int) $detail->color_id : 0;
 
         $masterRow = DB::table('product_size')
@@ -529,37 +476,16 @@ class OrderService extends ModelService
                 );
             }
 
-            $need = abs($delta);
-
-            if ($detail->color_id) {
-                $colorRow = DB::table('product_size_color')
-                    ->where('product_size_id', (int) $masterRow->id)
-                    ->where('color_id', $detail->color_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                $colorStock = $colorRow ? (int) $colorRow->stock : 0;
-                if ($colorStock < $need) {
-                    throw new RuntimeException(
-                        'Stock insuficiente en color para reducir la cantidad del ítem de la orden.'
-                    );
-                }
-            }
-
-            $masterStock = (int) $masterRow->stock;
-            if ($masterStock < $need) {
-                throw new RuntimeException(
-                    'Stock insuficiente para reducir la cantidad del ítem de la orden.'
-                );
-            }
         } else {
             if (! $masterRow) {
-                $this->productSizeService->setStock(
-                    $product,
-                    (int) $detail->size_id,
-                    0,
-                    $pivotData,
-                );
+                $product = Product::findOrFail($detail->product_id);
+                $this->productSizeService->set($product, (int) $detail->size_id, [
+                    'barcode' => $pivotData['barcode'],
+                    'purchasePrice' => $pivotData['purchase_price'],
+                    'salePrice' => $pivotData['sale_price'],
+                    'minSalePrice' => $pivotData['min_sale_price'],
+                    'stock' => 0,
+                ]);
                 $masterRow = DB::table('product_size')
                     ->where('product_id', $detail->product_id)
                     ->where('size_id', $detail->size_id)
@@ -572,95 +498,30 @@ class OrderService extends ModelService
                 );
             }
 
-            if ($detail->color_id) {
-                DB::table('product_size_color')
-                    ->where('product_size_id', (int) $masterRow->id)
-                    ->where('color_id', $detail->color_id)
-                    ->lockForUpdate()
-                    ->first();
-            }
         }
 
         $psId = (int) $masterRow->id;
 
-        if ($colorIdForStock > 0) {
-            $oldStock = (int) (DB::table('product_size_color')
-                ->where('product_size_id', $psId)
-                ->where('color_id', $colorIdForStock)
-                ->lockForUpdate()
-                ->first()?->stock ?? 0);
-        } else {
-            $oldStock = (int) (DB::table('product_size')
-                ->where('id', $psId)
-                ->lockForUpdate()
-                ->first()?->stock ?? 0);
-        }
-
-        $this->productSizeService->setStock(
-            $product,
-            (int) $detail->size_id,
-            $delta,
-            $pivotData,
-        );
-
-        $productSize = ProductSize::where('product_id', $detail->product_id)
-            ->where('size_id', $detail->size_id)
-            ->first();
-
-        if (! $productSize) {
-            throw new RuntimeException('No se pudo resolver product_size tras el ajuste de stock.');
-        }
-
         $colorId = $colorIdForStock;
 
         if ($colorId > 0) {
-            if ($delta > 0) {
-                $colorRowExists = DB::table('product_size_color')
-                    ->where('product_size_id', $productSize->id)
-                    ->where('color_id', $colorId)
-                    ->exists();
-
-                if ($colorRowExists) {
-                    DB::table('product_size_color')
-                        ->where('product_size_id', $productSize->id)
-                        ->where('color_id', $colorId)
-                        ->increment('stock', $delta);
-                } else {
-                    DB::table('product_size_color')->insert([
-                        'product_size_id' => $productSize->id,
-                        'color_id' => $colorId,
-                        'stock' => $delta,
-                    ]);
-                }
-            } else {
-                $colorPivot = DB::table('product_size_color')
-                    ->where('product_size_id', $productSize->id)
-                    ->where('color_id', $colorId)
-                    ->lockForUpdate()
-                    ->first();
-                $avail = $colorPivot ? (int) $colorPivot->stock : 0;
-                StockAvailability::assertCanDecrement($avail, abs($delta));
-                DB::table('product_size_color')
-                    ->where('product_size_id', $productSize->id)
-                    ->where('color_id', $colorId)
-                    ->decrement('stock', abs($delta));
-            }
+            DB::table('product_size_color')->updateOrInsert([
+                'product_size_id' => $psId,
+                'color_id' => $colorId,
+            ]);
         }
 
-        $psIdAfter = (int) $productSize->id;
-
-        if ($colorIdForStock > 0) {
-            $newStock = (int) (DB::table('product_size_color')
-                ->where('product_size_id', $psIdAfter)
-                ->where('color_id', $colorIdForStock)
-                ->lockForUpdate()
-                ->first()?->stock ?? 0);
-        } else {
-            $newStock = (int) (DB::table('product_size')
-                ->where('id', $psIdAfter)
-                ->lockForUpdate()
-                ->first()?->stock ?? 0);
+        $warehouseId = (int) $order->destination_warehouse_id;
+        $tenantId = $this->resolveTenantId($warehouseId);
+        $ledgerColorId = $colorIdForStock > 0 ? $colorIdForStock : null;
+        $oldStock = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $ledgerColorId);
+        $direction = $delta > 0 ? InventoryMovementDirection::In : InventoryMovementDirection::Out;
+        $quantity = abs($delta);
+        if ($direction === InventoryMovementDirection::Out) {
+            StockAvailability::assertCanDecrement($oldStock, $quantity);
         }
+        $this->recordOrderInventoryMovement($warehouseId, $tenantId, $psId, $ledgerColorId, $direction, $quantity, (int) $order->getKey());
+        $newStock = $this->inventoryMovementService->getAvailableQuantity($warehouseId, $psId, $ledgerColorId);
 
         $sizeName = DB::table('sizes')->where('id', $detail->size_id)->value('description') ?? 'Desconocida';
         $colorName = $colorIdForStock > 0
@@ -681,7 +542,7 @@ class OrderService extends ModelService
                 'purchase_price' => $pivotData['purchase_price'],
                 'order_code' => (string) ($order->getAttribute('code') ?? ''),
                 'order_detail_id' => (int) $detail->id,
-                'product_size_id' => $psIdAfter,
+                'product_size_id' => $psId,
                 'color_id' => $colorIdForStock > 0 ? $colorIdForStock : null,
                 'size_name' => $sizeName,
                 'color_name' => $colorName,
@@ -690,6 +551,38 @@ class OrderService extends ModelService
             'creator_user_id' => Auth::id(),
         ]);
 
-        $touchedMasterIds[] = $psIdAfter;
+        $touchedMasterIds[] = $psId;
+    }
+
+    private function resolveTenantId(int $warehouseId): int
+    {
+        return (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
+    }
+
+    private function recordOrderInventoryMovement(
+        int $warehouseId,
+        int $tenantId,
+        int $productSizeId,
+        ?int $colorId,
+        InventoryMovementDirection $direction,
+        int $quantity,
+        int $orderId,
+    ): void {
+        if ($quantity < 1) {
+            return;
+        }
+
+        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: $colorId,
+            direction: $direction,
+            quantity: $quantity,
+            movementType: InventoryMovementType::Purchase,
+            referenceType: Order::class,
+            referenceId: $orderId,
+            createdByUserId: Auth::id(),
+        ));
     }
 }

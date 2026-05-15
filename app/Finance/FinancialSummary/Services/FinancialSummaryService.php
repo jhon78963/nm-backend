@@ -4,7 +4,8 @@ namespace App\Finance\FinancialSummary\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
-use App\Inventory\Product\Models\ProductHistory;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -55,66 +56,16 @@ class FinancialSummaryService
             ->sum('amount');
 
 
-        // 4. INVERSIÓN STOCK (Este Mes)
-        // Calculamos cuánto costó la mercadería comprada/ingresada este mes
-        // O si registras la compra como un Gasto específico, súmalo aquí.
-        // Por ahora, sumamos el costo de los productos vendidos como referencia de "Inversión Recuperable"
-        // O puedes crear un tipo de Gasto 'INVESTMENT' en cash_movements.
-        // Asumiremos que tienes un tipo de gasto 'MERCADERIA' o lo sacas de otra tabla.
-        // Para este ejemplo, usaremos un placeholder o una consulta a movimientos de inventario si existiera.
-        $monthlyInvestment = ProductHistory::whereBetween('creation_time', [$startOfMonth, $endOfMonth])
-            ->whereIn('entity_type', ['SIZE', 'COLOR']) // Solo nos interesan movimientos de stock
-            ->whereIn('event_type', ['CREATED', 'UPDATED'])
-            ->get()
-            ->reduce(function ($carry, $log) {
-                $new = $log->new_values ?? [];
-                $old = $log->old_values ?? [];
-
-                // A. Calcular cuánto stock entró
-                $qtyAdded = 0;
-                if ($log->event_type === 'CREATED') {
-                    $qtyAdded = (int) ($new['stock'] ?? 0);
-                } elseif ($log->event_type === 'UPDATED') {
-                    $newStock = (int) ($new['stock'] ?? 0);
-                    $oldStock = (int) ($old['stock'] ?? 0);
-                    // Solo nos interesa si aumentó el stock (compra/ingreso)
-                    if ($newStock > $oldStock) {
-                        $qtyAdded = $newStock - $oldStock;
-                    }
-                }
-
-                if ($qtyAdded <= 0)
-                    return $carry;
-
-                // B. Determinar el precio de compra unitario
-                $cost = 0;
-                // Si el precio de compra se registró en el cambio, lo usamos
-                if (isset($new['purchase_price'])) {
-                    $cost = (float) $new['purchase_price'];
-                } else {
-                    // Si no (ej: actualización de color), buscamos el precio actual en la BD
-                    // Necesitamos identificar el product_size correcto
-                    $productId = $log->product_id;
-                    $sizeId = null;
-
-                    if ($log->entity_type === 'SIZE') {
-                        $sizeId = $log->entity_id;
-                    } elseif ($log->entity_type === 'COLOR') {
-                        // En la lógica de ProductSizeColorService guardamos 'size_id_ref'
-                        $sizeId = $new['size_id_ref'] ?? null;
-                    }
-
-                    if ($productId && $sizeId) {
-                        $cost = DB::table('product_size')
-                            ->where('product_id', $productId)
-                            ->where('size_id', $sizeId)
-                            ->value('purchase_price') ?? 0;
-                    }
-                }
-
-                // Sumamos al total de inversión: Cantidad x Costo
-                return $carry + ($qtyAdded * $cost);
-            }, 0);
+        $monthlyInvestment = (float) DB::table('inventory_movements as im')
+            ->join('product_size as ps', 'ps.id', '=', 'im.product_size_id')
+            ->whereBetween('im.occurred_at', [$startOfMonth, $endOfMonth])
+            ->where('im.direction', InventoryMovementDirection::In->value)
+            ->whereIn('im.movement_type', [
+                InventoryMovementType::InitialInventory->value,
+                InventoryMovementType::Purchase->value,
+                InventoryMovementType::Reconciliation->value,
+            ])
+            ->sum(DB::raw('im.quantity * COALESCE(ps.purchase_price, 0)'));
 
 
         // 5. MOVIMIENTOS RECIENTES (Tabla)
