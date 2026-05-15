@@ -25,8 +25,6 @@ class ProductSizeResource extends JsonResource
         $productWarehouseId = $ps->product !== null ? (int) $ps->product->warehouse_id : null;
         $warehouseId = WarehouseIdForInventoryResolver::resolve($request, $productWarehouseId ?: null);
 
-        $master = InventoryBalanceLookup::quantityFor($warehouseId, (int) $ps->id, null);
-
         $colors = $ps->colors->map(function ($color) use ($request, $ps, $productWarehouseId): array {
             return (new ProductSizeColorResource([
                 'color' => $color,
@@ -34,6 +32,9 @@ class ProductSizeResource extends JsonResource
                 'product_warehouse_id' => $productWarehouseId,
             ]))->toArray($request);
         })->values()->all();
+        $available = $colors !== []
+            ? array_sum(array_map(static fn (array $color): int => (int) ($color['inventory']['available_quantity'] ?? 0), $colors))
+            : InventoryBalanceLookup::quantityFor($warehouseId, (int) $ps->id, null);
 
         return [
             'id' => $ps->id,
@@ -43,7 +44,7 @@ class ProductSizeResource extends JsonResource
             'salePrice' => $ps->sale_price,
             'minSalePrice' => $ps->min_sale_price,
             'inventory' => [
-                'available_quantity' => $master,
+                'available_quantity' => $available,
                 'warehouse_id' => $warehouseId,
             ],
             'size' => $ps->size ? [

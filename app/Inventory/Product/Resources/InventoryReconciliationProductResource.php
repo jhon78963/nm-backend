@@ -27,11 +27,24 @@ class InventoryReconciliationProductResource extends JsonResource
             'warehouseId' => $this->warehouse_id,
             'status' => $this->status,
             'sizes' => $this->productSizes->map(function ($productSize) use ($inventoryMovementService, $warehouseId): array {
+                $colors = $productSize->colors->map(static function ($color) use ($inventoryMovementService, $warehouseId, $productSize): array {
+                    return [
+                        'id' => $color->id,
+                        'colorId' => $color->id,
+                        'description' => $color->description,
+                        'hash' => $color->hash,
+                        'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, (int) $productSize->id, (int) $color->id),
+                    ];
+                })->values()->all();
+                $stock = $colors !== []
+                    ? array_sum(array_map(static fn (array $color): int => (int) $color['stock'], $colors))
+                    : $inventoryMovementService->getAvailableQuantity($warehouseId, (int) $productSize->id, null);
+
                 return [
                     'id' => $productSize->id,
                     'sizeId' => $productSize->size_id,
                     'barcode' => $productSize->barcode,
-                    'stock' => $inventoryMovementService->getTotalByProductSize($warehouseId, (int) $productSize->id),
+                    'stock' => $stock,
                     'purchasePrice' => $productSize->purchase_price,
                     'salePrice' => $productSize->sale_price,
                     'minSalePrice' => $productSize->min_sale_price,
@@ -39,15 +52,7 @@ class InventoryReconciliationProductResource extends JsonResource
                         'id' => $productSize->size->id,
                         'description' => $productSize->size->description,
                     ] : null,
-                    'colors' => $productSize->colors->map(static function ($color) use ($inventoryMovementService, $warehouseId, $productSize): array {
-                        return [
-                            'id' => $color->id,
-                            'colorId' => $color->id,
-                            'description' => $color->description,
-                            'hash' => $color->hash,
-                            'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, (int) $productSize->id, (int) $color->id),
-                        ];
-                    })->values()->all(),
+                    'colors' => $colors,
                 ];
             })->values()->all(),
         ];

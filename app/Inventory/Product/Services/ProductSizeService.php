@@ -67,8 +67,14 @@ class ProductSizeService
                 throw new RuntimeException('No se pudo persistir la talla del producto.');
             }
 
-            if ($existingPivot === []) {
-                $this->recordInitialInventory($product, (int) $fresh->id, null, (int) ($data['stock'] ?? 0));
+            if (array_key_exists('stock', $data)) {
+                $hasColors = DB::table('product_size_color')
+                    ->where('product_size_id', $fresh->id)
+                    ->exists();
+
+                if (! $hasColors) {
+                    $this->reconcileInventory($product, (int) $fresh->id, null, (int) $data['stock']);
+                }
             }
 
             $pivotData = [
@@ -136,12 +142,8 @@ class ProductSizeService
         });
     }
 
-    private function recordInitialInventory(Product $product, int $productSizeId, ?int $colorId, int $quantity): void
+    private function reconcileInventory(Product $product, int $productSizeId, ?int $colorId, int $quantity): void
     {
-        if ($quantity < 1) {
-            return;
-        }
-
         $warehouseId = (int) $product->warehouse_id;
         if ($warehouseId < 1) {
             throw new RuntimeException('No se puede registrar inventario inicial sin almacén asociado al producto.');
@@ -156,15 +158,15 @@ class ProductSizeService
             throw new RuntimeException('No se puede registrar inventario inicial sin tenant asociado al almacén.');
         }
 
-        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+        $this->inventoryMovementService->reconcileToPhysicalQuantity(new InventoryMovementDTO(
             tenantId: $tenantId,
             warehouseId: $warehouseId,
             productSizeId: $productSizeId,
             colorId: $colorId,
             direction: InventoryMovementDirection::In,
-            quantity: $quantity,
-            movementType: InventoryMovementType::InitialInventory,
+            quantity: 1,
+            movementType: InventoryMovementType::Reconciliation,
             createdByUserId: Auth::id(),
-        ));
+        ), max(0, $quantity));
     }
 }

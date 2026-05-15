@@ -57,15 +57,13 @@ class ProductSizeColorService
                 ]);
             }
 
-            if ($pivotRow !== null) {
-                return;
-            }
-
             if (! $productSize->relationLoaded('product')) {
                 $productSize->load('product');
             }
 
-            $this->recordInitialInventory($productSize, $colorId, (int) ($data['stock'] ?? 0));
+            if (array_key_exists('stock', $data)) {
+                $this->reconcileInventory($productSize, $colorId, (int) $data['stock']);
+            }
 
             $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
 
@@ -200,12 +198,8 @@ class ProductSizeColorService
             ->exists();
     }
 
-    private function recordInitialInventory(ProductSize $productSize, int $colorId, int $quantity): void
+    private function reconcileInventory(ProductSize $productSize, int $colorId, int $quantity): void
     {
-        if ($quantity < 1) {
-            return;
-        }
-
         if (! $productSize->relationLoaded('product')) {
             $productSize->load('product');
         }
@@ -224,15 +218,15 @@ class ProductSizeColorService
             throw new RuntimeException('No se puede registrar inventario inicial sin tenant asociado al almacén.');
         }
 
-        $this->inventoryMovementService->recordMovement(new InventoryMovementDTO(
+        $this->inventoryMovementService->reconcileToPhysicalQuantity(new InventoryMovementDTO(
             tenantId: $tenantId,
             warehouseId: $warehouseId,
             productSizeId: (int) $productSize->id,
             colorId: $colorId,
             direction: InventoryMovementDirection::In,
-            quantity: $quantity,
-            movementType: InventoryMovementType::InitialInventory,
+            quantity: 1,
+            movementType: InventoryMovementType::Reconciliation,
             createdByUserId: Auth::id(),
-        ));
+        ), max(0, $quantity));
     }
 }

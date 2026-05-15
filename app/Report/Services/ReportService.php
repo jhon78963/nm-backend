@@ -263,7 +263,7 @@ class ReportService
             ])
             ->get();
 
-        return $products->map(function (Product $product) {
+        return $products->map(function (Product $product) use ($inventoryMovementService) {
             $sizes = $product->productSizes
                 ->sortBy(fn ($ps) => $ps->size?->description ?? '')
                 ->values()
@@ -276,6 +276,10 @@ class ReportService
                         'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, (int) $c->id),
                     ])->values()->all();
 
+                    $stock = $colors !== []
+                        ? array_sum(array_map(static fn (array $color): int => (int) $color['stock'], $colors))
+                        : $inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, null);
+
                     return [
                         'product_size_id' => $ps->id,
                         'size_id' => $ps->size_id,
@@ -284,7 +288,7 @@ class ReportService
                         'purchase_price' => $ps->purchase_price !== null ? (float) $ps->purchase_price : null,
                         'sale_price' => $ps->sale_price !== null ? (float) $ps->sale_price : null,
                         'min_sale_price' => $ps->min_sale_price !== null ? (float) $ps->min_sale_price : null,
-                        'stock' => $inventoryMovementService->getTotalByProductSize($warehouseId, $productSizeId),
+                        'stock' => $stock,
                         'colors' => $colors,
                     ];
                 })->all();
