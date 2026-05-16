@@ -17,13 +17,28 @@ class InventoryCheckMismatchesCommand extends Command
             SELECT
                 ps.product_id,
                 ps.size_id,
-                ps.stock AS master_stock,
-                COALESCE(SUM(psc.stock), 0)::bigint AS color_sum,
-                (ps.stock - COALESCE(SUM(psc.stock), 0))::bigint AS diff
+                COALESCE(master.total, 0)::bigint AS master_stock,
+                COALESCE(color.total, 0)::bigint AS color_sum,
+                (COALESCE(master.total, 0) - COALESCE(color.total, 0))::bigint AS diff
             FROM product_size ps
-            INNER JOIN product_size_color psc ON psc.product_size_id = ps.id
-            GROUP BY ps.id, ps.product_id, ps.size_id, ps.stock
-            HAVING ps.stock <> COALESCE(SUM(psc.stock), 0)
+            INNER JOIN (
+                SELECT product_size_id
+                FROM product_size_color
+                GROUP BY product_size_id
+            ) psc ON psc.product_size_id = ps.id
+            LEFT JOIN (
+                SELECT product_size_id, SUM(quantity) AS total
+                FROM inventory_balances
+                WHERE color_id IS NULL
+                GROUP BY product_size_id
+            ) master ON master.product_size_id = ps.id
+            LEFT JOIN (
+                SELECT product_size_id, SUM(quantity) AS total
+                FROM inventory_balances
+                WHERE color_id IS NOT NULL
+                GROUP BY product_size_id
+            ) color ON color.product_size_id = ps.id
+            WHERE COALESCE(master.total, 0) <> COALESCE(color.total, 0)
             ORDER BY ps.product_id ASC, ps.size_id ASC
             SQL);
 

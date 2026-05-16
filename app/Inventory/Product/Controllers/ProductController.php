@@ -71,10 +71,14 @@ class ProductController extends Controller
 
         if ($warehouseId > 0) {
             $product->loadSum([
-                'inventoryBalances as inventory_sum_qty' => static fn ($q) => $q->where('inventory_balances.warehouse_id', $warehouseId),
+                'inventoryBalances as inventory_sum_qty' => static fn ($q) => $q
+                    ->where('inventory_balances.warehouse_id', $warehouseId)
+                    ->whereNull('inventory_balances.color_id'),
             ], 'quantity');
         } else {
-            $product->loadSum('inventoryBalances as inventory_sum_qty', 'quantity');
+            $product->loadSum([
+                'inventoryBalances as inventory_sum_qty' => static fn ($q) => $q->whereNull('inventory_balances.color_id'),
+            ], 'quantity');
         }
 
         return response()->json(new ProductResource($product));
@@ -88,7 +92,7 @@ class ProductController extends Controller
 
         $warehouseId = WarehouseIdForInventoryResolver::resolve($request, null);
 
-        $stockSubquery = '(SELECT COALESCE(SUM(quantity), 0) FROM inventory_balances WHERE inventory_balances.product_id = products.id';
+        $stockSubquery = '(SELECT COALESCE(SUM(quantity), 0) FROM inventory_balances WHERE inventory_balances.product_id = products.id AND inventory_balances.color_id IS NULL';
         $stockSubquery .= $warehouseId > 0
             ? ' AND inventory_balances.warehouse_id = '.(int) $warehouseId
             : '';
@@ -103,11 +107,15 @@ class ProductController extends Controller
             extendQuery: function ($q) use ($warehouseId) {
                 if ($warehouseId > 0) {
                     return $q->withSum([
-                        'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel->where('inventory_balances.warehouse_id', $warehouseId),
+                        'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel
+                            ->where('inventory_balances.warehouse_id', $warehouseId)
+                            ->whereNull('inventory_balances.color_id'),
                     ], 'quantity');
                 }
 
-                return $q->withSum('inventoryBalances as inventory_sum_qty', 'quantity');
+                return $q->withSum([
+                    'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel->whereNull('inventory_balances.color_id'),
+                ], 'quantity');
             },
         );
 

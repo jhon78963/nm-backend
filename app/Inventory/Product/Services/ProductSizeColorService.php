@@ -61,7 +61,7 @@ class ProductSizeColorService
                 $productSize->load('product');
             }
 
-            if (array_key_exists('stock', $data)) {
+            if (array_key_exists('stock', $data) && $data['stock'] !== null) {
                 $this->reconcileInventory($productSize, $colorId, (int) $data['stock']);
                 $this->reconcileMasterToColorSum($productSize);
             }

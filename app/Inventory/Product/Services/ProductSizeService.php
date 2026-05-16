@@ -67,7 +67,7 @@ class ProductSizeService
                 throw new RuntimeException('No se pudo persistir la talla del producto.');
             }
 
-            if (array_key_exists('stock', $data)) {
+            if (array_key_exists('stock', $data) && $data['stock'] !== null) {
                 $hasColors = DB::table('product_size_color')
                     ->where('product_size_id', $fresh->id)
                     ->exists();

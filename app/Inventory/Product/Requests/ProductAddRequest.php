@@ -23,7 +23,7 @@ class ProductAddRequest extends FormRequest
     {
         return [
             'barcode' => 'nullable',
-            'stock' => 'required|integer',
+            'stock' => 'sometimes|nullable|integer',
             'purchasePrice' => 'nullable',
             'salePrice' => 'nullable',
             'minSalePrice' => 'nullable',
