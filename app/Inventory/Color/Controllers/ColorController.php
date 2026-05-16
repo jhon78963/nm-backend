@@ -74,10 +74,6 @@ class ColorController extends Controller
         $sizes = ProductSize::query()
             ->join('sizes as s', 'product_size.size_id', '=', 's.id')
             ->join('products as p', 'p.id', '=', 'product_size.product_id')
-            ->leftJoin('inventory_balances as ib', function ($join): void {
-                $join->on('ib.product_size_id', '=', 'product_size.id')
-                    ->on('ib.warehouse_id', '=', 'p.warehouse_id');
-            })
             ->where('product_size.product_id', $productId)
             ->when(
                 $size,
@@ -88,21 +84,24 @@ class ColorController extends Controller
                 's.id',
                 'product_size.id as productSizeId',
                 's.description',
-                DB::raw('COALESCE(SUM(ib.quantity), 0) as stock'),
+                DB::raw('COALESCE(
+                    (SELECT SUM(ib2.quantity)
+                     FROM inventory_balances ib2
+                     WHERE ib2.product_size_id = product_size.id
+                       AND ib2.warehouse_id = p.warehouse_id
+                       AND ib2.color_id IS NOT NULL),
+                    (SELECT ib3.quantity
+                     FROM inventory_balances ib3
+                     WHERE ib3.product_size_id = product_size.id
+                       AND ib3.warehouse_id = p.warehouse_id
+                       AND ib3.color_id IS NULL),
+                    0
+                ) as stock'),
                 'product_size.barcode',
                 'product_size.purchase_price',
                 'product_size.sale_price',
                 'product_size.min_sale_price',
             ])
-            ->groupBy(
-                's.id',
-                'product_size.id',
-                's.description',
-                'product_size.barcode',
-                'product_size.purchase_price',
-                'product_size.sale_price',
-                'product_size.min_sale_price',
-            )
             ->orderByRaw("CASE WHEN s.description ~ '^[0-9]+$' THEN s.description::integer ELSE NULL END ASC")
             ->orderBy('s.id', 'asc')
             ->get();
