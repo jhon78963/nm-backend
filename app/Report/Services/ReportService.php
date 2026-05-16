@@ -194,47 +194,86 @@ class ReportService
         return ['labels' => $dates, 'sales' => $dataSales, 'expenses' => $dataExpenses];
     }
 
-    public function getTopProducts(int $limit = 20)
+    public function getTopProducts(int $limit = 20, ?string $startDate = null, ?string $endDate = null)
     {
-        $topProducts = DB::table('sale_details as sd')
+        $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
+        $end = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
+
+        $topProductsQuery = DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
-            ->selectRaw('sd.product_id, MAX(sd.product_name_snapshot) as name, CAST(SUM(sd.quantity) AS INTEGER) as total_sold')
-            ->where('s.status', 'COMPLETED')->where('s.is_deleted', false)
-            ->groupBy('sd.product_id')->orderByDesc('total_sold')->limit($limit)->get();
+            ->selectRaw('sd.product_id, MAX(sd.product_name_snapshot) as name, SUM(sd.quantity) as total_sold')
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false);
+
+        if ($start && $end) {
+            $topProductsQuery->whereBetween('s.creation_time', [$start, $end]);
+        }
+
+        $topProducts = $topProductsQuery
+            ->groupBy('sd.product_id')
+            ->orderByDesc('total_sold')
+            ->limit($limit)
+            ->get();
 
         if ($topProducts->isEmpty()) {
             return [];
         }
 
         $productIds = $topProducts->pluck('product_id')->toArray();
-        $variants = DB::table('sale_details as sd')
+
+        $variantsQuery = DB::table('sale_details as sd')
             ->join('sales as s', 'sd.sale_id', '=', 's.id')
-            ->selectRaw('sd.product_id, sd.color_name_snapshot as color, sd.size_name_snapshot as size, CAST(SUM(sd.quantity) AS INTEGER) as variant_sold')
+            ->selectRaw('sd.product_id, sd.color_name_snapshot as color, sd.size_name_snapshot as size, SUM(sd.quantity) as variant_sold')
             ->whereIn('sd.product_id', $productIds)
-            ->where('s.status', 'COMPLETED')->where('s.is_deleted', false)
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false);
+
+        if ($start && $end) {
+            $variantsQuery->whereBetween('s.creation_time', [$start, $end]);
+        }
+
+        $variants = $variantsQuery
             ->groupBy('sd.product_id', 'sd.color_name_snapshot', 'sd.size_name_snapshot')
-            ->orderByDesc('variant_sold')->get();
+            ->orderByDesc('variant_sold')
+            ->get();
 
         return $topProducts->map(function ($product) use ($variants) {
             $myVariants = $variants->where('product_id', $product->product_id)->values();
             $topVariantsText = $myVariants->map(fn ($v) => "{$v->variant_sold}-{$v->color}(".str_ireplace(['ESTÁNDAR', 'ESTANDAR'], 'STD', $v->size).')')->implode(' | ');
 
-            return ['name' => $product->name, 'total_sold' => $product->total_sold, 'color' => "Top: {$topVariantsText}"];
+            return ['name' => $product->name, 'total_sold' => (int) $product->total_sold, 'color' => "Top: {$topVariantsText}"];
         });
     }
 
-    public function getLeastSoldProducts(int $limit = 20)
+    public function getLeastSoldProducts(int $limit = 20, ?string $startDate = null, ?string $endDate = null)
     {
-        return DB::table('products as p')
+        $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
+        $end = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
+
+        $query = DB::table('products as p')
             ->leftJoin('sale_details as sd', 'p.id', '=', 'sd.product_id')
-            ->leftJoin('sales as s', fn ($j) => $j->on('sd.sale_id', '=', 's.id')->where('s.status', 'COMPLETED')->where('s.is_deleted', false))
-            ->selectRaw('p.name, p.creation_time as reg_date, CAST(COALESCE(SUM(sd.quantity), 0) AS INTEGER) as total_sold')
+            ->leftJoin('sales as s', 'sd.sale_id', '=', 's.id');
+
+        if ($start && $end) {
+            $query->whereBetween('s.creation_time', [$start, $end]);
+        }
+
+        return $query
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    $q2->where('s.status', 'COMPLETED')->where('s.is_deleted', false);
+                })->orWhereNull('sd.id');
+            })
+            ->selectRaw('p.name, p.creation_time as reg_date, COALESCE(SUM(sd.quantity), 0) as total_sold')
             ->groupBy('p.id', 'p.name', 'p.creation_time')
-            ->orderBy('total_sold', 'asc')->orderBy('p.creation_time', 'asc')->limit($limit)->get()
+            ->orderBy('total_sold', 'asc')
+            ->orderBy('p.creation_time', 'asc')
+            ->limit($limit)
+            ->get()
             ->map(fn ($item) => [
                 'name' => $item->name,
                 'registration_date' => $item->reg_date ? Carbon::parse($item->reg_date)->format('d/m/Y') : 'Sin fecha',
-                'total_sold' => $item->total_sold,
+                'total_sold' => (int) $item->total_sold,
             ]);
     }
 
