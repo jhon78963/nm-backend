@@ -27,5 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Inventory\Product\Jobs\SyncZeroToMultikartJob::class,
         \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
         \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,
+        \App\Inventory\InventoryLedger\Command\SeedInitialInventoryMovementsCommand::class,
     ])
     ->create();

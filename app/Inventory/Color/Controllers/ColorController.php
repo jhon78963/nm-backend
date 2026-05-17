@@ -188,7 +188,6 @@ class ColorController extends Controller
             }
 
             $attachedColorIds = $pivotColorIds
-                ->merge(array_keys($qtyByColor))
                 ->map(static fn ($colorId): int => (int) $colorId)
                 ->unique()
                 ->values();
