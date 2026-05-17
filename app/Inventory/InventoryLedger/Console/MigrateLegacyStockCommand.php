@@ -2,11 +2,11 @@
 
 namespace App\Inventory\InventoryLedger\Console;
 
-use App\Administration\Tenant\Models\Tenant;
 use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class MigrateLegacyStockCommand extends Command
 {
@@ -154,17 +154,12 @@ class MigrateLegacyStockCommand extends Command
     {
         $tenantId = Warehouse::query()->whereKey($warehouseId)->value('tenant_id');
 
-        if ($tenantId !== null && (int) $tenantId > 0) {
-            return (int) $tenantId;
-        }
-
-        $fallback = (int) Tenant::query()->orderBy('id')->value('id');
-        if ($fallback < 1) {
-            throw new \RuntimeException(
-                "No se pudo resolver tenant_id para warehouse_id={$warehouseId} ni hay tenant por defecto.",
+        if ($tenantId === null || (int) $tenantId < 1) {
+            throw new InvalidArgumentException(
+                "El almacén ID [{$warehouseId}] no tiene un tenant_id asignado. Operación abortada por seguridad de datos.",
             );
         }
 
-        return $fallback;
+        return (int) $tenantId;
     }
 }

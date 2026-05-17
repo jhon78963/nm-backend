@@ -40,6 +40,7 @@ class SizeService extends ModelService
                     $size->isExists = true;
                     $size->barcode = $pivot->barcode;
                     $psId = (int) $pivot->id;
+                    $size->setAttribute('product_size_id', $psId);
                     $size->stock = $balanceMap[InventoryBalanceLookup::key($psId, null)] ?? 0;
                     $size->purchasePrice = $pivot->purchase_price;
                     $size->salePrice = $pivot->sale_price;

@@ -2,6 +2,7 @@
 
 namespace App\Inventory\InventoryLedger\Requests;
 
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,31 @@ class InventoryKardexReportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($this->actingUserIsSuperAdmin()) {
+            return true;
+        }
+
+        $warehouseId = $this->input('warehouse_id');
+        if ($warehouseId === null || $warehouseId === '' || ! is_numeric($warehouseId)) {
+            return false;
+        }
+
+        $warehouse = Warehouse::query()->find((int) $warehouseId);
+        if ($warehouse === null || $warehouse->tenant_id === null) {
+            return false;
+        }
+
+        if ($user->tenant_id === null) {
+            return false;
+        }
+
+        return (int) $user->tenant_id === (int) $warehouse->tenant_id;
     }
 
     /**
@@ -17,27 +42,25 @@ class InventoryKardexReportRequest extends FormRequest
      */
     public function rules(): array
     {
-        $tenantId = $this->user()?->tenant_id;
-
         return [
             'warehouse_id' => [
                 'required',
                 'integer',
-                Rule::exists('warehouses', 'id')->where(
-                    static function ($query) use ($tenantId): void {
-                        if ($tenantId !== null) {
-                            $query->where('tenant_id', (int) $tenantId);
-                        }
-                    },
-                ),
+                $this->actingUserIsSuperAdmin()
+                    ? Rule::exists('warehouses', 'id')
+                    : Rule::exists('warehouses', 'id')->where(
+                        fn ($query) => $query->where('tenant_id', (int) $this->user()?->tenant_id),
+                    ),
             ],
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'product_size_id' => [
                 'required',
                 'integer',
                 Rule::exists('product_size', 'id')->where(
-                    'product_id',
-                    (int) $this->input('product_id'),
+                    fn ($query) => $query->where(
+                        'product_id',
+                        $this->integer('product_id'),
+                    ),
                 ),
             ],
             'color_id' => ['sometimes', 'nullable', 'integer', 'exists:colors,id'],
@@ -57,5 +80,14 @@ class InventoryKardexReportRequest extends FormRequest
         if ($this->input('color_id') === '') {
             $this->merge(['color_id' => null]);
         }
+    }
+
+    private function actingUserIsSuperAdmin(): bool
+    {
+        $user = $this->user();
+
+        return $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
     }
 }

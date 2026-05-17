@@ -32,7 +32,16 @@ class InventoryKardexReportService
         $warehouse = Warehouse::query()->findOrFail($warehouseId);
         $tenantId = (int) $warehouse->tenant_id;
 
-        if ($user !== null && $user->tenant_id !== null && (int) $user->tenant_id !== $tenantId) {
+        $isSuperAdmin = $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
+
+        if (
+            $user !== null
+            && $user->tenant_id !== null
+            && ! $isSuperAdmin
+            && (int) $user->tenant_id !== $tenantId
+        ) {
             abort(403, 'El almacén no pertenece al tenant del usuario autenticado.');
         }
 

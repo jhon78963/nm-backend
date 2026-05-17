@@ -16,6 +16,9 @@ class SizeSelectedResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'productSizeId' => $this->isExists === true
+                ? (int) ($this->resource->getAttribute('product_size_id') ?? 0)
+                : null,
             'description' => $this->description,
             'barcode' => $this->barcode,
             'isExists' => $this->isExists,
