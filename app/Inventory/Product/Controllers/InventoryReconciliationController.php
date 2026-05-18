@@ -132,6 +132,12 @@ class InventoryReconciliationController extends Controller
                                 (int) $colorPayload['stock'],
                             );
                         }
+
+                        if (! $productSize->relationLoaded('product')) {
+                            $productSize->load('product');
+                        }
+
+                        $this->productSizeColorService->syncMasterStockToColorVariantsSum($productSize);
                     } elseif (array_key_exists('stock', $sizePayload)) {
                         $this->recordReconciliationMovement(
                             $warehouseId,
@@ -140,6 +146,8 @@ class InventoryReconciliationController extends Controller
                             (int) $sizePayload['stock'],
                         );
                     }
+
+                    $this->applySizeCatalogFromReconciliationPayload($product, $productSize, $sizePayload);
                 }
 
                 $freshProduct = $product->fresh()->load([
@@ -224,5 +232,55 @@ class InventoryReconciliationController extends Controller
             referenceId: null,
             createdByUserId: Auth::id(),
         ), $physicalQuantity);
+    }
+
+    /**
+     * Persiste código de barras y precios de la talla enviados en el cuadre (fila product_size).
+     * Se fusionan con lo existente para no borrar campos no enviados en el payload.
+     */
+    private function applySizeCatalogFromReconciliationPayload(Product $product, ProductSize $productSize, array $sizePayload): void
+    {
+        $touched = false;
+        foreach (['barcode', 'purchasePrice', 'salePrice', 'minSalePrice'] as $key) {
+            if (array_key_exists($key, $sizePayload)) {
+                $touched = true;
+                break;
+            }
+        }
+
+        if (! $touched) {
+            return;
+        }
+
+        $row = DB::table('product_size')
+            ->where('id', $productSize->id)
+            ->where('product_id', $product->id)
+            ->first();
+
+        if ($row === null) {
+            return;
+        }
+
+        $data = [
+            'barcode' => array_key_exists('barcode', $sizePayload)
+                ? $sizePayload['barcode']
+                : $row->barcode,
+            'purchasePrice' => array_key_exists('purchasePrice', $sizePayload)
+                ? $sizePayload['purchasePrice']
+                : $row->purchase_price,
+            'salePrice' => array_key_exists('salePrice', $sizePayload)
+                ? $sizePayload['salePrice']
+                : $row->sale_price,
+            'minSalePrice' => array_key_exists('minSalePrice', $sizePayload)
+                ? $sizePayload['minSalePrice']
+                : $row->min_sale_price,
+        ];
+
+        $this->productSizeService->set(
+            $product,
+            (int) $productSize->size_id,
+            $data,
+            self::AUDIT_REASON_PHYSICAL_COUNT,
+        );
     }
 }

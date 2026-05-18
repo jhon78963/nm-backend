@@ -201,6 +201,19 @@ class ProductSizeColorService
             ->exists();
     }
 
+    /**
+     * Alinea el balance maestro (variante sin color) con la suma de las cantidades por color.
+     * Necesario cuando se ajustan cantidades por color fuera de {@see set()} (p. ej. cuadre masivo).
+     */
+    public function syncMasterStockToColorVariantsSum(ProductSize $productSize): void
+    {
+        if (! $productSize->relationLoaded('product')) {
+            $productSize->load('product');
+        }
+
+        $this->reconcileMasterToColorSum($productSize);
+    }
+
     private function reconcileInventory(ProductSize $productSize, int $colorId, int $quantity): void
     {
         if (! $productSize->relationLoaded('product')) {
