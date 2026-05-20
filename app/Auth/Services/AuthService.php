@@ -62,9 +62,18 @@ class AuthService
     {
         $refreshToken = PersonalAccessToken::findToken($request->refreshToken);
         $accessToken = PersonalAccessToken::findToken($request->accessToken);
+
+        if (!$refreshToken || !$accessToken) {
+            throw new InvalidTokenException();
+        }
+
+        if ($refreshToken->tokenable_id !== $accessToken->tokenable_id) {
+            throw new InvalidTokenException();
+        }
+
         $user = User::find($refreshToken->tokenable_id);
-        if ( !$refreshToken) throw new InvalidTokenException();
-        return  [
+
+        return [
             'refreshToken' => $refreshToken,
             'accessToken' => $accessToken,
             'user' => $user,
@@ -87,6 +96,6 @@ class AuthService
 
     private function calculateExpirationInMilliseconds(int $expirationInMinutes): int
     {
-        return Carbon::parse($expirationInMinutes)->diffInMilliseconds(Carbon::now());
+        return Carbon::now()->addMinutes($expirationInMinutes)->diffInMilliseconds(Carbon::now());
     }
 }
