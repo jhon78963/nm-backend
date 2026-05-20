@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\Enums\TokenAbility;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\Finder\Finder;
 
@@ -22,14 +23,17 @@ foreach ($publicFiles as $file) {
 |--------------------------------------------------------------------------
 | 2. Rutas autenticadas (api.php)
 |--------------------------------------------------------------------------
-| Capa base: auth:sanctum. Cada módulo en app/{Modulo}/Routes/api.php declara
-| middleware('permission:modulo.accion') por grupo o ruta (Spatie Permission).
-| Super Admin omite comprobaciones vía Gate::before en AuthorizationServiceProvider.
+| Capa base: auth:sanctum + ability access-api (rechaza refresh tokens como Bearer).
+| Cada módulo en app/{Modulo}/Routes/api.php declara middleware('permission:...')
+| (Spatie Permission). Super Admin omite comprobaciones vía Gate::before.
 |
 | Vendedora: POS, consultas de venta/producto/stock y clientes. Sin admin,
 | reportes, anulaciones, compras, cuadre de inventario ni kardex.
 */
-Route::middleware(['auth:sanctum'])->group(function (): void {
+Route::middleware([
+    'auth:sanctum',
+    'ability:'.TokenAbility::ACCESS_API->value,
+])->group(function (): void {
     $protectedFiles = Finder::create()
         ->in(app_path())
         ->name('api.php')

@@ -15,12 +15,20 @@ use Hash;
 
 class AuthService
 {
-    public function validateUser(string $password, User $user): User
+    public function validateUser(string $password, ?User $user): User
     {
-        if (!$user || !Hash::check($password, $user->password)) {
+        if ($user === null || ! Hash::check($password, $user->password)) {
             throw new InvalidUserCredentialsException();
         }
+
         return $user;
+    }
+
+    public function login(string $username, string $password): array
+    {
+        $user = User::query()->where('username', $username)->first();
+
+        return $this->createTokens($this->validateUser($password, $user), revokeExistingTokens: true);
     }
 
     public function updateMe(UpdateMeRequest $request): void {
@@ -34,9 +42,12 @@ class AuthService
         $user->save();
     }
 
-    public function createTokens(User $user): array
+    public function createTokens(User $user, bool $revokeExistingTokens = false): array
     {
-        // $user->tokens()->delete();
+        if ($revokeExistingTokens) {
+            $user->tokens()->delete();
+        }
+
         $accessToken = $user->createToken(
             'access_token',
             [TokenAbility::ACCESS_API->value],
@@ -68,6 +79,14 @@ class AuthService
         }
 
         if ($refreshToken->tokenable_id !== $accessToken->tokenable_id) {
+            throw new InvalidTokenException();
+        }
+
+        if (! $refreshToken->can(TokenAbility::ISSUE_ACCESS_TOKEN->value)) {
+            throw new InvalidTokenException();
+        }
+
+        if (! $accessToken->can(TokenAbility::ACCESS_API->value)) {
             throw new InvalidTokenException();
         }
 

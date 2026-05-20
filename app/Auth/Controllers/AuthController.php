@@ -2,7 +2,6 @@
 
 namespace App\Auth\Controllers;
 
-use App\Administration\User\Models\User;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\DeleteTokenRequest;
 use App\Auth\Requests\LoginRequest;
@@ -25,10 +24,12 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where("username", $request->username)->first();
-        $validatedUser = $this->authService->validateUser($request->password, $user);
-        $getTokens = $this->authService->createTokens($validatedUser);
-        return response()->json($getTokens);
+        $tokens = $this->authService->login(
+            $request->validated('username'),
+            $request->validated('password'),
+        );
+
+        return response()->json($tokens);
     }
 
     public function refreshToken(RefreshTokenRequest $request): JsonResponse
