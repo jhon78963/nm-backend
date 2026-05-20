@@ -2,8 +2,8 @@
 
 namespace App\Inventory\Product\Controllers;
 
-use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Resources\ProductEcommerceResource;
+use App\Inventory\Product\Support\EcommerceCatalogScope;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,31 +13,20 @@ use Illuminate\Http\Request;
  */
 class ProductEcommerceController extends Controller
 {
-    private const INDEX_LIMIT = 200;
+    use EcommerceCatalogScope;
 
-    /**
-     * @return array<int, string>
-     */
-    private function ecommerceWith(): array
-    {
-        return [
-            'productSizes.size',
-            'productSizes.colors',
-            'imagesEcommerce',
-            'inventoryBalances',
-        ];
-    }
+    private const INDEX_LIMIT = 200;
 
     public function index(Request $request): JsonResponse
     {
+        $warehouseId = $this->ecommerceWarehouseId();
         $limit = min(
             max((int) $request->query('limit', self::INDEX_LIMIT), 1),
             self::INDEX_LIMIT,
         );
 
-        $products = Product::query()
-            ->where('is_deleted', false)
-            ->with($this->ecommerceWith())
+        $products = $this->ecommerceProductQuery()
+            ->with($this->ecommerceWith($warehouseId))
             ->orderByDesc('id')
             ->limit($limit)
             ->get();
@@ -47,10 +36,11 @@ class ProductEcommerceController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $product = Product::query()
-            ->where('is_deleted', false)
+        $warehouseId = $this->ecommerceWarehouseId();
+
+        $product = $this->ecommerceProductQuery()
             ->whereKey($id)
-            ->with($this->ecommerceWith())
+            ->with($this->ecommerceWith($warehouseId))
             ->firstOrFail();
 
         return response()->json(new ProductEcommerceResource($product));

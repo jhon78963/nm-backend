@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
 
+/**
+ * Catálogo público ecommerce: solo precios de venta y stock; sin costos de adquisición.
+ */
 class ProductEcommerceResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -17,7 +20,7 @@ class ProductEcommerceResource extends JsonResource
         $totalStock = 0;
         $balanceMap = $this->balanceMapForWarehouse();
 
-        $minPrice = $this->productSizes->min('sale_price') ?? 0;
+        $minSalePrice = (float) ($this->productSizes->min('sale_price') ?? 0);
 
         foreach ($this->productSizes as $productSize) {
             if (! isset($uniqueSizes[$productSize->size_id])) {
@@ -41,11 +44,13 @@ class ProductEcommerceResource extends JsonResource
                     ];
                 }
 
+                $variantSalePrice = (float) ($productSize->sale_price ?? $minSalePrice);
+
                 $variations[] = [
                     'id' => $productSize->id.'-'.$color->id,
                     'name' => "{$this->name} ({$color->description} / {$productSize->size->description})",
-                    'price' => $productSize->purchase_price ?? $minPrice,
-                    'sale_price' => $productSize->sale_price ?? $minPrice,
+                    'price' => $variantSalePrice,
+                    'sale_price' => $variantSalePrice,
                     'quantity' => $stock,
                     'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
                     'sku' => $productSize->barcode ?? $this->barcode,
@@ -63,8 +68,8 @@ class ProductEcommerceResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => '<p>'.($this->description ?? '').'</p>',
-            'price' => $minPrice,
-            'sale_price' => $minPrice,
+            'price' => $minSalePrice,
+            'sale_price' => $minSalePrice,
             'quantity' => $totalStock,
             'sku' => $this->barcode,
             'status' => $this->status === 'AVAILABLE' ? 1 : 0,
@@ -143,7 +148,7 @@ class ProductEcommerceResource extends JsonResource
      */
     private function balanceMapForWarehouse(): array
     {
-        $warehouseId = (int) ($this->warehouse_id ?? 0);
+        $warehouseId = (int) (config('ecommerce.warehouse_id') ?? $this->warehouse_id ?? 0);
         if ($warehouseId < 1) {
             return [];
         }

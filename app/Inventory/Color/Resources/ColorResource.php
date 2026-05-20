@@ -7,6 +7,10 @@ use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Resource de API autenticada (admin/POS). No usar en rutas públicas del ecommerce:
+ * para catálogo público ver {@see \App\Inventory\Product\Resources\ProductEcommerceResource}.
+ */
 class ColorResource extends JsonResource
 {
     /**
