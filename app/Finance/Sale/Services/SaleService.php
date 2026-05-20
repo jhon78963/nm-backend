@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use stdClass;
 
 class SaleService extends ModelService
@@ -474,12 +475,26 @@ class SaleService extends ModelService
             $warehouseId = $this->resolveWarehouseId();
             $tenantId = $this->resolveTenantId($warehouseId);
 
-            // A. Total de venta solo desde cantidad × precio unitario (no confiar en totales del cliente)
+            // A. Validar margen (precio > costo) y total solo desde cantidad × precio unitario del request
+            $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId($data['items']);
             $computedTotal = 0.0;
             $lines = [];
             foreach ($data['items'] as $item) {
-                $qty = (int) $item['quantity'];
+                $productSizeId = (int) $item['product_size_id'];
+                $pricing = $pricingByProductSizeId[$productSizeId] ?? null;
+
+                if ($pricing === null) {
+                    throw new Exception('No se pudo resolver el producto para el ítem.');
+                }
+
                 $unitPrice = (float) $item['unit_price'];
+                $this->assertPosUnitPriceRespectsMarginPolicy(
+                    $unitPrice,
+                    $pricing->purchase_price !== null ? (float) $pricing->purchase_price : null,
+                    (string) $pricing->product_name,
+                );
+
+                $qty = (int) $item['quantity'];
                 $lineSubtotal = round($qty * $unitPrice, 2);
                 $computedTotal = round($computedTotal + $lineSubtotal, 2);
                 $lines[] = array_merge($item, ['line_subtotal' => $lineSubtotal]);
@@ -587,6 +602,59 @@ class SaleService extends ModelService
 
             return $sale;
         });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, object{id: int, purchase_price: mixed, product_name: string}>
+     */
+    private function loadPosLinePricingByProductSizeId(array $items): array
+    {
+        $productSizeIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $item): int => (int) ($item['product_size_id'] ?? 0),
+            $items,
+        ))));
+
+        if ($productSizeIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('product_size')
+            ->join('products', 'product_size.product_id', '=', 'products.id')
+            ->whereIn('product_size.id', $productSizeIds)
+            ->get([
+                'product_size.id',
+                'product_size.purchase_price',
+                'products.name as product_name',
+            ]);
+
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[(int) $row->id] = $row;
+        }
+
+        return $indexed;
+    }
+
+    private function assertPosUnitPriceRespectsMarginPolicy(
+        float $unitPrice,
+        ?float $purchasePrice,
+        string $productName,
+    ): void {
+        if ($purchasePrice === null) {
+            return;
+        }
+
+        if (round($unitPrice, 2) <= round($purchasePrice, 2)) {
+            throw ValidationException::withMessages([
+                'items' => [
+                    sprintf(
+                        'El precio unitario ingresado para el producto %s no está permitido por políticas de margen.',
+                        $productName,
+                    ),
+                ],
+            ]);
+        }
     }
 
     /**

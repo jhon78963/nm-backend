@@ -25,6 +25,7 @@ class CheckoutPosRequest extends FormRequest
             'items.*.color.product_size_id' => 'required|integer',
             'items.*.color.color_id' => 'required|integer',
             'items.*.quantity' => 'required|integer|min:1',
+            // El margen (precio > costo de compra) se valida en servidor; no se expone el costo al cliente.
             'items.*.unitPrice' => 'required|numeric|min:0',
             // Subtotal por línea ignorado en servidor (se deriva de cantidad × precio unitario).
             'items.*.total' => 'nullable|numeric',

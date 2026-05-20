@@ -13,6 +13,7 @@ use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -72,6 +73,12 @@ class PosController extends Controller
                 'ticket_url' => $this->signedTicketUrl((int) $sale->id),
                 'message' => 'Venta registrada correctamente',
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Datos de venta no válidos.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (Throwable $e) {
             return response()->json([
                 'success' => false,
