@@ -72,4 +72,41 @@ class InventoryMovement extends Model
     {
         return $this->morphTo(__FUNCTION__, 'reference_type', 'reference_id');
     }
+
+    /**
+     * Resuelve la referencia polimórfica sin instanciar clases no-Model (p. ej. controladores legacy en BD).
+     */
+    public function resolveReferenceModel(): ?Model
+    {
+        $type = $this->reference_type;
+        $id = $this->reference_id;
+
+        if ($type === null || $id === null) {
+            return null;
+        }
+
+        if (! class_exists($type) || ! is_subclass_of($type, Model::class)) {
+            return null;
+        }
+
+        /** @var Model|null */
+        return $type::query()->find($id);
+    }
+
+    /**
+     * Limpia referencias morph inválidas guardadas por error (p. ej. FQCN de un Controller).
+     */
+    public static function sanitizeInvalidReferenceTypes(): int
+    {
+        return static::query()
+            ->whereNotNull('reference_type')
+            ->where(function ($query): void {
+                $query->where('reference_type', 'like', '%Controller%')
+                    ->orWhere('reference_type', 'like', '%\\\\Requests\\\\%');
+            })
+            ->update([
+                'reference_type' => null,
+                'reference_id' => null,
+            ]);
+    }
 }

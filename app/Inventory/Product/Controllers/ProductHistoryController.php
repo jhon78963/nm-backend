@@ -44,7 +44,7 @@ class ProductHistoryController extends Controller
 
         $ledgerHistory = InventoryMovement::query()
             ->whereHas('productSize', static fn ($q) => $q->where('product_id', $productId))
-            ->with(['productSize.size', 'color', 'createdBy', 'reference'])
+            ->with(['productSize.size', 'color', 'createdBy'])
             ->orderBy('occurred_at', 'desc')
             ->get()
             ->map(function (InventoryMovement $movement) {
@@ -251,8 +251,8 @@ class ProductHistoryController extends Controller
 
     private function getMovementActionTitle(InventoryMovement $movement): string
     {
-        $reference = $movement->reference;
-        $code = $reference?->code ?? null;
+        $reference = $movement->resolveReferenceModel();
+        $code = $reference !== null && isset($reference->code) ? (string) $reference->code : null;
 
         if ($movement->movement_type === InventoryMovementType::Sale) {
             return $code ? "Venta Registrada ($code)" : 'Venta Registrada';

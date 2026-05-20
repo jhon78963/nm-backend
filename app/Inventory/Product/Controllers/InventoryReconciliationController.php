@@ -127,6 +127,7 @@ class InventoryReconciliationController extends Controller
                         foreach ($colorRows as $colorPayload) {
                             $this->recordReconciliationMovement(
                                 $warehouseId,
+                                (int) $product->id,
                                 (int) $productSize->id,
                                 (int) $colorPayload['colorId'],
                                 (int) $colorPayload['stock'],
@@ -141,6 +142,7 @@ class InventoryReconciliationController extends Controller
                     } elseif (array_key_exists('stock', $sizePayload)) {
                         $this->recordReconciliationMovement(
                             $warehouseId,
+                            (int) $product->id,
                             (int) $productSize->id,
                             null,
                             (int) $sizePayload['stock'],
@@ -212,8 +214,13 @@ class InventoryReconciliationController extends Controller
         ]);
     }
 
-    private function recordReconciliationMovement(int $warehouseId, int $productSizeId, ?int $colorId, int $physicalQuantity): void
-    {
+    private function recordReconciliationMovement(
+        int $warehouseId,
+        int $productId,
+        int $productSizeId,
+        ?int $colorId,
+        int $physicalQuantity,
+    ): void {
         if ($warehouseId < 1) {
             throw new InvalidArgumentException('El producto no tiene un almacén configurado para la reconciliación');
         }
@@ -228,8 +235,8 @@ class InventoryReconciliationController extends Controller
             direction: InventoryMovementDirection::In,
             quantity: 1,
             movementType: InventoryMovementType::Reconciliation,
-            referenceType: self::class,
-            referenceId: null,
+            referenceType: Product::class,
+            referenceId: $productId,
             createdByUserId: Auth::id(),
         ), $physicalQuantity);
     }

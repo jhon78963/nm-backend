@@ -85,7 +85,6 @@ class InventoryKardexReportService
                 'productSize.product',
                 'color',
                 'createdBy',
-                'reference',
             ])
             ->get();
 

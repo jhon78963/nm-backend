@@ -86,7 +86,7 @@ class InventoryKardexMovementResource extends JsonResource
             return null;
         }
 
-        $reference = $movement->relationLoaded('reference') ? $movement->reference : null;
+        $reference = $movement->resolveReferenceModel();
 
         $payload = [
             'morph_class' => $movement->reference_type,
