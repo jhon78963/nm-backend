@@ -24,7 +24,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
         \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
-        \App\Inventory\Product\Jobs\SyncZeroToMultikartJob::class,
         \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
         \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,
         \App\Inventory\InventoryLedger\Command\SeedInitialInventoryMovementsCommand::class,

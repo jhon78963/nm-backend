@@ -24,6 +24,7 @@ class ProductEcommerceController extends Controller
             'productSizes.size',
             'productSizes.colors',
             'imagesEcommerce',
+            'inventoryBalances',
         ];
     }
 
