@@ -96,6 +96,6 @@ class AuthService
 
     private function calculateExpirationInMilliseconds(int $expirationInMinutes): int
     {
-        return Carbon::now()->addMinutes($expirationInMinutes)->diffInMilliseconds(Carbon::now());
+        return Carbon::now()->addMinutes($expirationInMinutes)->getTimestampMs();
     }
 }
