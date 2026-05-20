@@ -3,21 +3,16 @@
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\Finder\Finder;
 
-// header('Access-Control-Allow-Origin: *');
-// header('Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPTION');
-// header('Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Auth-Token');
-
 /*
 |--------------------------------------------------------------------------
-| 1. Cargar Rutas Públicas (public_api.php)
+| 1. Rutas públicas (public_api.php)
 |--------------------------------------------------------------------------
-| Busca en app/ cualquier archivo 'public_api.php' que esté dentro
-| de una carpeta llamada 'Routes', sin importar la profundidad.
+| Catálogo ecommerce, login, tickets POS, etc. Sin auth:sanctum.
 */
 $publicFiles = Finder::create()
-    ->in(app_path())       // Busca dentro de la carpeta app
-    ->name('public_api.php') // Solo archivos con este nombre
-    ->path('Routes');      // Que estén dentro de una carpeta Routes
+    ->in(app_path())
+    ->name('public_api.php')
+    ->path('Routes');
 
 foreach ($publicFiles as $file) {
     require $file->getRealPath();
@@ -25,16 +20,21 @@ foreach ($publicFiles as $file) {
 
 /*
 |--------------------------------------------------------------------------
-| 2. Cargar Rutas Protegidas (api.php)
+| 2. Rutas autenticadas (api.php)
 |--------------------------------------------------------------------------
-| Lo mismo, pero para 'api.php' y envuelto en el middleware auth:sanctum
+| Capa base: auth:sanctum. Cada módulo en app/{Modulo}/Routes/api.php declara
+| middleware('permission:modulo.accion') por grupo o ruta (Spatie Permission).
+| Super Admin omite comprobaciones vía Gate::before en AuthorizationServiceProvider.
+|
+| Vendedora: POS, consultas de venta/producto/stock y clientes. Sin admin,
+| reportes, anulaciones, compras, cuadre de inventario ni kardex.
 */
-Route::group(['middleware' => 'auth:sanctum'], function () {
-
+Route::middleware(['auth:sanctum'])->group(function (): void {
     $protectedFiles = Finder::create()
         ->in(app_path())
         ->name('api.php')
-        ->path('Routes');
+        ->path('Routes')
+        ->sortByName();
 
     foreach ($protectedFiles as $file) {
         require $file->getRealPath();

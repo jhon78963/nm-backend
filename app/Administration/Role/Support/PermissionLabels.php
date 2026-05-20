@@ -25,6 +25,9 @@ final class PermissionLabels
         'productSizeColor' => 'Colores por talla',
         'productImage' => 'Imágenes del producto',
         'productHistory' => 'Historial de producto',
+        'inventoryKardex' => 'Kardex de inventario',
+        'inventoryReconciliation' => 'Cuadre de inventario',
+        'audit' => 'Auditoría',
         'expense' => 'Gastos',
         'report' => 'Reportes',
         'financialSummary' => 'Resumen financiero',
@@ -39,6 +42,7 @@ final class PermissionLabels
 
     /** @var array<string, string> */
     private const ACTION = [
+        'replaceColor' => 'Sustituir etiqueta de color',
         'getMonthlyStats' => 'Estadísticas mensuales',
         'getByMonth' => 'Consultar por mes',
         'getDailySummary' => 'Resumen diario (todo el equipo)',
