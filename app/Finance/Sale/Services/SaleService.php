@@ -403,16 +403,64 @@ class SaleService extends ModelService
     public function delete(Model $model): void
     {
         DB::transaction(function () use ($model) {
-            // 1. VALIDACIÓN ANTIDUPLE (Vital)
             if ($model->is_deleted || $model->status === 'CANCELED') {
                 throw new Exception("La venta {$model->code} ya se encuentra anulada.");
             }
 
-            // 4. Marcar como eliminada
+            if (! $model instanceof Sale) {
+                throw new Exception('Modelo de venta inválido.');
+            }
+
+            $warehouseId = $this->resolveWarehouseId($model);
+            $tenantId = $this->resolveTenantId($warehouseId);
+
+            $model->load('details');
+
+            $details = $model->details
+                ->sort(
+                    fn (SaleDetail $a, SaleDetail $b): int => $this->getInventoryLockSortKey(
+                        (int) $a->product_id,
+                        (int) $a->size_id,
+                    ) <=> $this->getInventoryLockSortKey(
+                        (int) $b->product_id,
+                        (int) $b->size_id,
+                    ),
+                )
+                ->values();
+
+            foreach ($details as $detail) {
+                $qty = (int) $detail->quantity;
+                if ($qty < 1) {
+                    continue;
+                }
+
+                $masterRow = DB::table('product_size')
+                    ->where('product_id', $detail->product_id)
+                    ->where('size_id', $detail->size_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($masterRow === null) {
+                    continue;
+                }
+
+                $this->applyStockDeltaLocked(
+                    (int) $masterRow->id,
+                    $detail->color_id ? (int) $detail->color_id : null,
+                    $qty,
+                    true,
+                    (int) $model->id,
+                    (string) ($model->code ?? ''),
+                    (int) $detail->id,
+                    $warehouseId,
+                    $tenantId,
+                );
+            }
+
             $model->update([
                 'is_deleted' => true,
                 'status' => 'CANCELED',
-                'notes' => substr(($model->notes ?? '') . " | ANULADA EL " . now()->format('d/m/Y H:i'), -250)
+                'notes' => substr(($model->notes ?? '') . " | ANULADA EL " . now()->format('d/m/Y H:i'), -250),
             ]);
         });
     }
