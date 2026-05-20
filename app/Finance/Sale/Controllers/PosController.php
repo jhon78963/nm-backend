@@ -11,11 +11,15 @@ use App\Finance\Sale\Services\SaleService;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
 use Throwable;
 
 class PosController extends Controller
 {
+    private const TICKET_URL_TTL_MINUTES = 15;
+
     public function __construct(
         protected CustomerService $customerService,
         protected ProductService $productService,
@@ -65,6 +69,7 @@ class PosController extends Controller
             return response()->json([
                 'success' => true,
                 'sale_id' => $sale->id,
+                'ticket_url' => $this->signedTicketUrl((int) $sale->id),
                 'message' => 'Venta registrada correctamente',
             ]);
         } catch (Throwable $e) {
@@ -75,13 +80,41 @@ class PosController extends Controller
         }
     }
 
-    public function printTicket(int $saleId): View
+    public function ticketUrl(int $saleId): JsonResponse
     {
-        $sale = Sale::query()
-            ->with(['details', 'customer'])
-            ->where('id', $saleId)
-            ->firstOrFail();
+        $this->findTicketSale($saleId);
+
+        return response()->json([
+            'ticket_url' => $this->signedTicketUrl($saleId),
+        ]);
+    }
+
+    public function printTicket(Request $request, int $saleId): View
+    {
+        if (! $request->hasValidSignature()) {
+            abort(403, 'Enlace de ticket inválido o expirado.');
+        }
+
+        $sale = $this->findTicketSale($saleId);
 
         return view('pos.ticket', compact('sale'));
+    }
+
+    private function findTicketSale(int $saleId): Sale
+    {
+        return Sale::query()
+            ->with(['details', 'customer'])
+            ->where('is_deleted', false)
+            ->whereKey($saleId)
+            ->firstOrFail();
+    }
+
+    private function signedTicketUrl(int $saleId): string
+    {
+        return URL::temporarySignedRoute(
+            'pos.sales.ticket',
+            now()->addMinutes(self::TICKET_URL_TTL_MINUTES),
+            ['saleId' => $saleId],
+        );
     }
 }

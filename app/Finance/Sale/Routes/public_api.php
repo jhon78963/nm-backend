@@ -1,8 +1,6 @@
 <?php
 
-use App\Finance\Sale\Controllers\PosController;
-use Illuminate\Support\Facades\Route;
-
-Route::get('/print/ticket/{saleId}', [PosController::class, 'printTicket']);
-Route::get('/pos/sales/{saleId}/ticket', [PosController::class, 'printTicket']);
-Route::get('/pos/sales/{saleId}/ticket/html', [PosController::class, 'printTicket']);
+/**
+ * Rutas públicas de ventas/POS.
+ * La impresión de tickets usa URLs firmadas en routes/web.php (no expuestas aquí).
+ */

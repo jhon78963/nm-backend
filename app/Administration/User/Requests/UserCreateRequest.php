@@ -15,6 +15,13 @@ class UserCreateRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('passwordConfirmation') && ! $this->has('password_confirmation')) {
+            $this->merge(['password_confirmation' => $this->input('passwordConfirmation')]);
+        }
+    }
+
     /**
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
@@ -29,6 +36,7 @@ class UserCreateRequest extends FormRequest
             'roleNames.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'tenantId' => ['required', 'exists:tenants,id'],
             'warehouseId' => ['required', 'exists:warehouses,id'],
+            'password' => 'required|string|min:8|confirmed',
             'file' => 'nullable|max:2048',
         ];
     }

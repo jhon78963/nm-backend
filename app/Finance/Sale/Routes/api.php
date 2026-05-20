@@ -8,6 +8,8 @@ Route::controller(PosController::class)->group(function (): void {
     Route::get('/pos/products', 'searchProduct')->middleware('permission:pos.searchProduct');
     Route::get('/pos/customers', 'searchCustomer')->middleware('permission:pos.searchCustomer');
     Route::post('/pos/checkout', 'checkout')->middleware('permission:pos.checkout');
+    Route::get('/pos/sales/{saleId}/ticket-url', 'ticketUrl')
+        ->middleware('permission:sale.get|pos.checkout');
 });
 
 Route::controller(SaleController::class)->group(function (): void {

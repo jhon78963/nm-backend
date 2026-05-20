@@ -14,6 +14,7 @@ use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 class UserController extends Controller
 {
     public function __construct(
@@ -26,9 +27,12 @@ class UserController extends Controller
         return DB::transaction(function () use ($request): JsonResponse {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $roleNames = Arr::pull($data, 'role_names', []);
-            $data['password'] = 'password';
+            $password = (string) Arr::pull($data, 'password');
+            Arr::forget($data, 'password_confirmation');
+
             $user = new User;
             $user->fill($data);
+            $user->password = Hash::make($password);
             $user->save();
             $user->syncRoles(is_array($roleNames) ? $roleNames : []);
 
