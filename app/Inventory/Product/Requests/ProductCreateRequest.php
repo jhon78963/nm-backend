@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ProductCreateRequest extends FormRequest
 {
@@ -27,7 +28,8 @@ class ProductCreateRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'genderId' => 'required|integer',
-            'warehouseId' => 'nullable|integer',
+            'warehouseId' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
+            'warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
         ];
     }
 }

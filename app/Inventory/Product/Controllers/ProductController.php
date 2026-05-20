@@ -13,7 +13,9 @@ use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class ProductController extends Controller
 {
@@ -26,7 +28,7 @@ class ProductController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $data = $this->sharedService->convertCamelToSnake($request->validated());
-            $data['warehouse_id'] = 1;
+            $data['warehouse_id'] = $this->resolveWarehouseIdForCreate($request, $data);
             $product = $this->productService->create($data);
 
             return response()->json([
@@ -124,5 +126,26 @@ class ProductController extends Controller
             $queryResult['total'],
             $queryResult['pages'],
         ));
+    }
+
+    /**
+     * Prioridad: payload validado → almacén del usuario autenticado → cabecera/query del request.
+     */
+    private function resolveWarehouseIdForCreate(ProductCreateRequest $request, array $data): int
+    {
+        $warehouseId = (int) ($data['warehouse_id'] ?? 0);
+        if ($warehouseId < 1) {
+            $warehouseId = (int) (Auth::user()?->warehouse_id ?? 0);
+        }
+        if ($warehouseId < 1) {
+            $warehouseId = WarehouseIdForInventoryResolver::resolve($request, null);
+        }
+        if ($warehouseId < 1) {
+            throw new InvalidArgumentException(
+                'Debe indicar un almacén válido (warehouseId) para crear el producto.',
+            );
+        }
+
+        return $warehouseId;
     }
 }
