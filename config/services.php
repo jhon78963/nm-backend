@@ -40,4 +40,8 @@ return [
         'api_key' => env('UPLOADER_API_KEY'),
     ],
 
+    'sunat' => [
+        'token' => env('SUNAT_TOKEN'),
+    ],
+
 ];

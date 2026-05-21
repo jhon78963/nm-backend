@@ -6,19 +6,17 @@ class SunatService
 {
     public function dniConsultation($dni): mixed
     {
-        // data
-        $token = 'apis-token-12491.Nnf3wt2ZokI0xlxPqsWljsVuWdLdAs9X';
-        //$token_v1 = 'apis-token-1.aTSI1U7KEuT-6bbbCguH-4Y8TI6KS73N';
+        $token = config('services.sunat.token');
+        $url = 'https://api.apis.net.pe/v2/reniec/dni?'.http_build_query([
+            'numero' => $dni,
+        ]);
 
-        // start to API call
         $curl = curl_init();
 
-        // search by DNI
         curl_setopt_array($curl, [
-            // CURLOPT_URL => "https://api.apis.net.pe/v1/dni?numero=$dni",
-            CURLOPT_URL => "https://api.apis.net.pe/v2/reniec/dni?numero=$dni",
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 2,
             CURLOPT_TIMEOUT => 0,
@@ -26,7 +24,7 @@ class SunatService
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => [
                 'Referer: https://apis.net.pe/consulta-dni-api',
-                "Authorization: Bearer $token",
+                "Authorization: Bearer {$token}",
             ],
         ]);
 
@@ -34,26 +32,22 @@ class SunatService
 
         curl_close($curl);
 
-        // Person data according to reduced register
-        $persona = json_decode($response);
-        return $persona;
+        return json_decode($response);
     }
 
     public function rucConsultation($ruc): mixed
     {
-        // data
-        $token = 'apis-token-12491.Nnf3wt2ZokI0xlxPqsWljsVuWdLdAs9X';
-        //$token_v1 = 'apis-token-1.aTSI1U7KEuT-6bbbCguH-4Y8TI6KS73N';
+        $token = config('services.sunat.token');
+        $url = 'https://api.apis.net.pe/v2/sunat/ruc?'.http_build_query([
+            'numero' => $ruc,
+        ]);
 
-        // start to API call
         $curl = curl_init();
 
-        // Search by RUC
         curl_setopt_array($curl, [
-            // CURLOPT_URL => "https://api.apis.net.pe/v1/ruc?numero=$ruc",
-            CURLOPT_URL => "https://api.apis.net.pe/v2/sunat/ruc?numero=$ruc",
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 0,
@@ -61,7 +55,7 @@ class SunatService
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => [
                 'Referer: http://apis.net.pe/api-ruc',
-                "Authorization: Bearer $token",
+                "Authorization: Bearer {$token}",
             ],
         ]);
 
@@ -69,8 +63,6 @@ class SunatService
 
         curl_close($curl);
 
-        // Company data according to reduced register
-        $empresa = json_decode($response);
-        return $empresa;
+        return json_decode($response);
     }
 }

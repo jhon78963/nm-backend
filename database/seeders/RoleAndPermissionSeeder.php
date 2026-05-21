@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Administration\User\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -110,13 +111,15 @@ class RoleAndPermissionSeeder extends Seeder
 
         $roleVendedora->syncPermissions($vendedoraPermissions);
 
+        $seedPassword = Hash::make(env('SEEDER_DEFAULT_PASSWORD', Str::random(12)));
+
         $super = User::query()->firstOrCreate(
             ['email' => 'superadmin@test.com'],
             [
                 'username' => 'superadmin',
                 'name' => 'Super',
                 'surname' => 'Admin',
-                'password' => 'password',
+                'password' => $seedPassword,
                 'warehouse_id' => 1,
                 'tenant_id' => 1,
             ]
@@ -129,7 +132,7 @@ class RoleAndPermissionSeeder extends Seeder
                 'username' => 'vendedora',
                 'name' => 'María',
                 'surname' => 'Vendedora',
-                'password' => 'password',
+                'password' => $seedPassword,
                 'warehouse_id' => 1,
                 'tenant_id' => 1,
             ]
