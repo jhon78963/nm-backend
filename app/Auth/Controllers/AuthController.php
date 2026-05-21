@@ -83,6 +83,9 @@ class AuthController extends Controller
         $userAccess = $this->authService->validateTokens($request);
         ['user' => $user, 'accessToken' => $accessToken, 'refreshToken' => $refreshToken] = $userAccess;
         $this->authService->deleteToken($user, $accessToken, $refreshToken);
-        return response()->json(['message' => 'Logout successfully']);
+
+        return response()
+            ->json(['message' => 'Logout successfully'])
+            ->withoutCookie('access_token');
     }
 }
