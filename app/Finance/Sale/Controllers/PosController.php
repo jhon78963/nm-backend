@@ -10,6 +10,7 @@ use App\Finance\Sale\Requests\SearchProductSkuRequest;
 use App\Finance\Sale\Services\SaleService;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -79,6 +80,11 @@ class PosController extends Controller
                 'message' => collect($e->errors())->flatten()->first() ?? 'Datos de venta no válidos.',
                 'errors' => $e->errors(),
             ], 422);
+        } catch (UserWarehouseNotAssignedException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 403);
         } catch (Throwable $e) {
             return response()->json([
                 'success' => false,

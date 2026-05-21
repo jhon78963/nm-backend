@@ -6,6 +6,7 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
 use App\Shared\Foundation\Services\ModelService;
+use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -148,7 +149,8 @@ class ProductService extends ModelService
             $tallaNombre = $pSize->size->description;
             $currentPrice = $salePriceFor($pSize, $product);
             $currentSku = $pSize->barcode ?? '';
-            $warehouseId = (int) ($product->warehouse_id ?? 0);
+            $productWarehouseId = (int) ($product->warehouse_id ?? 0);
+            $warehouseId = AuthenticatedUserWarehouseResolver::resolveForPosInventory($productWarehouseId);
 
             if ($currentPrice > 0) {
                 $basePrice =

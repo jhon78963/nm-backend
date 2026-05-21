@@ -16,16 +16,19 @@ class UserSeeder extends Seeder
         $roleSuper = Role::query()->where('name', 'Super Admin')->where('guard_name', 'web')->first();
         $roleVendedora = Role::query()->where('name', 'Vendedora')->where('guard_name', 'web')->first();
 
-        $make = function (array $attrs, $role) {
-            $user = User::query()->firstOrCreate(
+        $defaultWarehouseId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
+        $defaultTenantId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
+
+        $make = function (array $attrs, $role) use ($defaultWarehouseId, $defaultTenantId) {
+            $user = User::query()->updateOrCreate(
                 ['email' => $attrs['email']],
                 [
                     'username' => $attrs['username'],
                     'name' => $attrs['name'],
                     'surname' => $attrs['surname'],
                     'password' => $attrs['passwordPlain'],
-                    'tenant_id' => 1,
-                    'warehouse_id' => 1,
+                    'tenant_id' => $defaultTenantId,
+                    'warehouse_id' => $defaultWarehouseId,
                 ]
             );
             if ($role) {

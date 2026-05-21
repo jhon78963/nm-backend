@@ -12,7 +12,7 @@ class UserWarehouseNotAssignedException extends Exception
     public function render(): JsonResponse
     {
         return response()->json([
-            'message' => [$this->message],
+            'message' => $this->message,
         ], 403);
     }
 }

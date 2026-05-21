@@ -113,28 +113,31 @@ class RoleAndPermissionSeeder extends Seeder
 
         $seedPassword = Hash::make(env('SEEDER_DEFAULT_PASSWORD', Str::random(12)));
 
-        $super = User::query()->firstOrCreate(
+        $defaultWarehouseId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
+        $defaultTenantId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
+
+        $super = User::query()->updateOrCreate(
             ['email' => 'superadmin@test.com'],
             [
                 'username' => 'superadmin',
                 'name' => 'Super',
                 'surname' => 'Admin',
                 'password' => $seedPassword,
-                'warehouse_id' => 1,
-                'tenant_id' => 1,
+                'warehouse_id' => $defaultWarehouseId,
+                'tenant_id' => $defaultTenantId,
             ]
         );
         $super->syncRoles([$roleSuper]);
 
-        $vendedora = User::query()->firstOrCreate(
+        $vendedora = User::query()->updateOrCreate(
             ['email' => 'vendedora@test.com'],
             [
                 'username' => 'vendedora',
                 'name' => 'María',
                 'surname' => 'Vendedora',
                 'password' => $seedPassword,
-                'warehouse_id' => 1,
-                'tenant_id' => 1,
+                'warehouse_id' => $defaultWarehouseId,
+                'tenant_id' => $defaultTenantId,
             ]
         );
         $vendedora->syncRoles([$roleVendedora]);

@@ -10,9 +10,9 @@ use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\InventoryLedger\Services\InventoryMovementService;
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
+use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
 use App\Shared\Foundation\Services\ModelService;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
@@ -34,29 +34,11 @@ class SaleService extends ModelService
 
     private function resolveWarehouseId(?Sale $sale = null): int
     {
-        $user = Auth::user();
-        $isSuperAdmin = $user !== null
-            && method_exists($user, 'hasRole')
-            && $user->hasRole('Super Admin');
+        $warehouseId = AuthenticatedUserWarehouseResolver::resolve($sale);
+        if ($warehouseId > 0) {
+            Warehouse::query()->findOrFail($warehouseId);
 
-        $userWarehouseId = (int) ($user?->warehouse_id ?? 0);
-        if ($userWarehouseId > 0) {
-            return $userWarehouseId;
-        }
-
-        $saleWarehouseId = (int) ($sale?->warehouse_id ?? 0);
-        if ($saleWarehouseId > 0 && $isSuperAdmin) {
-            return $saleWarehouseId;
-        }
-
-        $request = request();
-        if ($request !== null) {
-            $fromRequest = WarehouseIdForInventoryResolver::resolve($request, null);
-            if ($fromRequest > 0 && $isSuperAdmin) {
-                Warehouse::query()->findOrFail($fromRequest);
-
-                return $fromRequest;
-            }
+            return $warehouseId;
         }
 
         throw new UserWarehouseNotAssignedException();

@@ -14,8 +14,10 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             TenantSeeder::class,
+            \App\Inventory\Warehouse\Seeders\WarehouseSeeder::class,
             RoleAndPermissionSeeder::class,
             UserSeeder::class,
+            AssignUserWarehousesSeeder::class,
         ]);
     }
 }
