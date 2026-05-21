@@ -22,6 +22,7 @@ class MeResource extends JsonResource
             'profilePicture' => $this->profile_picture,
             'role' => $this->getRoleNames()->first(),
             'roles' => $this->getRoleNames()->values()->all(),
+            'permissions' => $this->getAllPermissions()->pluck('name')->values()->all(),
             'tenantId' => $this->tenant_id,
             'warehouseId' => $this->warehouse_id,
         ];
