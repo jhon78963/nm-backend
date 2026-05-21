@@ -7,6 +7,7 @@ use App\Auth\Requests\DeleteTokenRequest;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
+use App\Administration\User\Models\User;
 use App\Auth\Resources\MeResource;
 use App\Auth\Services\AuthService;
 use App\Shared\Foundation\Controllers\Controller;
@@ -29,7 +30,25 @@ class AuthController extends Controller
             $request->validated('password'),
         );
 
-        return response()->json($tokens);
+        $user = User::query()
+            ->where('username', $request->validated('username'))
+            ->firstOrFail();
+
+        $accessTokenCookie = cookie(
+            'access_token',
+            $tokens['token'],
+            1440,
+            '/',
+            null,
+            env('APP_ENV') !== 'local',
+            true,
+            false,
+            'Lax',
+        );
+
+        return response()
+            ->json(new MeResource($user))
+            ->cookie($accessTokenCookie);
     }
 
     public function refreshToken(RefreshTokenRequest $request): JsonResponse
