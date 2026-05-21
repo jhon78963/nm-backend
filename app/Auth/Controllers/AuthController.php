@@ -3,7 +3,6 @@
 namespace App\Auth\Controllers;
 
 use App\Auth\Requests\ChangePasswordRequest;
-use App\Auth\Requests\DeleteTokenRequest;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
@@ -34,21 +33,9 @@ class AuthController extends Controller
             ->where('username', $request->validated('username'))
             ->firstOrFail();
 
-        $accessTokenCookie = cookie(
-            'access_token',
-            $tokens['token'],
-            1440,
-            '/',
-            null,
-            env('APP_ENV') !== 'local',
-            true,
-            false,
-            'Lax',
-        );
-
         return response()
             ->json(new MeResource($user))
-            ->cookie($accessTokenCookie);
+            ->cookie($this->accessTokenCookie($tokens['token'], 1440));
     }
 
     public function refreshToken(RefreshTokenRequest $request): JsonResponse
@@ -79,13 +66,31 @@ class AuthController extends Controller
         return response()->json(['message' => 'Password changed successfully']);
     }
 
-    public function logout(DeleteTokenRequest $request): JsonResponse {
-        $userAccess = $this->authService->validateTokens($request);
-        ['user' => $user, 'accessToken' => $accessToken, 'refreshToken' => $refreshToken] = $userAccess;
-        $this->authService->deleteToken($user, $accessToken, $refreshToken);
+    public function logout(): JsonResponse
+    {
+        $user = Auth::user();
+
+        if ($user !== null) {
+            $this->authService->revokeAllTokens($user);
+        }
 
         return response()
             ->json(['message' => 'Logout successfully'])
-            ->withoutCookie('access_token');
+            ->withoutCookie($this->accessTokenCookie('', -1));
+    }
+
+    private function accessTokenCookie(string $value, int $minutes): \Symfony\Component\HttpFoundation\Cookie
+    {
+        return cookie(
+            'access_token',
+            $value,
+            $minutes,
+            '/',
+            null,
+            env('APP_ENV') !== 'local',
+            true,
+            false,
+            'Lax',
+        );
     }
 }

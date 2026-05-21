@@ -6,3 +6,4 @@ use Illuminate\Support\Facades\Route;
 Route::patch('auth/me', [AuthController::class, 'updateMe']);
 Route::post('auth/me', [AuthController::class, 'getMe']);
 Route::post('auth/change-password', [AuthController::class, 'changePassword']);
+Route::post('auth/logout', [AuthController::class, 'logout']);
