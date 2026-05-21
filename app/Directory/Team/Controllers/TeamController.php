@@ -15,6 +15,8 @@ use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class TeamController extends Controller
 {
@@ -40,20 +42,22 @@ class TeamController extends Controller
                 throw new \InvalidArgumentException('La tienda seleccionada no tiene un cliente (tenant) asociado.');
             }
 
-            $plainPassword = "password";
+            $plainPassword = Str::password(12);
 
             $email = sprintf('%s.%s@novedadesmaritex.net.pe', $team->name, $team->surname);
             $username = sprintf('%s.%s', $team->name, $team->surname);
 
-            $user = User::query()->create([
+            $user = new User([
                 'username' => $username,
                 'email' => $email,
                 'name' => $team->name,
                 'surname' => $team->surname,
-                'password' => $plainPassword,
-                'warehouse_id' => $team->warehouse_id,
-                'tenant_id' => $tenantId,
             ]);
+            $user->password = Hash::make($plainPassword);
+            $user->must_change_password = true;
+            $user->warehouse_id = $team->warehouse_id;
+            $user->tenant_id = $tenantId;
+            $user->save();
 
             $user->syncRoles(['Vendedora']);
 
@@ -68,7 +72,6 @@ class TeamController extends Controller
                 'login' => [
                     'email' => $user->email,
                     'username' => $user->username,
-                    'temporaryPassword' => $plainPassword,
                 ],
             ], 201);
         });

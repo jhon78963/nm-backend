@@ -122,11 +122,12 @@ class RoleAndPermissionSeeder extends Seeder
                 'username' => 'superadmin',
                 'name' => 'Super',
                 'surname' => 'Admin',
-                'password' => $seedPassword,
-                'warehouse_id' => $defaultWarehouseId,
-                'tenant_id' => $defaultTenantId,
             ]
         );
+        $super->password = $seedPassword;
+        $super->warehouse_id = $defaultWarehouseId;
+        $super->tenant_id = $defaultTenantId;
+        $super->save();
         $super->syncRoles([$roleSuper]);
 
         $vendedora = User::query()->updateOrCreate(
@@ -135,11 +136,12 @@ class RoleAndPermissionSeeder extends Seeder
                 'username' => 'vendedora',
                 'name' => 'María',
                 'surname' => 'Vendedora',
-                'password' => $seedPassword,
-                'warehouse_id' => $defaultWarehouseId,
-                'tenant_id' => $defaultTenantId,
             ]
         );
+        $vendedora->password = $seedPassword;
+        $vendedora->warehouse_id = $defaultWarehouseId;
+        $vendedora->tenant_id = $defaultTenantId;
+        $vendedora->save();
         $vendedora->syncRoles([$roleVendedora]);
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();

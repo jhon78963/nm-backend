@@ -22,9 +22,12 @@ class ImagesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image.*' => 'required',
-            'size.*' => 'required',
-            'name.*' => 'required',
+            'image' => 'required|array|min:1',
+            'image.*' => 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'size' => 'required|array|min:1',
+            'size.*' => 'required|string|max:50',
+            'name' => 'required|array|min:1',
+            'name.*' => 'required|string|max:255',
         ];
     }
 }

@@ -28,10 +28,14 @@ class UserController extends Controller
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $roleNames = Arr::pull($data, 'role_names', []);
             $password = (string) Arr::pull($data, 'password');
+            $tenantId = Arr::pull($data, 'tenant_id');
+            $warehouseId = Arr::pull($data, 'warehouse_id');
             Arr::forget($data, 'password_confirmation');
 
             $user = new User;
             $user->fill($data);
+            $user->tenant_id = $tenantId;
+            $user->warehouse_id = $warehouseId;
             $user->password = Hash::make($password);
             $user->save();
             $user->syncRoles(is_array($roleNames) ? $roleNames : []);
@@ -46,8 +50,16 @@ class UserController extends Controller
             $this->userService->validate($user, 'User');
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $roleNames = Arr::pull($data, 'role_names');
+            $tenantId = Arr::pull($data, 'tenant_id');
+            $warehouseId = Arr::pull($data, 'warehouse_id');
             $data = Arr::except($data, ['password', 'username']);
             $user->fill($data);
+            if ($tenantId !== null) {
+                $user->tenant_id = $tenantId;
+            }
+            if ($warehouseId !== null) {
+                $user->warehouse_id = $warehouseId;
+            }
             $user->save();
             if ($roleNames !== null) {
                 $user->syncRoles(is_array($roleNames) ? $roleNames : []);

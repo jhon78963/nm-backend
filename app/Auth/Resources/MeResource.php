@@ -25,6 +25,7 @@ class MeResource extends JsonResource
             'permissions' => $this->getAllPermissions()->pluck('name')->values()->all(),
             'tenantId' => $this->tenant_id,
             'warehouseId' => $this->warehouse_id,
+            'mustChangePassword' => (bool) $this->must_change_password,
         ];
     }
 }

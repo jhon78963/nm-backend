@@ -54,7 +54,7 @@ class CashflowController extends Controller
             'amount' => 'required|numeric',
             'description' => 'required|string',
             'date' => 'required|date',
-            'image' => 'nullable|image',
+            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
             'payment_method' => 'nullable|string',
         ]);
 
@@ -73,7 +73,7 @@ class CashflowController extends Controller
             'description' => 'nullable|string',
             'date' => 'nullable|date',
             'payment_method' => 'nullable|string',
-            'image' => 'nullable|image|max:5120', // 5MB
+            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));

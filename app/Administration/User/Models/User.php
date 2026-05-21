@@ -29,9 +29,6 @@ class User extends Authenticatable
         'email',
         'name',
         'surname',
-        'password',
-        'warehouse_id',
-        'tenant_id',
         'profile_picture',
         'creator_user_id',
     ];
@@ -71,6 +68,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 

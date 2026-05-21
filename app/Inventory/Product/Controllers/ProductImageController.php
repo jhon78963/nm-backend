@@ -26,9 +26,9 @@ class ProductImageController extends Controller
             function () use ($product, $request): JsonResponse {
                 $this->productImageService->add(
                     $product,
-                    $request->image,
-                    $request->size,
-                    $request->name
+                    $request->file('image'),
+                    $request->validated('size'),
+                    $request->validated('name'),
                 );
 
                 return response()->json(
@@ -43,16 +43,16 @@ class ProductImageController extends Controller
     {
         return DB::transaction(
             function () use ($product, $request): JsonResponse {
-                $images = $request->input('image', []);
+                $images = $request->file('image', []);
                 $sizes = $request->input('size', []);
                 $names = $request->input('name', []);
 
-                foreach ($images as $index => $path) {
+                foreach ($images as $index => $file) {
                     $this->productImageService->add(
                         $product,
-                        $path,
-                        $sizes[$index] ?? null,
-                        $names[$index] ?? null,
+                        $file,
+                        $sizes[$index] ?? '',
+                        $names[$index] ?? '',
                     );
                 }
 

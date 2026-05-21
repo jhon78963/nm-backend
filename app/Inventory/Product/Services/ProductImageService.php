@@ -5,17 +5,22 @@ namespace App\Inventory\Product\Services;
 use App\Inventory\Product\Models\Product;
 use App\Shared\Foundation\Requests\FileMultipleUploadRequest;
 use App\Shared\Foundation\Services\FileService;
+use App\Shared\Foundation\Services\NodeUploaderService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 class ProductImageService
 {
     public function __construct(
-        protected FileService $fileService
+        protected FileService $fileService,
+        protected NodeUploaderService $nodeUploaderService,
     ) {
     }
 
-    public function add(Product $product, string $path, string $size, string $name): void
+    public function add(Product $product, UploadedFile $file, string $size, string $name): void
     {
+        $path = $this->nodeUploaderService->upload($file);
+
         $this->fileService->attach(
             $product,
             'images',

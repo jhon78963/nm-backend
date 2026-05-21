@@ -24,7 +24,15 @@ class ProductService extends ModelService
 
     public function create(array $data): Model
     {
+        $warehouseId = $data['warehouse_id'] ?? null;
+        unset($data['warehouse_id'], $data['id']);
+
         $product = parent::create($data);
+
+        if ($warehouseId !== null) {
+            $product->warehouse_id = (int) $warehouseId;
+            $product->save();
+        }
 
         $this->historyService->logChange(
             $product,
@@ -40,8 +48,17 @@ class ProductService extends ModelService
 
     public function update(Model $model, array $data): Model
     {
+        $warehouseId = $data['warehouse_id'] ?? null;
+        unset($data['warehouse_id'], $data['id']);
+
         $oldData = $model->toArray();
         $product = parent::update($model, $data);
+
+        if ($warehouseId !== null) {
+            $product->warehouse_id = (int) $warehouseId;
+            $product->save();
+        }
+
         $newData = $product->fresh()->toArray();
         $this->historyService->logChange(
             $product,

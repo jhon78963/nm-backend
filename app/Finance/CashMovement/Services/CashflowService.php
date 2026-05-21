@@ -4,6 +4,7 @@ namespace App\Finance\CashMovement\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
+use App\Shared\Foundation\Services\NodeUploaderService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -189,11 +190,11 @@ class CashflowService
 
     private function uploadToNode(UploadedFile $file): ?string
     {
-        $response = Http::withHeaders(['X-API-KEY' => $this->apiKey])
-            ->attach('files', file_get_contents($file->getRealPath()), $file->getClientOriginalName())
-            ->post($this->uploaderUrl . '/api/upload', ['context' => 'vouchers']);
-
-        return $response->successful() ? $response->json()['files'][0]['url'] : null;
+        try {
+            return app(NodeUploaderService::class)->upload($file, 'vouchers');
+        } catch (\RuntimeException) {
+            return null;
+        }
     }
 
     /**

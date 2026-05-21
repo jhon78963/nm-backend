@@ -25,7 +25,6 @@ class Product extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'id',
         'name',
         'description',
         'barcode',
@@ -33,7 +32,6 @@ class Product extends Model
         'cash_discount',
         'status',
         'gender_id',
-        'warehouse_id',
         'vendor_id',
     ];
 

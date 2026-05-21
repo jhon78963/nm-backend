@@ -13,6 +13,7 @@ use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -86,9 +87,14 @@ class PosController extends Controller
                 'message' => $e->getMessage(),
             ], 403);
         } catch (Throwable $e) {
+            Log::error('POS checkout failed', [
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Ocurrió un error al procesar la venta.',
             ], 500);
         }
     }

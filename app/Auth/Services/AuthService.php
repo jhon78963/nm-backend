@@ -27,8 +27,12 @@ class AuthService
     public function login(string $username, string $password): array
     {
         $user = User::query()->where('username', $username)->first();
+        $validatedUser = $this->validateUser($password, $user);
 
-        return $this->createTokens($this->validateUser($password, $user), revokeExistingTokens: true);
+        return array_merge(
+            $this->createTokens($validatedUser, revokeExistingTokens: true),
+            ['mustChangePassword' => (bool) $validatedUser->must_change_password],
+        );
     }
 
     public function updateMe(UpdateMeRequest $request): void {
@@ -40,6 +44,7 @@ class AuthService
     public function changePassword(User $user, string $newPassword): void
     {
         $user->password = $newPassword;
+        $user->must_change_password = false;
         $user->save();
     }
 
