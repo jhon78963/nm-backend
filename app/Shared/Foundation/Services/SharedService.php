@@ -124,8 +124,12 @@ class SharedService
 
         return $query->where(function ($q) use ($search, $columns) {
             foreach ($columns as $column) {
-                // Caso 1: Columnas con funciones SQL crudas (ej: unaccent)
+                // Caso 1: Columnas con funciones SQL crudas (ej: unaccent, subconsultas de servidor)
                 if (str_contains($column, '(')) {
+                    if (!$this->isValidRawSearchExpression($column)) {
+                        continue;
+                    }
+
                     $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     continue;
                 }
@@ -133,6 +137,9 @@ class SharedService
                 // Caso 2: Columnas de Fecha y Hora (Datetime)
                 // Detectamos 'creation_time', 'updated_at', etc.
                 if (in_array($column, ['creation_time', 'date', 'created_at', 'updated_at']) || str_ends_with($column, '_time') || str_ends_with($column, '_at')) {
+                    if (!$this->isValidColumnIdentifier($column)) {
+                        continue;
+                    }
 
                     // Opción A: Busca coincidencias con el formato visual (DD/MM/YYYY 12H AM/PM)
                     // Esto permite buscar "03/01/2026" y también "03/01/2026 02:00 PM"
@@ -147,16 +154,50 @@ class SharedService
                 // Caso 3: Relaciones (tablas.columna)
                 if (str_contains($column, '.')) {
                     [$relation, $field] = explode('.', $column, 2);
+
+                    if (!$this->isValidColumnIdentifier($relation) || !$this->isValidColumnIdentifier($field)) {
+                        continue;
+                    }
+
                     $q->orWhereHas($relation, function ($subQuery) use ($field, $search) {
                         $subQuery->whereRaw("unaccent(CAST($field AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
                     });
+
+                    continue;
                 }
+
                 // Caso 4: Columnas normales de texto
-                else {
-                    $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
+                if (!$this->isValidColumnIdentifier($column)) {
+                    continue;
                 }
+
+                $q->orWhereRaw("unaccent(CAST($column AS TEXT)) ILIKE unaccent(?)", ['%' . $search . '%']);
             }
         });
+    }
+
+    private function isValidColumnIdentifier(string $identifier): bool
+    {
+        return (bool) preg_match('/^[a-zA-Z0-9_]+$/', $identifier);
+    }
+
+    private function isValidRawSearchExpression(string $expression): bool
+    {
+        $expression = trim($expression);
+
+        if (!str_starts_with($expression, '(SELECT') || !str_ends_with($expression, ')')) {
+            return false;
+        }
+
+        $forbiddenPatterns = [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION', 'EXEC', 'xp_'];
+
+        foreach ($forbiddenPatterns as $pattern) {
+            if (stripos($expression, $pattern) !== false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function filters($query, array $filters = [])

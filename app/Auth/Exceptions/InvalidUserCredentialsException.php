@@ -12,6 +12,6 @@ class InvalidUserCredentialsException extends Exception
     {
         return response()->json([
             'message' => [$this->message],
-        ], 422);
+        ], 401);
     }
 }

@@ -6,6 +6,7 @@ use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Shared\Foundation\Services\NodeUploaderService;
 use Carbon\Carbon;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 
@@ -155,7 +156,7 @@ class CashflowService
             'description' => $data['description'],
             'voucher_path' => $data['voucher_path'] ?? null,
             'payment_method' => $data['payment_method'] ?? 'CASH',
-            'creator_user_id' => auth()->id() ?? 1,
+            'creator_user_id' => $this->resolveAuthenticatedUserId(),
             'date' => $data['date'],
         ]);
     }
@@ -180,7 +181,7 @@ class CashflowService
             'description' => $data['description'] ?? $movement->description,
             'voucher_path' => $data['voucher_path'] ?? $movement->voucher_path,
             'payment_method' => $data['payment_method'] ?? $movement->payment_method,
-            'last_modifier_user_id' => auth()->id() ?? 1,
+            'last_modifier_user_id' => $this->resolveAuthenticatedUserId(),
             'last_modification_time' => now(),
             'date' => $data['date'] ?? $movement->date,
         ]);
@@ -204,5 +205,16 @@ class CashflowService
     {
         Http::withHeaders(['X-API-KEY' => $this->apiKey])
             ->delete($this->uploaderUrl . '/api/delete', ['path' => $path]);
+    }
+
+    private function resolveAuthenticatedUserId(): int
+    {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            throw new AuthenticationException('No autorizado.');
+        }
+
+        return (int) $userId;
     }
 }

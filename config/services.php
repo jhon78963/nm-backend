@@ -36,8 +36,8 @@ return [
     ],
 
     'uploader' => [
-        'url' => env('UPLOADER_URL'),
-        'api_key' => env('UPLOADER_API_KEY'),
+        'url' => env('ZG_URL'),
+        'api_key' => env('ZG_TOKEN'),
     ],
 
     'sunat' => [

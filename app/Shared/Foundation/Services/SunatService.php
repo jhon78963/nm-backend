@@ -19,7 +19,7 @@ class SunatService
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 2,
-            CURLOPT_TIMEOUT => 0,
+            CURLOPT_TIMEOUT => 15,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => [
@@ -50,7 +50,7 @@ class SunatService
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
+            CURLOPT_TIMEOUT => 15,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => [
