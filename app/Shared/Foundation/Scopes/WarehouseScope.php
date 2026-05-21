@@ -20,8 +20,14 @@ class WarehouseScope implements Scope
             return;
         }
 
-        if ($user->warehouse_id) {
-            $builder->where($model->getTable().'.warehouse_id', $user->warehouse_id);
+        $warehouseId = (int) ($user->warehouse_id ?? 0);
+
+        if ($warehouseId > 0) {
+            $builder->where($model->getTable().'.warehouse_id', $warehouseId);
+
+            return;
         }
+
+        $builder->whereRaw('1 = 0');
     }
 }

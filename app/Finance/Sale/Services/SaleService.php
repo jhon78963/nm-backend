@@ -10,13 +10,16 @@ use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\InventoryLedger\Services\InventoryMovementService;
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use App\Shared\Foundation\Services\ModelService;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use stdClass;
 
@@ -31,22 +34,45 @@ class SaleService extends ModelService
 
     private function resolveWarehouseId(?Sale $sale = null): int
     {
-        $userWarehouseId = (int) (Auth::user()?->warehouse_id ?? 0);
+        $user = Auth::user();
+        $isSuperAdmin = $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
+
+        $userWarehouseId = (int) ($user?->warehouse_id ?? 0);
         if ($userWarehouseId > 0) {
             return $userWarehouseId;
         }
 
         $saleWarehouseId = (int) ($sale?->warehouse_id ?? 0);
-        if ($saleWarehouseId > 0) {
+        if ($saleWarehouseId > 0 && $isSuperAdmin) {
             return $saleWarehouseId;
         }
 
-        return (int) (Warehouse::query()->value('id') ?? 1);
+        $request = request();
+        if ($request !== null) {
+            $fromRequest = WarehouseIdForInventoryResolver::resolve($request, null);
+            if ($fromRequest > 0 && $isSuperAdmin) {
+                Warehouse::query()->findOrFail($fromRequest);
+
+                return $fromRequest;
+            }
+        }
+
+        throw new UserWarehouseNotAssignedException();
     }
 
     private function resolveTenantId(int $warehouseId): int
     {
         return (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
+    }
+
+    /**
+     * Código único por venta (ULID): ordenable y sin colisiones bajo concurrencia.
+     */
+    private function generateUniqueSaleCode(): string
+    {
+        return 'V-'.Str::ulid()->toString();
     }
 
     private function recordSaleStockOut(
@@ -163,6 +189,8 @@ class SaleService extends ModelService
 
             if (!empty($data['items']) && is_array($data['items'])) {
                 $items = $this->sortSaleUpdateItemsByNaturalInventoryKey($model, $data['items']);
+                $this->validateSaleUpdateItemsMargin($model, $items);
+
                 foreach ($items as $itemData) {
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail)
@@ -269,8 +297,11 @@ class SaleService extends ModelService
                 $model->update(['total_amount' => $model->details()->sum('subtotal')]);
             }
 
-            // 3. GESTIÓN DE PAGOS (Borrar y Recrear)
+            // 3. GESTIÓN DE PAGOS (validar antes de borrar/recrear)
             if (isset($data['payments']) && is_array($data['payments'])) {
+                $totalAmount = round((float) $model->fresh()->total_amount, 2);
+                $this->assertSaleUpdatePaymentsMatchTotal($data['payments'], $totalAmount);
+
                 $model->payments()->delete();
                 foreach ($data['payments'] as $p) {
                     $model->payments()->create([
@@ -526,7 +557,7 @@ class SaleService extends ModelService
                 'total_amount' => $computedTotal,
                 'payment_method' => $mainMethod,
                 'status' => 'COMPLETED',
-                'code' => 'V-' . time(),
+                'code' => $this->generateUniqueSaleCode(),
                 'creation_time' => now(),
                 'warehouse_id' => $warehouseId,
             ]);
@@ -652,6 +683,85 @@ class SaleService extends ModelService
                         'El precio unitario ingresado para el producto %s no está permitido por políticas de margen.',
                         $productName,
                     ),
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function validateSaleUpdateItemsMargin(Model $model, array $items): void
+    {
+        $linesForPricing = [];
+
+        foreach ($items as $itemData) {
+            $productSizeId = $this->resolveSaleUpdateLineProductSizeId($model, $itemData);
+            if ($productSizeId === null || $productSizeId < 1) {
+                continue;
+            }
+
+            $linesForPricing[] = [
+                'product_size_id' => $productSizeId,
+                'unit_price' => (float) $itemData['unit_price'],
+            ];
+        }
+
+        $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId($linesForPricing);
+
+        foreach ($linesForPricing as $line) {
+            $productSizeId = (int) $line['product_size_id'];
+            $pricing = $pricingByProductSizeId[$productSizeId] ?? null;
+
+            if ($pricing === null) {
+                continue;
+            }
+
+            $this->assertPosUnitPriceRespectsMarginPolicy(
+                (float) $line['unit_price'],
+                $pricing->purchase_price !== null ? (float) $pricing->purchase_price : null,
+                (string) $pricing->product_name,
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $itemData
+     */
+    private function resolveSaleUpdateLineProductSizeId(Model $model, array $itemData): ?int
+    {
+        if (isset($itemData['product_size_id'])) {
+            return (int) $itemData['product_size_id'];
+        }
+
+        $detail = $model->details()->where('id', $itemData['id'] ?? 0)->first();
+        if ($detail === null) {
+            return null;
+        }
+
+        $productSizeId = DB::table('product_size')
+            ->where('product_id', $detail->product_id)
+            ->where('size_id', $detail->size_id)
+            ->value('id');
+
+        return $productSizeId !== null ? (int) $productSizeId : null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $payments
+     */
+    private function assertSaleUpdatePaymentsMatchTotal(array $payments, float $totalAmount): void
+    {
+        $paymentsSum = 0.0;
+
+        foreach ($payments as $payment) {
+            $paymentsSum = round($paymentsSum + (float) ($payment['amount'] ?? 0), 2);
+        }
+
+        if (abs($paymentsSum - round($totalAmount, 2)) > 0.02) {
+            throw ValidationException::withMessages([
+                'payments' => [
+                    'La suma de los pagos no coincide con el total calculado de la venta.',
                 ],
             ]);
         }

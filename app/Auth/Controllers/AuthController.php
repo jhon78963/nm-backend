@@ -50,8 +50,13 @@ class AuthController extends Controller
         return response()->json(['message' => 'User updated successfully']);
     }
 
-    public function changePassword(ChangePasswordRequest $request): JsonResponse {
-        $this->authService->changePassword($request->user(), $request->password);
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        $this->authService->changePassword(
+            $request->user(),
+            $request->validated('password'),
+        );
+
         return response()->json(['message' => 'Password changed successfully']);
     }
 

@@ -2,10 +2,12 @@
 
 namespace App\Directory\Customer\Models;
 
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
+    use BelongsToWarehouse;
     /**
      * The attributes that are mass assignable.
      *
@@ -16,6 +18,7 @@ class Customer extends Model
         'document_type',
         'document_number',
         'name',
+        'warehouse_id',
     ];
 
     /**

@@ -7,7 +7,7 @@ use App\Inventory\Gender\Models\Gender;
 use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use App\Shared\Image\Models\Image;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
-    use HasFactory;
+    use BelongsToWarehouse, HasFactory;
 
     /**
      * The attributes that are mass assignable.
@@ -81,16 +81,6 @@ class Product extends Model
     public function gender(): BelongsTo
     {
         return $this->belongsTo(Gender::class);
-    }
-
-    /**
-     * Get the warehouse associated with the product.
-     *
-     * @return BelongsTo
-     */
-    public function warehouse(): BelongsTo
-    {
-        return $this->belongsTo(Warehouse::class);
     }
 
     /**

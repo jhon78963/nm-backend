@@ -37,8 +37,9 @@ class AuthService
         )->save();
     }
 
-    public function changePassword(User $user, string $newPassword): void {
-        $user->password = Hash::make($newPassword);
+    public function changePassword(User $user, string $newPassword): void
+    {
+        $user->password = $newPassword;
         $user->save();
     }
 

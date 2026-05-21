@@ -66,7 +66,11 @@ class CustomerService extends ModelService
 
         // 3. Si obtuvimos datos válidos de la API, creamos el cliente localmente
         if (!empty($dataToCreate)) {
-            // Usamos el método create() de tu ModelService para que se llenen los campos de auditoría
+            $warehouseId = (int) (auth()->user()?->warehouse_id ?? 0);
+            if ($warehouseId > 0) {
+                $dataToCreate['warehouse_id'] = $warehouseId;
+            }
+
             return $this->create($dataToCreate);
         }
 

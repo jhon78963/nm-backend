@@ -3,14 +3,16 @@
 namespace App\Inventory\Purchase\Models;
 
 use App\Directory\Vendor\Models\Vendor;
-use App\Inventory\Warehouse\Models\Warehouse;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Purchase extends Model
 {
+    use BelongsToWarehouse;
+
     protected $table = 'purchases';
 
     public $timestamps = false;
@@ -58,14 +60,6 @@ class Purchase extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
-    }
-
-    /**
-     * @return BelongsTo<Warehouse, Purchase>
-     */
-    public function warehouse(): BelongsTo
-    {
-        return $this->belongsTo(Warehouse::class);
     }
 
     /**
