@@ -39,11 +39,14 @@ trait AssertsInventoryMasterMatchesColorPivotSum
             ->whereNull('color_id')
             ->value('quantity') ?? 0);
 
-        $sumColors = (int) DB::table('inventory_balances')
-            ->where('warehouse_id', $warehouseId)
-            ->where('product_size_id', $psId)
-            ->whereNotNull('color_id')
-            ->sum('quantity');
+        $sumColors = (int) DB::table('inventory_balances as ib')
+            ->join('product_size_color as psc', static function ($join): void {
+                $join->on('psc.product_size_id', '=', 'ib.product_size_id')
+                    ->on('psc.color_id', '=', 'ib.color_id');
+            })
+            ->where('ib.warehouse_id', $warehouseId)
+            ->where('ib.product_size_id', $psId)
+            ->sum('ib.quantity');
 
         if ($masterQty < $sumColors) {
             throw new Exception(

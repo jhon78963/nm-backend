@@ -13,6 +13,10 @@ class NodeUploaderService
         $uploaderUrl = config('services.uploader.url');
         $apiKey = config('services.uploader.api_key');
 
+        if (! is_string($uploaderUrl) || $uploaderUrl === '') {
+            throw new RuntimeException('El servicio de almacenamiento no está configurado (ZG_URL).');
+        }
+
         $response = Http::withHeaders(['X-API-KEY' => $apiKey])
             ->attach(
                 'files',
@@ -32,5 +36,22 @@ class NodeUploaderService
         }
 
         return $path;
+    }
+
+    public function delete(string $path): void
+    {
+        if ($path === '') {
+            return;
+        }
+
+        $uploaderUrl = config('services.uploader.url');
+        $apiKey = config('services.uploader.api_key');
+
+        if (! is_string($uploaderUrl) || $uploaderUrl === '') {
+            return;
+        }
+
+        Http::withHeaders(['X-API-KEY' => $apiKey])
+            ->delete(rtrim($uploaderUrl, '/').'/api/delete', ['path' => $path]);
     }
 }

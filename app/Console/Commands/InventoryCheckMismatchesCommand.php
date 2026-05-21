@@ -42,10 +42,12 @@ class InventoryCheckMismatchesCommand extends Command
                 ON master.warehouse_id = k.warehouse_id
                AND master.product_size_id = k.product_size_id
             LEFT JOIN (
-                SELECT warehouse_id, product_size_id, SUM(quantity) AS total
-                FROM inventory_balances
-                WHERE color_id IS NOT NULL
-                GROUP BY warehouse_id, product_size_id
+                SELECT ib.warehouse_id, ib.product_size_id, SUM(ib.quantity) AS total
+                FROM inventory_balances ib
+                INNER JOIN product_size_color psc
+                    ON psc.product_size_id = ib.product_size_id
+                   AND psc.color_id = ib.color_id
+                GROUP BY ib.warehouse_id, ib.product_size_id
             ) color
                 ON color.warehouse_id = k.warehouse_id
                AND color.product_size_id = k.product_size_id

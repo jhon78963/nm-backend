@@ -8,17 +8,12 @@ use App\Shared\Foundation\Services\NodeUploaderService;
 use Carbon\Carbon;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 
 class CashflowService
 {
-    private string $uploaderUrl;
-    private string $apiKey;
-
-    public function __construct()
-    {
-        $this->uploaderUrl = config('services.uploader.url');
-        $this->apiKey = config('services.uploader.api_key');
+    public function __construct(
+        protected NodeUploaderService $nodeUploaderService,
+    ) {
     }
 
     /**
@@ -192,7 +187,7 @@ class CashflowService
     private function uploadToNode(UploadedFile $file): ?string
     {
         try {
-            return app(NodeUploaderService::class)->upload($file, 'vouchers');
+            return $this->nodeUploaderService->upload($file, 'vouchers');
         } catch (\RuntimeException) {
             return null;
         }
@@ -203,8 +198,7 @@ class CashflowService
      */
     private function deleteFromNode(string $path): void
     {
-        Http::withHeaders(['X-API-KEY' => $this->apiKey])
-            ->delete($this->uploaderUrl . '/api/delete', ['path' => $path]);
+        $this->nodeUploaderService->delete($path);
     }
 
     private function resolveAuthenticatedUserId(): int

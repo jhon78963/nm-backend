@@ -319,6 +319,10 @@ class PurchaseBulkService
         usort($colorOps, fn (array $a, array $b): int => $a['id'] <=> $b['id']);
 
         foreach ($colorOps as $op) {
+            DB::table('product_size_color')->insertOrIgnore([
+                'product_size_id' => (int) $productSize->id,
+                'color_id' => $op['id'],
+            ]);
             $this->recordPurchaseMovement($warehouseId, $tenantId, (int) $productSize->id, $op['id'], $op['qty']);
         }
     }

@@ -63,7 +63,6 @@ class ProductSizeColorService
 
             if (array_key_exists('stock', $data) && $data['stock'] !== null) {
                 $this->reconcileInventory($productSize, $colorId, (int) $data['stock']);
-                $this->reconcileMasterToColorSum($productSize);
             }
 
             $eventType = $existingPivot === [] ? 'CREATED' : 'UPDATED';
@@ -120,6 +119,12 @@ class ProductSizeColorService
                 return;
             }
 
+            if (! $productSize->relationLoaded('product')) {
+                $productSize->load('product');
+            }
+
+            $this->reconcileInventory($productSize, $colorId, 0);
+
             $oldPivotSnapshot = [
                 'product_size_id' => (int) $pivotRow->product_size_id,
                 'color_id' => (int) $pivotRow->color_id,
@@ -136,7 +141,11 @@ class ProductSizeColorService
                 $productSize->load('product');
             }
 
-            $this->reconcileMasterToColorSum($productSize);
+            $this->inventoryMovementService->syncMasterBalanceToColorSum(
+                (int) $productSize->product->warehouse_id,
+                $psId,
+                Auth::id(),
+            );
 
             $oldForLog = array_merge($oldPivotSnapshot, ['size_id_ref' => $productSize->size_id]);
 
@@ -211,7 +220,16 @@ class ProductSizeColorService
             $productSize->load('product');
         }
 
-        $this->reconcileMasterToColorSum($productSize);
+        $warehouseId = (int) $productSize->product->warehouse_id;
+        if ($warehouseId < 1) {
+            return;
+        }
+
+        $this->inventoryMovementService->syncMasterBalanceToColorSum(
+            $warehouseId,
+            (int) $productSize->id,
+            Auth::id(),
+        );
     }
 
     private function reconcileInventory(ProductSize $productSize, int $colorId, int $quantity): void
@@ -244,53 +262,5 @@ class ProductSizeColorService
             movementType: InventoryMovementType::Reconciliation,
             createdByUserId: Auth::id(),
         ), max(0, $quantity));
-    }
-
-    /**
-     * Recalcula el stock maestro (color_id = null) para que sea la suma exacta
-     * de los stocks de todos los colores asociados a esta talla.
-     */
-    private function reconcileMasterToColorSum(ProductSize $productSize): void
-    {
-        if (! $productSize->relationLoaded('product')) {
-            $productSize->load('product');
-        }
-
-        $warehouseId = (int) $productSize->product->warehouse_id;
-        if ($warehouseId < 1) {
-            return;
-        }
-
-        if (! $productSize->product->relationLoaded('warehouse')) {
-            $productSize->product->load('warehouse');
-        }
-
-        $tenantId = (int) $productSize->product->warehouse?->tenant_id;
-        if ($tenantId < 1) {
-            return;
-        }
-
-        $productSizeId = (int) $productSize->id;
-
-        $colorIds = DB::table('product_size_color')
-            ->where('product_size_id', $productSizeId)
-            ->pluck('color_id')
-            ->toArray();
-
-        $total = 0;
-        foreach ($colorIds as $cid) {
-            $total += $this->inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, (int) $cid);
-        }
-
-        $this->inventoryMovementService->reconcileToPhysicalQuantity(new InventoryMovementDTO(
-            tenantId: $tenantId,
-            warehouseId: $warehouseId,
-            productSizeId: $productSizeId,
-            colorId: null,
-            direction: InventoryMovementDirection::In,
-            quantity: 1,
-            movementType: InventoryMovementType::Reconciliation,
-            createdByUserId: Auth::id(),
-        ), max(0, $total));
     }
 }

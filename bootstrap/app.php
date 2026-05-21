@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withCommands([
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
+        \App\Console\Commands\InventoryFixMismatchesCommand::class,
         \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
         \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
         \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,

@@ -4,12 +4,14 @@ namespace App\Inventory\InventoryLedger\Services;
 
 use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
+use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\InventoryLedger\Models\InventoryMovement;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Support\StockAvailability;
 use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -53,7 +55,7 @@ class InventoryMovementService
             $balance->quantity = $newQuantity;
             $balance->save();
 
-            return InventoryMovement::query()->create([
+            $movement = InventoryMovement::query()->create([
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
                 'product_size_id' => $dto->productSizeId,
@@ -67,6 +69,16 @@ class InventoryMovementService
                 'occurred_at' => $dto->occurredAt ?? now(),
                 'created_by_user_id' => $dto->createdByUserId,
             ]);
+
+            if ($dto->colorId !== null) {
+                $this->syncMasterBalanceToColorSum(
+                    $warehouseId,
+                    $dto->productSizeId,
+                    $dto->createdByUserId,
+                );
+            }
+
+            return $movement;
         });
     }
 
@@ -127,7 +139,7 @@ class InventoryMovementService
             $balance->quantity = $physicalQuantity;
             $balance->save();
 
-            return InventoryMovement::query()->create([
+            $movement = InventoryMovement::query()->create([
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
                 'product_size_id' => $dto->productSizeId,
@@ -141,7 +153,101 @@ class InventoryMovementService
                 'occurred_at' => $dto->occurredAt ?? now(),
                 'created_by_user_id' => $dto->createdByUserId,
             ]);
+
+            if ($dto->colorId !== null) {
+                $this->syncMasterBalanceToColorSum(
+                    $warehouseId,
+                    $dto->productSizeId,
+                    $dto->createdByUserId,
+                );
+            }
+
+            return $movement;
         });
+    }
+
+    /**
+     * Alinea el balance maestro (color_id = null) con la suma de variantes por color
+     * cuando la talla tiene colores en `product_size_color`.
+     */
+    public function syncMasterBalanceToColorSum(
+        int $warehouseId,
+        int $productSizeId,
+        ?int $createdByUserId = null,
+    ): void {
+        if ($warehouseId < 1 || $productSizeId < 1) {
+            return;
+        }
+
+        if (! DB::table('product_size_color')->where('product_size_id', $productSizeId)->exists()) {
+            return;
+        }
+
+        $productSize = ProductSize::query()->with('product.warehouse')->find($productSizeId);
+        if ($productSize === null) {
+            return;
+        }
+
+        $tenantId = (int) ($productSize->product->warehouse?->tenant_id ?? 0);
+        if ($tenantId < 1) {
+            return;
+        }
+
+        $colorIds = DB::table('product_size_color')
+            ->where('product_size_id', $productSizeId)
+            ->pluck('color_id');
+
+        $total = 0;
+        foreach ($colorIds as $colorId) {
+            $total += $this->getAvailableQuantity($warehouseId, $productSizeId, (int) $colorId);
+        }
+
+        $this->reconcileToPhysicalQuantity(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: null,
+            direction: InventoryMovementDirection::In,
+            quantity: 1,
+            movementType: InventoryMovementType::Reconciliation,
+            createdByUserId: $createdByUserId ?? Auth::id(),
+        ), max(0, $total));
+    }
+
+    /**
+     * Pone en cero un balance de color que ya no está en `product_size_color`.
+     */
+    public function zeroColorBalance(int $warehouseId, int $productSizeId, int $colorId): void
+    {
+        if ($warehouseId < 1 || $productSizeId < 1 || $colorId < 1) {
+            return;
+        }
+
+        $current = $this->getAvailableQuantity($warehouseId, $productSizeId, $colorId);
+        if ($current === 0) {
+            return;
+        }
+
+        $productSize = ProductSize::query()->with('product.warehouse')->find($productSizeId);
+        if ($productSize === null) {
+            return;
+        }
+
+        $tenantId = (int) ($productSize->product->warehouse?->tenant_id ?? 0);
+        if ($tenantId < 1) {
+            return;
+        }
+
+        $this->reconcileToPhysicalQuantity(new InventoryMovementDTO(
+            tenantId: $tenantId,
+            warehouseId: $warehouseId,
+            productSizeId: $productSizeId,
+            colorId: $colorId,
+            direction: InventoryMovementDirection::Out,
+            quantity: 1,
+            movementType: InventoryMovementType::Reconciliation,
+            createdByUserId: Auth::id(),
+        ), 0);
     }
 
     public function getTotalByProductSize(int $warehouseId, int $productSizeId): int

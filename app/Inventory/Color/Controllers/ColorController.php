@@ -84,19 +84,27 @@ class ColorController extends Controller
                 's.id',
                 'product_size.id as productSizeId',
                 's.description',
-                DB::raw('COALESCE(
-                    (SELECT SUM(ib2.quantity)
-                     FROM inventory_balances ib2
-                     WHERE ib2.product_size_id = product_size.id
-                       AND ib2.warehouse_id = p.warehouse_id
-                       AND ib2.color_id IS NOT NULL),
-                    (SELECT ib3.quantity
-                     FROM inventory_balances ib3
-                     WHERE ib3.product_size_id = product_size.id
-                       AND ib3.warehouse_id = p.warehouse_id
-                       AND ib3.color_id IS NULL),
-                    0
-                ) as stock'),
+                DB::raw('CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM product_size_color psc
+                        WHERE psc.product_size_id = product_size.id
+                    ) THEN COALESCE((
+                        SELECT SUM(ib2.quantity)
+                        FROM inventory_balances ib2
+                        INNER JOIN product_size_color psc
+                            ON psc.product_size_id = ib2.product_size_id
+                           AND psc.color_id = ib2.color_id
+                        WHERE ib2.product_size_id = product_size.id
+                          AND ib2.warehouse_id = p.warehouse_id
+                    ), 0)
+                    ELSE COALESCE((
+                        SELECT ib3.quantity
+                        FROM inventory_balances ib3
+                        WHERE ib3.product_size_id = product_size.id
+                          AND ib3.warehouse_id = p.warehouse_id
+                          AND ib3.color_id IS NULL
+                    ), 0)
+                END as stock'),
                 'product_size.barcode',
                 'product_size.purchase_price',
                 'product_size.sale_price',
