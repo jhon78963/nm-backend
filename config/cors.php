@@ -31,7 +31,7 @@ return [
     */
 
     'allowed_origins' => array_values(array_filter(array_map(
-        trim(...),
+        static fn (string $origin): string => rtrim(trim($origin), '/'),
         explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:4200')),
     ))),
 
