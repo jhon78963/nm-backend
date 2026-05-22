@@ -3,6 +3,7 @@
 namespace App\Inventory\InventoryLedger\Services;
 
 use App\Inventory\Color\Models\Color;
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\InventoryLedger\Models\InventoryMovement;
 use App\Inventory\InventoryLedger\Requests\InventoryKardexReportRequest;
 use App\Inventory\Product\Models\Product;
@@ -32,17 +33,8 @@ class InventoryKardexReportService
         $warehouse = Warehouse::query()->findOrFail($warehouseId);
         $tenantId = (int) $warehouse->tenant_id;
 
-        $isSuperAdmin = $user !== null
-            && method_exists($user, 'hasRole')
-            && $user->hasRole('Super Admin');
-
-        if (
-            $user !== null
-            && $user->tenant_id !== null
-            && ! $isSuperAdmin
-            && (int) $user->tenant_id !== $tenantId
-        ) {
-            abort(403, 'El almacén no pertenece al tenant del usuario autenticado.');
+        if (! WarehouseIdForInventoryResolver::userCanAccessWarehouse($warehouseId, $user)) {
+            abort(403, 'No tiene permiso para acceder a este almacén.');
         }
 
         $rangeStart = Carbon::parse($request->validated('fecha_inicio'))->startOfDay();

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Auth;
 
 final class AuthenticatedUserWarehouseResolver
 {
-    /** Roles que pueden operar sin almacén asignado en el usuario (fallback al primer almacén del tenant). */
+    /** Roles con contexto operativo ampliado (sin bypass de WarehouseScope). */
     public const PRIVILEGED_ROLES = ['Super Admin', 'Admin'];
 
     public static function userHasPrivilegedRole(?User $user): bool
@@ -40,21 +40,15 @@ final class AuthenticatedUserWarehouseResolver
             return $userWarehouseId;
         }
 
-        $saleWarehouseId = (int) ($sale?->warehouse_id ?? 0);
-        if ($saleWarehouseId > 0 && self::userHasPrivilegedRole($user)) {
-            return $saleWarehouseId;
-        }
-
         $request ??= request();
-        if ($request !== null) {
-            $fromRequest = WarehouseIdForInventoryResolver::resolve($request, null);
-            if ($fromRequest > 0 && self::userHasPrivilegedRole($user)) {
-                return $fromRequest;
+        if ($request !== null && self::userIsSuperAdmin($user)) {
+            $explicitWarehouseId = WarehouseIdForInventoryResolver::explicitFromRequest($request);
+            if (
+                $explicitWarehouseId > 0
+                && WarehouseIdForInventoryResolver::userCanAccessWarehouse($explicitWarehouseId, $user)
+            ) {
+                return $explicitWarehouseId;
             }
-        }
-
-        if (self::userHasPrivilegedRole($user)) {
-            return self::defaultWarehouseIdForUser($user);
         }
 
         return 0;
@@ -70,11 +64,12 @@ final class AuthenticatedUserWarehouseResolver
             return $resolved;
         }
 
-        if ($productWarehouseId > 0) {
+        if ($productWarehouseId > 0
+            && WarehouseIdForInventoryResolver::userCanAccessWarehouse($productWarehouseId, Auth::user())) {
             return $productWarehouseId;
         }
 
-        return self::defaultWarehouseIdForUser(Auth::user());
+        return 0;
     }
 
     public static function defaultWarehouseIdForUser(?User $user): int
@@ -92,11 +87,13 @@ final class AuthenticatedUserWarehouseResolver
             }
         }
 
-        $id = Warehouse::query()
-            ->where('is_deleted', false)
-            ->orderBy('id')
-            ->value('id');
+        return 0;
+    }
 
-        return $id !== null ? (int) $id : 0;
+    private static function userIsSuperAdmin(?User $user): bool
+    {
+        return $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
     }
 }

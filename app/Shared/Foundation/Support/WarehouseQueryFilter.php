@@ -2,37 +2,47 @@
 
 namespace App\Shared\Foundation\Support;
 
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Http\Request;
 
 final class WarehouseQueryFilter
 {
+    /**
+     * El aislamiento por almacén nunca se omite (incluido Super Admin).
+     */
     public static function bypassScope(): bool
     {
-        if (! auth()->check()) {
-            return true;
-        }
-
-        $user = auth()->user();
-
-        return method_exists($user, 'hasRole') && $user->hasRole('Super Admin');
+        return false;
     }
 
-    public static function resolveWarehouseId(): int
+    public static function resolveWarehouseId(?Request $request = null): int
     {
-        if (self::bypassScope()) {
+        if (! auth()->check()) {
             return 0;
         }
 
-        return (int) (auth()->user()->warehouse_id ?? 0);
+        $user = auth()->user();
+        $userWarehouseId = (int) ($user->warehouse_id ?? 0);
+        $request ??= request();
+        $explicitWarehouseId = $request !== null
+            ? WarehouseIdForInventoryResolver::explicitFromRequest($request)
+            : 0;
+
+        if ($explicitWarehouseId > 0 && self::userIsSuperAdmin($user)) {
+            if (WarehouseIdForInventoryResolver::userCanAccessWarehouse($explicitWarehouseId, $user)) {
+                return $explicitWarehouseId;
+            }
+
+            return 0;
+        }
+
+        return $userWarehouseId;
     }
 
     public static function apply(EloquentBuilder|QueryBuilder $builder, string $column): void
     {
-        if (self::bypassScope()) {
-            return;
-        }
-
         $warehouseId = self::resolveWarehouseId();
 
         if ($warehouseId > 0) {
@@ -42,5 +52,12 @@ final class WarehouseQueryFilter
         }
 
         $builder->whereRaw('1 = 0');
+    }
+
+    private static function userIsSuperAdmin(mixed $user): bool
+    {
+        return $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
     }
 }

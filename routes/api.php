@@ -25,7 +25,8 @@ foreach ($publicFiles as $file) {
 |--------------------------------------------------------------------------
 | Capa base: auth:sanctum + ability access-api (rechaza refresh tokens como Bearer).
 | Cada módulo en app/{Modulo}/Routes/api.php declara middleware('permission:...')
-| (Spatie Permission). Super Admin omite comprobaciones vía Gate::before.
+| (Spatie Permission). Super Admin omite permisos vía Gate::before, pero el
+| aislamiento por warehouse_id (WarehouseScope) siempre aplica.
 |
 | Vendedora / Vendedor: solo POS (pos.*) y caja diaria (cashflow.getDaily,
 | cashflow.store). Sin inventario, productos, ventas listado, compras ni admin.

@@ -4,11 +4,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Almacén del catálogo público (ecommerce)
+    | Catálogo público (legacy / storefront externo)
     |--------------------------------------------------------------------------
     |
-    | ID del warehouse cuyos productos y stock se exponen en /prod/ecommerce.
-    | Obligatorio en producción para no filtrar catálogos de otras tiendas.
+    | Cada tienda expone su catálogo con ?store={catalog_public_token} (columna
+    | warehouses.catalog_public_token). Fallback legacy monotienda:
+    | ECOMMERCE_WAREHOUSE_ID + ECOMMERCE_PUBLIC_STORE_TOKEN.
     |
     */
 
@@ -16,12 +17,14 @@ return [
         ? (int) env('ECOMMERCE_WAREHOUSE_ID')
         : null,
 
+    'public_store_token' => env('ECOMMERCE_PUBLIC_STORE_TOKEN'),
+
     /*
     |--------------------------------------------------------------------------
     | URL base del servidor de imágenes (catálogo ecommerce)
     |--------------------------------------------------------------------------
     |
-    | Base pública para construir asset_url en ProductEcommerceResource.
+    | Base pública para construir URLs en ProductEcommerceResource.
     | Sin barra final. Ej: http://localhost:8001
     |
     */

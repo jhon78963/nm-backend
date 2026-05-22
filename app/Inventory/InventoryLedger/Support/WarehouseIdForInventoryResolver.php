@@ -11,27 +11,54 @@ use Illuminate\Support\Facades\Auth;
 final class WarehouseIdForInventoryResolver
 {
     /**
-     * Prioridad: query/body `warehouse_id` o `warehouseHeader`, cabecera `X-Warehouse-Id`, fallback al almacén del producto.
+     * Prioridad: query/body `warehouse_id` o `warehouseId`, cabecera `X-Warehouse-Id`.
+     */
+    public static function explicitFromRequest(?Request $request = null): int
+    {
+        $request ??= request();
+        if ($request === null) {
+            return 0;
+        }
+
+        return self::resolveWithoutAuthorization($request);
+    }
+
+    /**
+     * Resuelve el almacén operativo: almacén del usuario o, solo Super Admin,
+     * un almacén explícito en la petición (mismo tenant).
      *
      * @throws AuthorizationException
      */
     public static function resolve(Request $request, ?int $productWarehouseId = null): int
     {
-        $warehouseId = self::resolveWithoutAuthorization($request, $productWarehouseId);
+        $explicitWarehouseId = self::explicitFromRequest($request);
 
-        if ($warehouseId > 0) {
-            self::assertUserCanAccessWarehouse($warehouseId);
+        if ($explicitWarehouseId > 0) {
+            self::assertUserCanAccessWarehouse($explicitWarehouseId);
+
+            return $explicitWarehouseId;
         }
 
-        return $warehouseId;
+        $userWarehouseId = (int) (Auth::user()?->warehouse_id ?? 0);
+        if ($userWarehouseId > 0) {
+            return $userWarehouseId;
+        }
+
+        if ($productWarehouseId !== null && $productWarehouseId > 0) {
+            self::assertUserCanAccessWarehouse($productWarehouseId);
+
+            return $productWarehouseId;
+        }
+
+        return 0;
     }
 
     public static function userCanAccessWarehouse(int $warehouseId, ?Authenticatable $user = null): bool
     {
         $user ??= Auth::user();
 
-        if (self::actingUserIsSuperAdmin($user)) {
-            return true;
+        if ($user === null) {
+            return false;
         }
 
         $warehouse = Warehouse::query()->find($warehouseId);
@@ -39,11 +66,22 @@ final class WarehouseIdForInventoryResolver
             return false;
         }
 
-        if ($user === null || $user->tenant_id === null) {
+        if ($user->tenant_id === null || (int) $user->tenant_id !== (int) $warehouse->tenant_id) {
             return false;
         }
 
-        return (int) $user->tenant_id === (int) $warehouse->tenant_id;
+        $userWarehouseId = (int) ($user->warehouse_id ?? 0);
+        if ($userWarehouseId > 0 && $userWarehouseId === $warehouseId) {
+            return true;
+        }
+
+        if (self::actingUserIsSuperAdmin($user)) {
+            $explicitWarehouseId = self::explicitFromRequest(request());
+
+            return $explicitWarehouseId > 0 && $explicitWarehouseId === $warehouseId;
+        }
+
+        return false;
     }
 
     /**
@@ -56,7 +94,7 @@ final class WarehouseIdForInventoryResolver
         }
     }
 
-    private static function resolveWithoutAuthorization(Request $request, ?int $productWarehouseId = null): int
+    private static function resolveWithoutAuthorization(Request $request): int
     {
         $fromQuery = $request->input('warehouse_id');
         if ($fromQuery !== null && $fromQuery !== '') {
@@ -71,10 +109,6 @@ final class WarehouseIdForInventoryResolver
         $header = $request->header('X-Warehouse-Id');
         if ($header !== null && $header !== '') {
             return (int) $header;
-        }
-
-        if ($productWarehouseId !== null && $productWarehouseId > 0) {
-            return $productWarehouseId;
         }
 
         return 0;

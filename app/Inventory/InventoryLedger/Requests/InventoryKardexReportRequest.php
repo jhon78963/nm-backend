@@ -17,7 +17,12 @@ class InventoryKardexReportRequest extends FormRequest
         }
 
         if ($this->actingUserIsSuperAdmin()) {
-            return true;
+            $warehouseId = $this->input('warehouse_id');
+            if ($warehouseId === null || $warehouseId === '' || ! is_numeric($warehouseId)) {
+                return false;
+            }
+
+            return WarehouseIdForInventoryResolver::userCanAccessWarehouse((int) $warehouseId, $user);
         }
 
         $warehouseId = $this->input('warehouse_id');
@@ -37,11 +42,9 @@ class InventoryKardexReportRequest extends FormRequest
             'warehouse_id' => [
                 'required',
                 'integer',
-                $this->actingUserIsSuperAdmin()
-                    ? Rule::exists('warehouses', 'id')
-                    : Rule::exists('warehouses', 'id')->where(
-                        fn ($query) => $query->where('tenant_id', (int) $this->user()?->tenant_id),
-                    ),
+                Rule::exists('warehouses', 'id')->where(
+                    fn ($query) => $query->where('tenant_id', (int) $this->user()?->tenant_id),
+                ),
             ],
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'product_size_id' => [

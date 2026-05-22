@@ -8,138 +8,85 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
 
 /**
- * Catálogo público ecommerce: solo precios de venta y stock; sin costos de adquisición.
+ * Catálogo público: solo datos de vitrina (sin IDs internos ni costos de compra).
  */
 class ProductEcommerceResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
         $variations = [];
-        $uniqueColors = [];
-        $uniqueSizes = [];
+        $colorNames = [];
+        $sizeNames = [];
         $totalStock = 0;
         $balanceMap = $this->balanceMapForWarehouse();
 
         $minSalePrice = (float) ($this->productSizes->min('sale_price') ?? 0);
 
         foreach ($this->productSizes as $productSize) {
-            if (! isset($uniqueSizes[$productSize->size_id])) {
-                $uniqueSizes[$productSize->size_id] = [
-                    'id' => $productSize->size_id,
-                    'value' => $productSize->size->description ?? '',
-                    'attribute_id' => 14,
-                ];
+            $sizeLabel = $productSize->size->description ?? '';
+            if ($sizeLabel !== '' && ! in_array($sizeLabel, $sizeNames, true)) {
+                $sizeNames[] = $sizeLabel;
             }
 
             foreach ($productSize->colors as $color) {
                 $stock = $this->stockForVariant((int) $productSize->id, (int) $color->id, $balanceMap);
                 $totalStock += $stock;
 
-                if (! isset($uniqueColors[$color->id])) {
-                    $uniqueColors[$color->id] = [
-                        'id' => $color->id,
-                        'value' => $color->description,
-                        'hex_color' => $color->hash,
-                        'attribute_id' => 13,
-                    ];
+                $colorLabel = $color->description ?? '';
+                if ($colorLabel !== '' && ! isset($colorNames[$colorLabel])) {
+                    $colorNames[$colorLabel] = $color->hash ?? null;
                 }
 
                 $variantSalePrice = (float) ($productSize->sale_price ?? $minSalePrice);
+                $variantSku = $productSize->barcode ?? $this->barcode;
 
                 $variations[] = [
-                    'id' => $productSize->id.'-'.$color->id,
-                    'name' => "{$this->name} ({$color->description} / {$productSize->size->description})",
+                    'sku' => $variantSku,
+                    'name' => "{$this->name} ({$colorLabel} / {$sizeLabel})",
                     'price' => $variantSalePrice,
-                    'sale_price' => $variantSalePrice,
-                    'quantity' => $stock,
-                    'stock_status' => $stock > 0 ? 'in_stock' : 'out_of_stock',
-                    'sku' => $productSize->barcode ?? $this->barcode,
-                    'attribute_values' => [
-                        ['id' => $color->id, 'value' => $color->description, 'attribute_id' => 13],
-                        ['id' => $productSize->size_id, 'value' => $productSize->size->description, 'attribute_id' => 14],
-                    ],
+                    'in_stock' => $stock > 0,
+                    'stock_quantity' => $stock,
+                    'color' => $colorLabel,
+                    'size' => $sizeLabel,
                 ];
             }
         }
 
         $imageServerUrl = rtrim((string) config('ecommerce.image_server_url'), '/');
+        $slug = Str::slug($this->name.'-'.$this->id);
 
         return [
-            'id' => $this->id,
+            'slug' => $slug,
             'name' => $this->name,
-            'description' => '<p>'.e(strip_tags($this->description ?? '')).'</p>',
+            'description' => strip_tags($this->description ?? ''),
+            'short_description' => Str::limit(strip_tags($this->description ?? ''), 100),
             'price' => $minSalePrice,
-            'sale_price' => $minSalePrice,
-            'quantity' => $totalStock,
             'sku' => $this->barcode,
-            'status' => $this->status === 'AVAILABLE' ? 1 : 0,
-            'stock_status' => $totalStock > 0 ? 'in_stock' : 'out_of_stock',
-            'discount' => $this->percentage_discount,
+            'in_stock' => $totalStock > 0,
+            'stock_quantity' => $totalStock,
+            'available' => $this->status === 'AVAILABLE',
+            'discount_percent' => $this->percentage_discount,
 
-            'product_thumbnail' => $this->imagesEcommerce->first() ? [
-                'id' => $this->imagesEcommerce->first()->path,
+            'thumbnail' => $this->imagesEcommerce->first() ? [
                 'name' => $this->imagesEcommerce->first()->name,
-                'asset_url' => $imageServerUrl.'/storage/'.ltrim($this->imagesEcommerce->first()->path, '/'),
+                'url' => $imageServerUrl.'/storage/'.ltrim($this->imagesEcommerce->first()->path, '/'),
             ] : null,
 
-            'product_galleries' => $this->imagesEcommerce->map(function ($img) use ($imageServerUrl) {
+            'gallery' => $this->imagesEcommerce->map(static function ($img) use ($imageServerUrl) {
                 return [
                     'name' => $img->name,
-                    'asset_url' => $imageServerUrl.'/storage/'.ltrim($img->path, '/'),
+                    'url' => $imageServerUrl.'/storage/'.ltrim($img->path, '/'),
                 ];
             }),
 
-            'slug' => Str::slug($this->name.'-'.$this->id),
-            'short_description' => Str::limit(strip_tags($this->description ?? ''), 100),
+            'colors' => collect($colorNames)->map(static fn (?string $hex, string $name) => [
+                'name' => $name,
+                'hex' => $hex,
+            ])->values(),
 
-            'wholesales' => [],
-            'cross_sell_products' => [],
-            'related_products' => [],
-            'cross_products' => [],
-            'similar_products' => [],
+            'sizes' => $sizeNames,
 
-            'unit' => '1 Unidad',
-            'weight' => 0,
-            'created_at' => $this->creation_time ?? now()->toIso8601String(),
-            'updated_at' => $this->last_modification_time ?? now()->toIso8601String(),
-
-            'orders_count' => 0,
-            'reviews_count' => 0,
-            'rating_count' => 0,
-            'can_review' => false,
-            'review_ratings' => [0, 0, 0, 0, 0],
-
-            'store_id' => 1,
-            'store' => [
-                'id' => 1,
-                'store_name' => 'Novedades Maritex',
-                'slug' => 'novedades-maritex',
-            ],
-
-            'categories' => [],
-            'brand' => null,
-            'tags' => [],
-            'reviews' => [],
-
-            'is_featured' => 1,
-            'is_trending' => 0,
-            'is_return' => 0,
-            'is_approved' => 1,
-            'type' => 'simple',
-
-            'attributes' => [
-                [
-                    'id' => 13,
-                    'name' => 'Colour',
-                    'attribute_values' => array_values($uniqueColors),
-                ],
-                [
-                    'id' => 14,
-                    'name' => 'Size',
-                    'attribute_values' => array_values($uniqueSizes),
-                ],
-            ],
-            'variations' => $variations,
+            'variants' => $variations,
         ];
     }
 
@@ -148,7 +95,7 @@ class ProductEcommerceResource extends JsonResource
      */
     private function balanceMapForWarehouse(): array
     {
-        $warehouseId = (int) (config('ecommerce.warehouse_id') ?? $this->warehouse_id ?? 0);
+        $warehouseId = (int) ($this->warehouse_id ?? 0);
         if ($warehouseId < 1) {
             return [];
         }

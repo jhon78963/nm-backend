@@ -21,6 +21,7 @@ class Warehouse extends Model
         'id',
         'name',
         'tenant_id',
+        'catalog_public_token',
     ];
 
     /**

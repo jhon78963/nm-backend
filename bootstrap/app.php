@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         JsonResource::withoutWrapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
+        // SPA Sanctum (cookies): sesión + CSRF en peticiones stateful desde dominios en config/sanctum.php.
+        // Debe ir primero en el grupo `api` (EnsureFrontendRequestsAreStateful).
+        $middleware->statefulApi();
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
