@@ -3,9 +3,8 @@
 namespace Database\Seeders;
 
 use App\Administration\User\Models\User;
+use Database\Seeders\Support\SeederDefaultPassword;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -103,7 +102,7 @@ class RoleAndPermissionSeeder extends Seeder
             $roleVendedor->syncPermissions($vendedoraPermissions);
         }
 
-        $seedPassword = Hash::make(env('SEEDER_DEFAULT_PASSWORD', Str::random(12)));
+        $seedPassword = SeederDefaultPassword::hashed($this);
 
         $defaultWarehouseId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
         $defaultTenantId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);

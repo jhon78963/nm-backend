@@ -3,6 +3,7 @@
 namespace App\Administration\Role\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SyncRolePermissionsRequest extends FormRequest
 {
@@ -18,7 +19,11 @@ class SyncRolePermissionsRequest extends FormRequest
     {
         return [
             'permissions' => ['required', 'array'],
-            'permissions.*' => ['string', 'max:255'],
+            'permissions.*' => [
+                'string',
+                'max:255',
+                Rule::exists('permissions', 'name')->where('guard_name', 'web'),
+            ],
         ];
     }
 }

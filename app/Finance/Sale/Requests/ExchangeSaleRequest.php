@@ -18,11 +18,11 @@ class ExchangeSaleRequest extends FormRequest
     {
         return [
             'returned_detail_id' => 'required|integer|exists:sale_details,id',
-            'difference_amount' => 'required|numeric|min:0',
+            'difference_amount' => 'required|decimal:0,2|min:0',
             'payment_method' => 'nullable|string',
             'new_item.product_size_id' => 'required|integer',
             'new_item.color_id' => 'required|integer',
-            'new_item.final_price' => 'required|integer',
+            'new_item.final_price' => 'required|decimal:0,2|min:0',
         ];
     }
 }

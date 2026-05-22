@@ -2,10 +2,12 @@
 
 namespace App\Finance\CashMovement\Controllers;
 
+use App\Finance\CashMovement\Requests\CashflowStoreRequest;
+use App\Finance\CashMovement\Requests\CashflowUpdateRequest;
 use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CashflowController extends Controller
 {
@@ -46,17 +48,9 @@ class CashflowController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(CashflowStoreRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'type' => 'required|in:INCOME,EXPENSE',
-            'category' => 'required|in:ADMINISTRATIVE,STORE',
-            'amount' => 'required|numeric',
-            'description' => 'required|string',
-            'date' => 'required|date',
-            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
-            'payment_method' => 'nullable|string',
-        ]);
+        $data = $request->validated();
 
         // Pasamos los datos y el archivo (si existe)
         $movement = $this->cashflowService->registerMovement($data, $request->file('image'));
@@ -64,17 +58,9 @@ class CashflowController extends Controller
         return response()->json(['success' => true, 'data' => $movement]);
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(CashflowUpdateRequest $request, $id): JsonResponse
     {
-        $data = $request->validate([
-            'type' => 'nullable|in:INCOME,EXPENSE',
-            'category' => 'nullable|in:ADMINISTRATIVE,STORE',
-            'amount' => 'nullable|numeric',
-            'description' => 'nullable|string',
-            'date' => 'nullable|date',
-            'payment_method' => 'nullable|string',
-            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
-        ]);
+        $data = $request->validated();
 
         $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
 

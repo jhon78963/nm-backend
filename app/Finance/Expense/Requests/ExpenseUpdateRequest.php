@@ -2,11 +2,12 @@
 
 namespace App\Finance\Expense\Requests;
 
+use App\Finance\Expense\Requests\Concerns\ValidatesExpenseUserId;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class ExpenseUpdateRequest extends FormRequest
 {
+    use ValidatesExpenseUserId;
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -29,7 +30,7 @@ class ExpenseUpdateRequest extends FormRequest
             'amount' => 'sometimes|numeric|min:0',
             'paymentMethod' => 'sometimes|string|max:50',
             'referenceCode' => 'nullable|string|max:100',
-            'userId' => 'sometimes|integer',
+            'userId' => $this->expenseUserIdRules(required: false),
         ];
     }
 }

@@ -818,7 +818,7 @@ class SaleService extends ModelService
                 'color_name_snapshot' => $newColorName,
                 'quantity' => $qty,
                 'unit_price' => $newPrice,
-                'subtotal' => $newPrice * $qty
+                'subtotal' => round($newPrice * $qty, 2),
             ]);
 
             $this->recordSaleStockOut(
@@ -851,7 +851,7 @@ class SaleService extends ModelService
             $originalSale->update(['payment_method' => $newPaymentMethod]);
 
             // 7. Caja Chica
-            $difference = $data['difference_amount'];
+            $difference = (float) $data['difference_amount'];
             if ($difference > 0) {
                 CashMovement::create([
                     'type' => 'INCOME',

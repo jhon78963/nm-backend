@@ -25,13 +25,13 @@ class SaleUpdateRequest extends FormRequest
             'creationTime' => 'nullable',
             'items' => 'nullable|array',
             'items.*.id' => 'required|integer|exists:sale_details,id',
-            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.unit_price' => 'required|decimal:0,2|min:0',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.product_size_id' => 'nullable|integer|exists:product_size,id',
             'items.*.color_id' => 'nullable|integer',
             'payments' => 'nullable|array',
             'payments.*.method' => 'required|string',
-            'payments.*.amount' => 'required|numeric|min:0',
+            'payments.*.amount' => 'required|decimal:0,2|min:0',
             'payments.*.reference' => 'nullable|string',
         ];
     }
