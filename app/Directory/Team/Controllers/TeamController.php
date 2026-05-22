@@ -72,6 +72,7 @@ class TeamController extends Controller
                 'login' => [
                     'email' => $user->email,
                     'username' => $user->username,
+                    'temporary_password' => $plainPassword,
                 ],
             ], 201);
         });

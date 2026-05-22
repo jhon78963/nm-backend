@@ -54,4 +54,23 @@ class NodeUploaderService
         Http::withHeaders(['X-API-KEY' => $apiKey])
             ->delete(rtrim($uploaderUrl, '/').'/api/delete', ['path' => $path]);
     }
+
+    public function fetch(string $path): \Illuminate\Http\Client\Response
+    {
+        $uploaderUrl = config('services.uploader.url');
+        $apiKey = config('services.uploader.api_key');
+
+        if (! is_string($uploaderUrl) || $uploaderUrl === '') {
+            throw new RuntimeException('El servicio de almacenamiento no está configurado (ZG_URL).');
+        }
+
+        $response = Http::withHeaders(['X-API-KEY' => $apiKey])
+            ->get(rtrim((string) $uploaderUrl, '/').$path);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('No se pudo obtener el archivo del servicio de almacenamiento.');
+        }
+
+        return $response;
+    }
 }

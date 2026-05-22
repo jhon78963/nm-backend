@@ -8,6 +8,7 @@ use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class CashflowController extends Controller
 {
@@ -65,5 +66,21 @@ class CashflowController extends Controller
         $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
 
         return response()->json(['success' => true, 'data' => $movement]);
+    }
+
+    public function streamVoucher(Request $request): Response
+    {
+        $path = $request->query('path');
+
+        if (! is_string($path) || trim($path) === '') {
+            abort(400, 'Path requerido.');
+        }
+
+        $file = $this->cashflowService->streamVoucher($path);
+
+        return response($file['body'], 200, [
+            'Content-Type' => $file['content_type'],
+            'Content-Disposition' => 'inline; filename="'.$file['filename'].'"',
+        ]);
     }
 }

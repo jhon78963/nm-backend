@@ -184,6 +184,34 @@ class CashflowService
         return $movement;
     }
 
+    public function streamVoucher(string $path): array
+    {
+        if (str_contains($path, '..')) {
+            abort(403, 'Path no permitido.');
+        }
+
+        if (! preg_match('#^/uploads/vouchers/[a-f0-9\\-]+\\.(jpe?g|png|webp|pdf)$#i', $path)) {
+            abort(403, 'Path no válido.');
+        }
+
+        $movement = CashMovement::query()
+            ->where('voucher_path', $path)
+            ->where('is_deleted', false)
+            ->first();
+
+        if ($movement === null) {
+            abort(404, 'Comprobante no encontrado.');
+        }
+
+        $response = $this->nodeUploaderService->fetch($path);
+
+        return [
+            'body' => $response->body(),
+            'content_type' => $response->header('Content-Type') ?? 'application/octet-stream',
+            'filename' => basename($path),
+        ];
+    }
+
     private function uploadToNode(UploadedFile $file): string
     {
         return $this->nodeUploaderService->upload($file, 'vouchers');
