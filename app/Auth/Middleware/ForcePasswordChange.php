@@ -35,6 +35,8 @@ class ForcePasswordChange
         }
 
         return response()->json([
+            'success' => false,
+            'message' => 'Debe cambiar su contraseña antes de continuar.',
             'error' => 'PASSWORD_CHANGE_REQUIRED',
         ], 403);
     }

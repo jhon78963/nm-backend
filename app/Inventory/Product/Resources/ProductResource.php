@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Product\Resources;
 
+use App\Inventory\Product\Support\PurchasePriceVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,7 +26,10 @@ class ProductResource extends JsonResource
             'name' => $this->name ?? '',
             'barcode' => $this->barcode,
             'stock' => $stock,
-            'purchasePrice' => $primaryPs !== null ? (float) ($primaryPs->purchase_price ?? 0) : 0,
+            'purchasePrice' => $this->when(
+                PurchasePriceVisibility::canView($request),
+                fn () => $primaryPs !== null ? (float) ($primaryPs->purchase_price ?? 0) : 0,
+            ),
             'salePrice' => $primaryPs !== null ? (float) ($primaryPs->sale_price ?? 0) : 0,
             'minSalePrice' => $primaryPs !== null ? (float) ($primaryPs->min_sale_price ?? 0) : 0,
             'cashDiscount' => $this->cash_discount,

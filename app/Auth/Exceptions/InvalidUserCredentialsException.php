@@ -10,8 +10,9 @@ class InvalidUserCredentialsException extends Exception
 
     public function render()
     {
-        return response()->json([
-            'message' => [$this->message],
-        ], 401);
+        return \App\Shared\Foundation\Exceptions\ApiExceptionRenderer::jsonError(
+            $this,
+            401,
+        );
     }
 }

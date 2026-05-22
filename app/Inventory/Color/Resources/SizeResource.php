@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Color\Resources;
 
+use App\Inventory\Product\Support\PurchasePriceVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,7 +23,10 @@ class SizeResource extends JsonResource
             'description' => "Talla: $this->description - Stock: $this->stock",
             'stock' => isset($this->stock) ? (int) $this->stock : null,
             'barcode' => $this->barcode !== null && $this->barcode !== '' ? (string) $this->barcode : null,
-            'purchasePrice' => $this->purchase_price !== null ? (float) $this->purchase_price : null,
+            'purchasePrice' => $this->when(
+                PurchasePriceVisibility::canView($request),
+                fn () => $this->purchase_price !== null ? (float) $this->purchase_price : null,
+            ),
             'salePrice' => $this->sale_price !== null ? (float) $this->sale_price : null,
             'minSalePrice' => $this->min_sale_price !== null ? (float) $this->min_sale_price : null,
         ];

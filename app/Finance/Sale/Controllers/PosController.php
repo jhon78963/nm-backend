@@ -35,7 +35,7 @@ class PosController extends Controller
         $sku = $request->validated()['sku'];
         $product = $this->productService->findBySkuForPos($sku);
         if (!$product) {
-            return response()->json(['message' => 'Producto no encontrado'], 404);
+            abort(404, 'Producto no encontrado');
         }
 
         return response()->json($product);
@@ -76,13 +76,10 @@ class PosController extends Controller
                 'message' => 'Venta registrada correctamente',
             ]);
         } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => collect($e->errors())->flatten()->first() ?? 'Datos de venta no válidos.',
-                'errors' => $e->errors(),
-            ], 422);
+            return \App\Shared\Foundation\Exceptions\ApiExceptionRenderer::render($e, request())
+                ?? response()->json(['success' => false, 'message' => 'Datos de venta no válidos.', 'error' => 'VALIDATION_ERROR'], 422);
         } catch (UserWarehouseNotAssignedException $e) {
-            return $this->apiErrorResponse($e, 403, ['success' => false]);
+            return $this->apiErrorResponse($e, 403);
         } catch (Throwable $e) {
             Log::error('POS checkout failed', [
                 'message' => $e->getMessage(),
@@ -90,7 +87,6 @@ class PosController extends Controller
             ]);
 
             return $this->apiErrorResponse($e, 500, [
-                'success' => false,
                 'message' => 'Ocurrió un error al procesar la venta.',
             ]);
         }

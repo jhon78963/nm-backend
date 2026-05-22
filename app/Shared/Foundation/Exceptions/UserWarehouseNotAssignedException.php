@@ -11,8 +11,9 @@ class UserWarehouseNotAssignedException extends Exception
 
     public function render(): JsonResponse
     {
-        return response()->json([
-            'message' => $this->message,
-        ], 403);
+        return \App\Shared\Foundation\Exceptions\ApiExceptionRenderer::jsonError(
+            $this,
+            403,
+        );
     }
 }

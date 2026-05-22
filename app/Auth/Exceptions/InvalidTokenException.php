@@ -10,8 +10,9 @@ class InvalidTokenException extends Exception
 
     public function render()
     {
-        return response()->json([
-            'message' => [$this->message],
-        ], 422);
+        return \App\Shared\Foundation\Exceptions\ApiExceptionRenderer::jsonError(
+            $this,
+            422,
+        );
     }
 }

@@ -28,7 +28,7 @@ class RoleAndPermissionSeeder extends Seeder
             'team.create', 'team.update', 'team.delete', 'team.getAll', 'team.get',
             'attendance.getByMonth', 'attendance.getDailySummary', 'attendance.store',
             'payment.getByMonth', 'payment.store',
-            'product.create', 'product.update', 'product.delete', 'product.getAll', 'product.get',
+            'product.create', 'product.update', 'product.delete', 'product.getAll', 'product.get', 'product.view_purchase_price',
             'productSize.add', 'productSize.modify', 'productSize.remove', 'productSize.get',
             'productSizeColor.add', 'productSizeColor.modify', 'productSizeColor.remove',
             'productImage.add', 'productImage.multipleAdd', 'productImage.multipleRemove', 'productImage.remove', 'productImage.getAll',
