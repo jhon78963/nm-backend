@@ -67,6 +67,7 @@ final class PermissionLabels
         'multipleRemove' => 'Eliminar varias imágenes',
         'getSummary' => 'Ver resumen',
         'index' => 'Ver historial / índice',
+        'products' => 'Productos (inventario)',
         'create' => 'Crear',
         'update' => 'Editar',
         'delete' => 'Eliminar',
