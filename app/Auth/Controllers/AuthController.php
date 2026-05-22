@@ -87,7 +87,7 @@ class AuthController extends Controller
             $minutes,
             '/',
             null,
-            env('APP_ENV') !== 'local',
+            config('app.env') !== 'local',
             true,
             false,
             'Lax',

@@ -2,7 +2,7 @@
 
 namespace App\Inventory\InventoryLedger\Requests;
 
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,16 +25,7 @@ class InventoryKardexReportRequest extends FormRequest
             return false;
         }
 
-        $warehouse = Warehouse::query()->find((int) $warehouseId);
-        if ($warehouse === null || $warehouse->tenant_id === null) {
-            return false;
-        }
-
-        if ($user->tenant_id === null) {
-            return false;
-        }
-
-        return (int) $user->tenant_id === (int) $warehouse->tenant_id;
+        return WarehouseIdForInventoryResolver::userCanAccessWarehouse((int) $warehouseId, $user);
     }
 
     /**

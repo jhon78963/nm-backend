@@ -3,6 +3,7 @@
 namespace App\Auth\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateMeRequest extends FormRequest
 {
@@ -21,9 +22,11 @@ class UpdateMeRequest extends FormRequest
      */
     public function rules(): array
     {
+        $userId = $this->user()->id;
+
         return [
-            'username' => 'sometimes|string|max:255|unique:users,email,' . $this->id,
-            'email' => 'sometimes|email|max:255|unique:users,email,' . $this->id,
+            'username' => ['sometimes', 'string', 'max:255', Rule::unique('users', 'username')->ignore($userId)],
+            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
             'name' => 'sometimes|string|max:255',
             'surname' => 'sometimes|string|max:255',
         ];

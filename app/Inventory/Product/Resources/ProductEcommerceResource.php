@@ -62,12 +62,12 @@ class ProductEcommerceResource extends JsonResource
             }
         }
 
-        $imageServerUrl = rtrim(env('IMAGE_SERVER_URL', 'http://localhost:8001'), '/');
+        $imageServerUrl = rtrim((string) config('ecommerce.image_server_url'), '/');
 
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'description' => '<p>'.($this->description ?? '').'</p>',
+            'description' => '<p>'.e(strip_tags($this->description ?? '')).'</p>',
             'price' => $minSalePrice,
             'sale_price' => $minSalePrice,
             'quantity' => $totalStock,

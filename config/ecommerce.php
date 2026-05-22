@@ -16,4 +16,16 @@ return [
         ? (int) env('ECOMMERCE_WAREHOUSE_ID')
         : null,
 
+    /*
+    |--------------------------------------------------------------------------
+    | URL base del servidor de imágenes (catálogo ecommerce)
+    |--------------------------------------------------------------------------
+    |
+    | Base pública para construir asset_url en ProductEcommerceResource.
+    | Sin barra final. Ej: http://localhost:8001
+    |
+    */
+
+    'image_server_url' => env('IMAGE_SERVER_URL', 'http://localhost:8001'),
+
 ];

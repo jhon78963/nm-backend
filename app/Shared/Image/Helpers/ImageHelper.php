@@ -9,7 +9,7 @@ if (!function_exists('s3_url')) {
      */
     function s3_url(string $path): string
     {
-        $baseUrl = rtrim(env('S3_URL'), '/');
+        $baseUrl = rtrim((string) config('filesystems.disks.s3.public_url', ''), '/');
         $cleanPath = ltrim($path, '/');
 
         return "$baseUrl/$cleanPath";
