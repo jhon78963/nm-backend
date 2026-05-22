@@ -51,6 +51,22 @@ class RoleAndPermissionSeeder extends Seeder
         ];
     }
 
+    /**
+     * Permisos mínimos del rol de venta en tienda: solo POS y caja diaria.
+     *
+     * @return list<string>
+     */
+    private function vendedoraPermissionNames(): array
+    {
+        return [
+            'pos.searchProduct',
+            'pos.searchCustomer',
+            'pos.checkout',
+            'cashflow.getDaily',
+            'cashflow.store',
+        ];
+    }
+
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
@@ -74,42 +90,18 @@ class RoleAndPermissionSeeder extends Seeder
             ['name' => 'Vendedora', 'guard_name' => $guard]
         );
 
-        $vendedoraDenied = [
-            'user.create', 'user.update', 'user.delete', 'user.getAll', 'user.get',
-            'tenant.create', 'tenant.update', 'tenant.delete', 'tenant.getAll', 'tenant.get',
-            'warehouse.create', 'warehouse.update', 'warehouse.delete',
-            'role.create', 'role.update', 'role.delete', 'role.getAll', 'role.get', 'role.syncPermissions', 'role.permissionsIndex',
-            'report.index',
-            'financialSummary.getSummary',
-            'cashflow.getAdminMonthlyReport',
-            'cashflow.store', 'cashflow.update',
-            'sale.delete', 'sale.getMonthlyStats',
-            'order.create', 'order.update', 'order.delete', 'order.getAll', 'order.get',
-            'purchase.registerBulk', 'purchase.getAll', 'purchase.updateLine', 'purchase.deleteLine', 'purchase.get', 'purchase.update', 'purchase.cancel',
-            'product.create', 'product.update', 'product.delete',
-            'productSize.add', 'productSize.modify', 'productSize.remove',
-            'productSizeColor.add', 'productSizeColor.modify', 'productSizeColor.remove',
-            'productImage.add', 'productImage.multipleAdd', 'productImage.multipleRemove', 'productImage.remove',
-            'productHistory.index',
-            'inventoryKardex.index',
-            'inventoryReconciliation.search', 'inventoryReconciliation.update', 'inventoryReconciliation.replaceColor',
-            'audit.getAll',
-            'expense.create', 'expense.update', 'expense.delete',
-            'team.create', 'team.update', 'team.delete',
-            'attendance.getByMonth', 'attendance.getDailySummary', 'attendance.store',
-            'payment.getByMonth', 'payment.store',
-            'vendor.create', 'vendor.update', 'vendor.delete',
-            'color.create', 'color.update', 'color.delete',
-            'size.create', 'size.update', 'size.delete',
-            'image.create', 'image.delete',
-        ];
-
         $vendedoraPermissions = Permission::query()
             ->where('guard_name', $guard)
-            ->whereNotIn('name', $vendedoraDenied)
+            ->whereIn('name', $this->vendedoraPermissionNames())
             ->get();
 
         $roleVendedora->syncPermissions($vendedoraPermissions);
+
+        // Alias legacy / manual: mismo alcance que Vendedora (solo POS + caja diaria).
+        $roleVendedor = Role::query()->where('name', 'Vendedor')->where('guard_name', $guard)->first();
+        if ($roleVendedor !== null) {
+            $roleVendedor->syncPermissions($vendedoraPermissions);
+        }
 
         $seedPassword = Hash::make(env('SEEDER_DEFAULT_PASSWORD', Str::random(12)));
 

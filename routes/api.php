@@ -27,8 +27,8 @@ foreach ($publicFiles as $file) {
 | Cada módulo en app/{Modulo}/Routes/api.php declara middleware('permission:...')
 | (Spatie Permission). Super Admin omite comprobaciones vía Gate::before.
 |
-| Vendedora: POS, consultas de venta/producto/stock y clientes. Sin admin,
-| reportes, anulaciones, compras, cuadre de inventario ni kardex.
+| Vendedora / Vendedor: solo POS (pos.*) y caja diaria (cashflow.getDaily,
+| cashflow.store). Sin inventario, productos, ventas listado, compras ni admin.
 */
 Route::middleware([
     'auth:sanctum',
