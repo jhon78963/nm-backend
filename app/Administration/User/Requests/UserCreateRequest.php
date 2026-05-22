@@ -2,13 +2,24 @@
 
 namespace App\Administration\User\Requests;
 
+use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UserCreateRequest extends FormRequest
 {
+    use GuardsActorTenantScope;
     use GuardsSuperAdminRoleAssignment;
+
+    public function authorize(): bool
+    {
+        if (! $this->authorizesActorTenantScope()) {
+            $this->failedActorTenantScopeAuthorization();
+        }
+
+        return $this->authorizesSuperAdminRoleAssignment();
+    }
 
     protected function prepareForValidation(): void
     {
@@ -30,7 +41,10 @@ class UserCreateRequest extends FormRequest
             'roleNames' => ['required', 'array', 'min:1'],
             'roleNames.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'tenantId' => ['required', 'exists:tenants,id'],
-            'warehouseId' => ['required', 'exists:warehouses,id'],
+            'warehouseId' => [
+                'required',
+                Rule::exists('warehouses', 'id')->where('tenant_id', $this->input('tenantId')),
+            ],
             'password' => 'required|string|min:8|confirmed',
             'file' => 'nullable|max:2048',
         ];

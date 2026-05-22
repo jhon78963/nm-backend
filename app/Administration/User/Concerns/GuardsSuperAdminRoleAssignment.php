@@ -8,7 +8,7 @@ trait GuardsSuperAdminRoleAssignment
 {
     public const SUPER_ADMIN_ROLE = 'Super Admin';
 
-    public function authorize(): bool
+    public function authorizesSuperAdminRoleAssignment(): bool
     {
         if (! $this->payloadAssignsSuperAdminRole()) {
             return true;
