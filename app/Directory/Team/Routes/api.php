@@ -14,13 +14,13 @@ Route::controller(TeamController::class)->group(function (): void {
 });
 
 Route::controller(AttendanceController::class)->group(function (): void {
-    Route::get('/attendance/daily-summary', 'getDailySummary')->middleware('permission:attendance.getDailySummary');
-    Route::get('/attendance/{teamId}', 'getByMonth')->middleware('permission:attendance.getByMonth');
-    Route::post('/attendance', 'store')->middleware('permission:attendance.store');
+    Route::get('/attendance/daily-summary', 'getDailySummary')->middleware('permission:team.getAttendanceDailySummary');
+    Route::get('/attendance/{teamId}', 'getByMonth')->middleware('permission:team.getAttendanceByMonth');
+    Route::post('/attendance', 'store')->middleware('permission:team.storeAttendance');
 });
 
 Route::controller(PaymentController::class)->group(function (): void {
-    Route::get('/payments/payroll', 'getPayroll')->middleware('permission:payment.getByMonth');
-    Route::get('/payments', 'getByMonth')->middleware('permission:payment.getByMonth');
-    Route::post('/payments', 'store')->middleware('permission:payment.store');
+    Route::get('/payments/payroll', 'getPayroll')->middleware('permission:team.getPaymentByMonth');
+    Route::get('/payments', 'getByMonth')->middleware('permission:team.getPaymentByMonth');
+    Route::post('/payments', 'store')->middleware('permission:team.storePayment');
 });
