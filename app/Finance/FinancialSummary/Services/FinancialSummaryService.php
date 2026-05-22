@@ -6,6 +6,7 @@ use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -56,7 +57,7 @@ class FinancialSummaryService
             ->sum('amount');
 
 
-        $monthlyInvestment = (float) DB::table('inventory_movements as im')
+        $monthlyInvestmentQuery = DB::table('inventory_movements as im')
             ->join('product_size as ps', 'ps.id', '=', 'im.product_size_id')
             ->whereBetween('im.occurred_at', [$startOfMonth, $endOfMonth])
             ->where('im.direction', InventoryMovementDirection::In->value)
@@ -64,7 +65,11 @@ class FinancialSummaryService
                 InventoryMovementType::InitialInventory->value,
                 InventoryMovementType::Purchase->value,
                 InventoryMovementType::Reconciliation->value,
-            ])
+            ]);
+
+        WarehouseQueryFilter::apply($monthlyInvestmentQuery, 'im.warehouse_id');
+
+        $monthlyInvestment = (float) $monthlyInvestmentQuery
             ->sum(DB::raw('im.quantity * COALESCE(ps.purchase_price, 0)'));
 
 

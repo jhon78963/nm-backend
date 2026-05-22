@@ -4,7 +4,7 @@ namespace App\Administration\User\Models;
 
 use App\Administration\Tenant\Models\Tenant;
 use App\Directory\Team\Models\Team;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -15,7 +15,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use BelongsToWarehouse, HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     protected $guard_name = 'web';
 
@@ -75,10 +75,6 @@ class User extends Authenticatable
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
-    }
-
-    public function warehouse(): BelongsTo {
-        return $this->belongsTo(Warehouse::class);
     }
 
     public function team(): HasOne

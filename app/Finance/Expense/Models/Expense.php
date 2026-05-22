@@ -3,11 +3,14 @@
 namespace App\Finance\Expense\Models;
 
 use App\Administration\User\Models\User;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Expense extends Model
 {
+    use BelongsToWarehouse;
+
     public $timestamps = false;
     protected $table = 'expenses';
 
@@ -19,6 +22,7 @@ class Expense extends Model
         'payment_method',
         'reference_code',
         'user_id',
+        'warehouse_id',
         'creator_user_id',
     ];
 

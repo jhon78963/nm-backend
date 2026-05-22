@@ -2,6 +2,8 @@
 
 namespace App\Shared\Foundation\Scopes;
 
+use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
@@ -14,20 +16,6 @@ class WarehouseScope implements Scope
             return;
         }
 
-        $user = auth()->user();
-
-        if (method_exists($user, 'hasRole') && $user->hasRole('Super Admin')) {
-            return;
-        }
-
-        $warehouseId = (int) ($user->warehouse_id ?? 0);
-
-        if ($warehouseId > 0) {
-            $builder->where($model->getTable().'.warehouse_id', $warehouseId);
-
-            return;
-        }
-
-        $builder->whereRaw('1 = 0');
+        WarehouseQueryFilter::apply($builder, $model->getTable().'.warehouse_id');
     }
 }

@@ -2,11 +2,14 @@
 
 namespace App\Finance\Order\Models;
 
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    use BelongsToWarehouse;
+
     public $timestamps = false;
 
     protected $table = 'orders';
@@ -17,6 +20,7 @@ class Order extends Model
         'total_amount',
         'origin_warehouse_id',
         'destination_warehouse_id',
+        'warehouse_id',
         'tracking_number',
         'type',
         'status',

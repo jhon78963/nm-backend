@@ -3,13 +3,14 @@
 namespace App\Directory\Team\Models;
 
 use App\Administration\User\Models\User;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Team extends Model
 {
+    use BelongsToWarehouse;
     /**
      * The attributes that are mass assignable.
      *
@@ -55,11 +56,6 @@ class Team extends Model
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class, 'team_id');
-    }
-
-    public function warehouse(): BelongsTo
-    {
-        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 
     public function user(): BelongsTo

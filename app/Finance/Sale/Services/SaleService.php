@@ -13,6 +13,7 @@ use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use App\Shared\Foundation\Services\ModelService;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
@@ -118,13 +119,28 @@ class SaleService extends ModelService
      */
     public function getMonthlyStats(): Collection
     {
+        if (! WarehouseQueryFilter::bypassScope() && WarehouseQueryFilter::resolveWarehouseId() <= 0) {
+            return collect();
+        }
+
+        $salesWarehouseFilter = '';
+        $salesAliasWarehouseFilter = '';
+        $bindings = [];
+
+        if (! WarehouseQueryFilter::bypassScope()) {
+            $warehouseId = WarehouseQueryFilter::resolveWarehouseId();
+            $salesWarehouseFilter = ' AND warehouse_id = ? ';
+            $salesAliasWarehouseFilter = ' AND s.warehouse_id = ? ';
+            $bindings = [$warehouseId, $warehouseId];
+        }
+
         $rows = DB::select("
             WITH rev AS (
                 SELECT TO_CHAR(creation_time, 'MM-YYYY') AS month_year,
                        TO_CHAR(creation_time, 'YYYY-MM') AS sort_key,
                        SUM(total_amount) AS total_revenue
                 FROM sales
-                WHERE is_deleted = false AND status = 'COMPLETED'
+                WHERE is_deleted = false AND status = 'COMPLETED'{$salesWarehouseFilter}
                 GROUP BY 1, 2
             ),
             cst AS (
@@ -134,7 +150,7 @@ class SaleService extends ModelService
                 INNER JOIN sale_details sd ON s.id = sd.sale_id
                 LEFT JOIN product_size ps
                     ON sd.product_id = ps.product_id AND sd.size_id = ps.size_id
-                WHERE s.is_deleted = false AND s.status = 'COMPLETED'
+                WHERE s.is_deleted = false AND s.status = 'COMPLETED'{$salesAliasWarehouseFilter}
                 GROUP BY 1
             )
             SELECT r.month_year,
@@ -145,7 +161,7 @@ class SaleService extends ModelService
             FROM rev r
             LEFT JOIN cst c ON c.month_year = r.month_year
             ORDER BY r.sort_key DESC
-        ");
+        ", $bindings);
 
         return collect($rows)->map(function (stdClass $item) {
             $item->total_revenue = (float) $item->total_revenue;

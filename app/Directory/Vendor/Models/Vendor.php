@@ -2,10 +2,13 @@
 
 namespace App\Directory\Vendor\Models;
 
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
 
 class Vendor extends Model
 {
+    use BelongsToWarehouse;
+
     protected $table = 'vendors';
     /**
      * The attributes that are mass assignable.
@@ -19,6 +22,7 @@ class Vendor extends Model
         'local',
         'balance',
         'phone',
+        'warehouse_id',
     ];
 
     /**

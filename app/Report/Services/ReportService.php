@@ -6,6 +6,7 @@ use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Models\Product;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -83,13 +84,17 @@ class ReportService
         $totalRevenue = (float) ($onlySales + $otherIncomes);
 
         // 2. COSTO DE MERCADERÍA
-        $costOfGoods = DB::table('sales as s')
+        $costOfGoodsQuery = DB::table('sales as s')
             ->join('sale_details as sd', 's.id', '=', 'sd.sale_id')
             ->leftJoin('product_size as ps', function ($join) {
                 $join->on('sd.product_id', '=', 'ps.product_id')->on('sd.size_id', '=', 'ps.size_id');
             })
             ->whereBetween('s.creation_time', [$start, $end])
-            ->where('s.status', 'COMPLETED')->where('s.is_deleted', false)
+            ->where('s.status', 'COMPLETED')->where('s.is_deleted', false);
+
+        WarehouseQueryFilter::apply($costOfGoodsQuery, 's.warehouse_id');
+
+        $costOfGoods = $costOfGoodsQuery
             ->sum(DB::raw('sd.quantity * COALESCE(ps.purchase_price, 0)'));
 
         // 3. GASTOS
@@ -205,6 +210,8 @@ class ReportService
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false);
 
+        WarehouseQueryFilter::apply($topProductsQuery, 's.warehouse_id');
+
         if ($start && $end) {
             $topProductsQuery->whereBetween('s.creation_time', [$start, $end]);
         }
@@ -227,6 +234,8 @@ class ReportService
             ->whereIn('sd.product_id', $productIds)
             ->where('s.status', 'COMPLETED')
             ->where('s.is_deleted', false);
+
+        WarehouseQueryFilter::apply($variantsQuery, 's.warehouse_id');
 
         if ($start && $end) {
             $variantsQuery->whereBetween('s.creation_time', [$start, $end]);
@@ -253,6 +262,8 @@ class ReportService
         $query = DB::table('products as p')
             ->leftJoin('sale_details as sd', 'p.id', '=', 'sd.product_id')
             ->leftJoin('sales as s', 'sd.sale_id', '=', 's.id');
+
+        WarehouseQueryFilter::apply($query, 'p.warehouse_id');
 
         if ($start && $end) {
             $query->whereBetween('s.creation_time', [$start, $end]);

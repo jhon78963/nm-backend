@@ -80,6 +80,37 @@ class AuthService
         $user->tokens()->delete();
     }
 
+    public function refreshFromCookies(?string $accessTokenPlain, string $refreshTokenPlain): array
+    {
+        $refreshToken = PersonalAccessToken::findToken($refreshTokenPlain);
+
+        if ($refreshToken === null || ! $refreshToken->can(TokenAbility::ISSUE_ACCESS_TOKEN->value)) {
+            throw new InvalidTokenException();
+        }
+
+        if ($refreshToken->expires_at !== null && $refreshToken->expires_at->isPast()) {
+            throw new InvalidTokenException();
+        }
+
+        $user = User::find($refreshToken->tokenable_id);
+
+        if ($user === null) {
+            throw new InvalidTokenException();
+        }
+
+        if (is_string($accessTokenPlain) && $accessTokenPlain !== '') {
+            $accessToken = PersonalAccessToken::findToken($accessTokenPlain);
+
+            if ($accessToken !== null && $accessToken->tokenable_id === $user->id) {
+                $accessToken->delete();
+            }
+        }
+
+        $refreshToken->delete();
+
+        return $this->createTokens($user);
+    }
+
     public function validateTokens(RefreshTokenRequest |  DeleteTokenRequest $request): array
     {
         $refreshToken = PersonalAccessToken::findToken($request->refreshToken);

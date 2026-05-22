@@ -2,6 +2,7 @@
 
 namespace App\Auth\Controllers;
 
+use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\RefreshTokenRequest;
@@ -12,6 +13,7 @@ use App\Auth\Services\AuthService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Auth;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthController extends Controller
 {
@@ -33,9 +35,34 @@ class AuthController extends Controller
             ->where('username', $request->validated('username'))
             ->firstOrFail();
 
-        return response()
-            ->json(new MeResource($user))
-            ->cookie($this->accessTokenCookie($tokens['token'], 1440));
+        return $this->withAuthCookies(
+            response()->json(new MeResource($user)),
+            $tokens,
+        );
+    }
+
+    public function refresh(): JsonResponse
+    {
+        $refreshTokenPlain = request()->cookie('refresh_token');
+
+        if (! is_string($refreshTokenPlain) || $refreshTokenPlain === '') {
+            return response()->json(['message' => ['Invalid token.']], 401);
+        }
+
+        try {
+            $accessTokenPlain = request()->cookie('access_token');
+            $tokens = $this->authService->refreshFromCookies(
+                is_string($accessTokenPlain) ? $accessTokenPlain : null,
+                $refreshTokenPlain,
+            );
+        } catch (InvalidTokenException) {
+            return response()->json(['message' => ['Invalid token.']], 401);
+        }
+
+        return $this->withAuthCookies(
+            response()->json(['message' => 'Token refreshed successfully']),
+            $tokens,
+        );
     }
 
     public function refreshToken(RefreshTokenRequest $request): JsonResponse
@@ -44,7 +71,11 @@ class AuthController extends Controller
         ['user' => $user, 'accessToken' => $accessToken, 'refreshToken' => $refreshToken] = $userAccess;
         $this->authService->deleteToken($user, $accessToken, $refreshToken);
         $getTokens = $this->authService->createTokens($user);
-        return response()->json($getTokens);
+
+        return $this->withAuthCookies(
+            response()->json($getTokens),
+            $getTokens,
+        );
     }
 
     public function getMe(): JsonResponse {
@@ -58,12 +89,16 @@ class AuthController extends Controller
 
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
+        $user = $request->user();
+
         $this->authService->changePassword(
-            $request->user(),
+            $user,
             $request->validated('password'),
         );
 
-        return response()->json(['message' => 'Password changed successfully']);
+        $user->refresh();
+
+        return response()->json(new MeResource($user));
     }
 
     public function logout(): JsonResponse
@@ -76,13 +111,37 @@ class AuthController extends Controller
 
         return response()
             ->json(['message' => 'Logout successfully'])
-            ->withoutCookie($this->accessTokenCookie('', -1));
+            ->withoutCookie($this->clearAuthCookie('access_token'))
+            ->withoutCookie($this->clearAuthCookie('refresh_token'));
     }
 
-    private function accessTokenCookie(string $value, int $minutes): \Symfony\Component\HttpFoundation\Cookie
+    private function withAuthCookies(JsonResponse $response, array $tokens): JsonResponse
+    {
+        return $response
+            ->cookie($this->accessTokenCookie(
+                $tokens['token'],
+                (int) config('sanctum.access_token_expiration'),
+            ))
+            ->cookie($this->refreshTokenCookie(
+                $tokens['refreshToken'],
+                (int) config('sanctum.refresh_token_expiration'),
+            ));
+    }
+
+    private function accessTokenCookie(string $value, int $minutes): Cookie
+    {
+        return $this->authCookie('access_token', $value, $minutes);
+    }
+
+    private function refreshTokenCookie(string $value, int $minutes): Cookie
+    {
+        return $this->authCookie('refresh_token', $value, $minutes);
+    }
+
+    private function authCookie(string $name, string $value, int $minutes): Cookie
     {
         return cookie(
-            'access_token',
+            $name,
             $value,
             $minutes,
             '/',
@@ -92,5 +151,10 @@ class AuthController extends Controller
             false,
             'Lax',
         );
+    }
+
+    private function clearAuthCookie(string $name): Cookie
+    {
+        return $this->authCookie($name, '', -1);
     }
 }

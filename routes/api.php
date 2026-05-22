@@ -33,6 +33,7 @@ foreach ($publicFiles as $file) {
 Route::middleware([
     'auth:sanctum',
     'ability:'.TokenAbility::ACCESS_API->value,
+    'force.password.change',
 ])->group(function (): void {
     $protectedFiles = Finder::create()
         ->in(app_path())
