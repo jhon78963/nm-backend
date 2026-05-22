@@ -1,8 +1,10 @@
 <?php
 
+use App\Shared\Foundation\Exceptions\ApiExceptionRenderer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -26,7 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Throwable $exception, Request $request) {
+            return ApiExceptionRenderer::render($exception, $request);
+        });
     })
     ->withCommands([
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,

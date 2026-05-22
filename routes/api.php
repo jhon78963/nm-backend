@@ -34,6 +34,7 @@ Route::middleware([
     'auth:sanctum',
     'ability:'.TokenAbility::ACCESS_API->value,
     'force.password.change',
+    'throttle:120,1',
 ])->group(function (): void {
     $protectedFiles = Finder::create()
         ->in(app_path())
