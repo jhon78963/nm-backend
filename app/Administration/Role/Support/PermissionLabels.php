@@ -20,7 +20,6 @@ final class PermissionLabels
         'product' => 'Productos',
         'productSize' => 'Tallas del producto',
         'productSizeColor' => 'Colores por talla',
-        'productImage' => 'Imágenes del producto',
         'productHistory' => 'Historial de producto',
         'inventoryKardex' => 'Kardex de inventario',
         'inventoryReconciliation' => 'Cuadre de inventario',
@@ -33,7 +32,6 @@ final class PermissionLabels
         'customer' => 'Clientes',
         'role' => 'Roles',
         'user' => 'Usuarios',
-        'image' => 'Imágenes',
         'gender' => 'Géneros',
     ];
 

@@ -3,7 +3,6 @@
 use App\Inventory\Product\Controllers\InventoryReconciliationController;
 use App\Inventory\Product\Controllers\ProductController;
 use App\Inventory\Product\Controllers\ProductHistoryController;
-use App\Inventory\Product\Controllers\ProductImageController;
 use App\Inventory\Product\Controllers\ProductSizeColorController;
 use App\Inventory\Product\Controllers\ProductSizeController;
 use Illuminate\Support\Facades\Route;
@@ -38,14 +37,6 @@ Route::controller(ProductSizeColorController::class)->group(function (): void {
     Route::post('/product-size/{productSize}/color/{colorId}', 'add')->middleware('permission:productSizeColor.add');
     Route::patch('/product-size/{productSize}/color/{colorId}', 'modify')->middleware('permission:productSizeColor.modify');
     Route::delete('/product-size/{productSize}/color/{colorId}', 'remove')->middleware('permission:productSizeColor.remove');
-});
-
-Route::controller(ProductImageController::class)->group(function (): void {
-    Route::post('/products/{product}/upload/image', 'add')->middleware('permission:productImage.add');
-    Route::post('/products/{product}/upload/images', 'multipleAdd')->middleware('permission:productImage.multipleAdd');
-    Route::post('/products/{product}/remove/images', 'multipleRemove')->middleware('permission:productImage.multipleRemove');
-    Route::delete('/products/{product}/image/{path}', 'remove')->where('path', '.*')->middleware('permission:productImage.remove');
-    Route::get('/products/{product}/images', 'getAll')->middleware('permission:productImage.getAll');
 });
 
 Route::get('/products/{id}/history', [ProductHistoryController::class, 'index'])

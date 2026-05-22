@@ -4,12 +4,13 @@ namespace App\Finance\Expense\Models;
 
 use App\Administration\User\Models\User;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
+use App\Traits\HasMedia;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Expense extends Model
 {
-    use BelongsToWarehouse;
+    use BelongsToWarehouse, HasMedia;
 
     public $timestamps = false;
     protected $table = 'expenses';

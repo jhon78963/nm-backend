@@ -184,13 +184,9 @@ class CashflowService
         return $movement;
     }
 
-    private function uploadToNode(UploadedFile $file): ?string
+    private function uploadToNode(UploadedFile $file): string
     {
-        try {
-            return $this->nodeUploaderService->upload($file, 'vouchers');
-        } catch (\RuntimeException) {
-            return null;
-        }
+        return $this->nodeUploaderService->upload($file, 'vouchers');
     }
 
     /**

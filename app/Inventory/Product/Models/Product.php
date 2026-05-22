@@ -8,7 +8,7 @@ use App\Inventory\InventoryLedger\Models\InventoryBalance;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
-use App\Shared\Image\Models\Image;
+use App\Traits\HasMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
-    use BelongsToWarehouse, HasFactory;
+    use BelongsToWarehouse, HasFactory, HasMedia;
 
     /**
      * The attributes that are mass assignable.
@@ -89,33 +89,6 @@ class Product extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
-    }
-
-    /**
-     * Get the images associated with the product.
-     *
-     * @return BelongsToMany
-     */
-    public function images(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            Image::class,
-            'product_image',
-            'product_id',
-            'path',
-            'id',
-            'id',
-        )->withPivot(['status', 'size', 'name']);
-    }
-
-    /**
-     * Get the images associated with the product.
-     *
-     * @return HasMany
-     */
-    public function imagesEcommerce(): HasMany
-    {
-        return $this->hasMany(ProductImage::class, 'product_id');
     }
 
     /**

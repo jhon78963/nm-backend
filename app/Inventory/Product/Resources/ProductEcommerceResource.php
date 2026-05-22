@@ -52,7 +52,6 @@ class ProductEcommerceResource extends JsonResource
             }
         }
 
-        $imageServerUrl = rtrim((string) config('ecommerce.image_server_url'), '/');
         $slug = Str::slug($this->name.'-'.$this->id);
 
         return [
@@ -67,17 +66,8 @@ class ProductEcommerceResource extends JsonResource
             'available' => $this->status === 'AVAILABLE',
             'discount_percent' => $this->percentage_discount,
 
-            'thumbnail' => $this->imagesEcommerce->first() ? [
-                'name' => $this->imagesEcommerce->first()->name,
-                'url' => $imageServerUrl.'/storage/'.ltrim($this->imagesEcommerce->first()->path, '/'),
-            ] : null,
-
-            'gallery' => $this->imagesEcommerce->map(static function ($img) use ($imageServerUrl) {
-                return [
-                    'name' => $img->name,
-                    'url' => $imageServerUrl.'/storage/'.ltrim($img->path, '/'),
-                ];
-            }),
+            'thumbnail' => null,
+            'gallery' => [],
 
             'colors' => collect($colorNames)->map(static fn (?string $hex, string $name) => [
                 'name' => $name,

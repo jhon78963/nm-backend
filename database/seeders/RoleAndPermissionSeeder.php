@@ -29,7 +29,6 @@ class RoleAndPermissionSeeder extends Seeder
             'product.create', 'product.update', 'product.delete', 'product.getAll', 'product.get', 'product.view_purchase_price',
             'productSize.add', 'productSize.modify', 'productSize.remove', 'productSize.get',
             'productSizeColor.add', 'productSizeColor.modify', 'productSizeColor.remove',
-            'productImage.add', 'productImage.multipleAdd', 'productImage.multipleRemove', 'productImage.remove', 'productImage.getAll',
             'productHistory.index',
             'inventoryKardex.index',
             'inventoryReconciliation.search',
@@ -45,7 +44,6 @@ class RoleAndPermissionSeeder extends Seeder
             'customer.create', 'customer.update', 'customer.delete', 'customer.getAll', 'customer.get',
             'role.create', 'role.update', 'role.delete', 'role.getAll', 'role.get', 'role.syncPermissions', 'role.permissionsIndex',
             'user.create', 'user.update', 'user.delete', 'user.getAll', 'user.get',
-            'image.create', 'image.delete', 'image.getAll', 'image.get',
             'gender.getAll', 'gender.get',
         ];
     }

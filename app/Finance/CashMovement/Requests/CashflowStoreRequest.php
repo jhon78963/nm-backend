@@ -22,7 +22,7 @@ class CashflowStoreRequest extends FormRequest
             'amount' => 'required|numeric|min:0',
             'description' => 'required|string',
             'date' => 'required|date',
-            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
             'payment_method' => 'nullable|string',
         ];
     }

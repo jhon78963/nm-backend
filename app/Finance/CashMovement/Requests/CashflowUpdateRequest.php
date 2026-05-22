@@ -23,7 +23,7 @@ class CashflowUpdateRequest extends FormRequest
             'description' => 'nullable|string',
             'date' => 'nullable|date',
             'payment_method' => 'nullable|string',
-            'image' => 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
         ];
     }
 }
