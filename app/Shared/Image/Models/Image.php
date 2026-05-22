@@ -3,9 +3,11 @@
 namespace App\Shared\Image\Models;
 
 use App\Inventory\Product\Models\Product;
+use App\Inventory\Product\Models\ProductImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Image extends Model
 {
@@ -53,5 +55,43 @@ class Image extends Model
             'id',
             'path',
         )->withPivot(['status', 'size', 'name']);
+    }
+
+    public function productImages(): HasMany
+    {
+        return $this->hasMany(ProductImage::class, 'path', 'path');
+    }
+
+    /**
+     * Resuelve los warehouse_id reales vinculados a la imagen vía product_image → products.
+     *
+     * @return list<int>
+     */
+    public function resolveWarehouseIds(): array
+    {
+        $paths = array_values(array_unique(array_filter([
+            $this->path,
+            ltrim((string) $this->path, '/'),
+            '/'.ltrim((string) $this->path, '/'),
+        ])));
+
+        if ($paths === []) {
+            return [];
+        }
+
+        return Product::query()
+            ->withoutGlobalScopes()
+            ->where('is_deleted', false)
+            ->whereIn('id', function ($query) use ($paths): void {
+                $query->select('product_id')
+                    ->from('product_image')
+                    ->whereIn('path', $paths);
+            })
+            ->pluck('warehouse_id')
+            ->map(static fn ($warehouseId): int => (int) $warehouseId)
+            ->filter(static fn (int $warehouseId): bool => $warehouseId > 0)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

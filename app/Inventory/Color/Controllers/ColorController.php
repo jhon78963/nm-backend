@@ -16,6 +16,7 @@ use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use DB;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -73,10 +74,14 @@ class ColorController extends Controller
         $productId = $request->input('productId');
         $size = $request->input('size');
 
-        $sizes = ProductSize::query()
+        $sizesQuery = ProductSize::query()
             ->join('sizes as s', 'product_size.size_id', '=', 's.id')
             ->join('products as p', 'p.id', '=', 'product_size.product_id')
-            ->where('product_size.product_id', $productId)
+            ->where('product_size.product_id', $productId);
+
+        WarehouseQueryFilter::apply($sizesQuery, 'p.warehouse_id');
+
+        $sizes = $sizesQuery
             ->when(
                 $size,
                 fn (Builder $query): Builder =>

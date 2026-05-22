@@ -7,8 +7,6 @@ use App\Auth\Enums\TokenAbility;
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Exceptions\InvalidUserCredentialsException;
 use App\Auth\Models\PersonalAccessToken;
-use App\Auth\Requests\DeleteTokenRequest;
-use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
 use Carbon\Carbon;
 use Hash;
@@ -69,12 +67,6 @@ class AuthService
         return $this->generateTokenResponse($accessToken, $refreshToken);
     }
 
-    public function deleteToken(User $user, $accessToken, $refreshToken)
-    {
-        $user->tokens()->find($accessToken->id)->delete();
-        $user->tokens()->find($refreshToken->id)->delete();
-    }
-
     public function revokeAllTokens(User $user): void
     {
         $user->tokens()->delete();
@@ -109,36 +101,6 @@ class AuthService
         $refreshToken->delete();
 
         return $this->createTokens($user);
-    }
-
-    public function validateTokens(RefreshTokenRequest |  DeleteTokenRequest $request): array
-    {
-        $refreshToken = PersonalAccessToken::findToken($request->refreshToken);
-        $accessToken = PersonalAccessToken::findToken($request->accessToken);
-
-        if (!$refreshToken || !$accessToken) {
-            throw new InvalidTokenException();
-        }
-
-        if ($refreshToken->tokenable_id !== $accessToken->tokenable_id) {
-            throw new InvalidTokenException();
-        }
-
-        if (! $refreshToken->can(TokenAbility::ISSUE_ACCESS_TOKEN->value)) {
-            throw new InvalidTokenException();
-        }
-
-        if (! $accessToken->can(TokenAbility::ACCESS_API->value)) {
-            throw new InvalidTokenException();
-        }
-
-        $user = User::find($refreshToken->tokenable_id);
-
-        return [
-            'refreshToken' => $refreshToken,
-            'accessToken' => $accessToken,
-            'user' => $user,
-        ];
     }
 
     public function generateTokenResponse(string $accessToken, string $refreshToken): array

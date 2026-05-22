@@ -116,12 +116,17 @@ class PrivateFileService
         }
 
         $userWarehouseId = (int) ($user->warehouse_id ?? 0);
-        $imageWarehouseId = (int) ($image->warehouse_id ?? 0);
 
         if ($userWarehouseId <= 0) {
             return false;
         }
 
-        return $imageWarehouseId <= 0 || $userWarehouseId === $imageWarehouseId;
+        $imageWarehouseIds = $image->resolveWarehouseIds();
+
+        if ($imageWarehouseIds === []) {
+            return false;
+        }
+
+        return in_array($userWarehouseId, $imageWarehouseIds, true);
     }
 }

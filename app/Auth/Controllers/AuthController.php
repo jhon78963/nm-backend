@@ -5,7 +5,6 @@ namespace App\Auth\Controllers;
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\LoginRequest;
-use App\Auth\Requests\RefreshTokenRequest;
 use App\Auth\Requests\UpdateMeRequest;
 use App\Administration\User\Models\User;
 use App\Auth\Resources\MeResource;
@@ -62,19 +61,6 @@ class AuthController extends Controller
         return $this->withAuthCookies(
             response()->json(['message' => 'Token refreshed successfully']),
             $tokens,
-        );
-    }
-
-    public function refreshToken(RefreshTokenRequest $request): JsonResponse
-    {
-        $userAccess = $this->authService->validateTokens($request);
-        ['user' => $user, 'accessToken' => $accessToken, 'refreshToken' => $refreshToken] = $userAccess;
-        $this->authService->deleteToken($user, $accessToken, $refreshToken);
-        $getTokens = $this->authService->createTokens($user);
-
-        return $this->withAuthCookies(
-            response()->json($getTokens),
-            $getTokens,
         );
     }
 
