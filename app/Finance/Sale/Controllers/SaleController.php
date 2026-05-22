@@ -90,10 +90,9 @@ class SaleController extends Controller
                 'message' => 'Cambio registrado correctamente',
             ]);
         } catch (Throwable $e) {
-            return response()->json([
+            return $this->apiErrorResponse($e, 500, [
                 'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            ]);
         }
     }
 }

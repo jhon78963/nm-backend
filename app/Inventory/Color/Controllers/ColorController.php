@@ -42,7 +42,8 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color created.'], 201);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
+
+            return $this->apiErrorResponse($e, 500);
         }
     }
 
@@ -56,7 +57,8 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color deleted.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
+
+            return $this->apiErrorResponse($e, 500);
         }
     }
 
@@ -271,7 +273,8 @@ class ColorController extends Controller
             return response()->json(['message' => 'Color updated.']);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['error' => $e->getMessage()]);
+
+            return $this->apiErrorResponse($e, 500);
         }
     }
 }

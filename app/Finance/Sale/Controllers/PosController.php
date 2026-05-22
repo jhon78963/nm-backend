@@ -82,20 +82,17 @@ class PosController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (UserWarehouseNotAssignedException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 403);
+            return $this->apiErrorResponse($e, 403, ['success' => false]);
         } catch (Throwable $e) {
             Log::error('POS checkout failed', [
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
 
-            return response()->json([
+            return $this->apiErrorResponse($e, 500, [
                 'success' => false,
                 'message' => 'Ocurrió un error al procesar la venta.',
-            ], 500);
+            ]);
         }
     }
 

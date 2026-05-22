@@ -35,7 +35,7 @@ class OrderController extends Controller
                 'message' => 'Orden procesada correctamente',
             ], 201);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return $this->apiErrorResponse($e, 500, ['success' => false]);
         }
     }
 

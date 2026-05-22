@@ -32,24 +32,68 @@ final class ApiExceptionRenderer
             return $response instanceof JsonResponse ? $response : null;
         }
 
-        $status = self::resolveStatusCode($exception);
-        $errorCode = self::resolveErrorCode($exception, $status);
-
-        report($exception);
-
-        return response()->json([
-            'error' => $errorCode,
-            'message' => self::resolveMessage($exception, $status),
-        ], $status);
+        return self::jsonError($exception, self::statusCode($exception));
     }
 
-    private static function hasSafeAppRenderMethod(Throwable $exception): bool
+    public static function jsonError(
+        Throwable $exception,
+        int $status,
+        array $payload = [],
+    ): JsonResponse {
+        if (! app()->environment('local')) {
+            report($exception);
+        }
+
+        return response()->json(array_merge([
+            'error' => self::errorCode($exception, $status),
+            'message' => self::clientMessage($exception, $status),
+        ], $payload), $status);
+    }
+
+    public static function clientMessage(Throwable $exception, int $status): string
     {
-        return str_starts_with($exception::class, 'App\\')
-            && method_exists($exception, 'render');
+        if (app()->environment('local')) {
+            $message = trim($exception->getMessage());
+
+            return $message !== '' ? $message : self::defaultMessage($status);
+        }
+
+        if ($exception instanceof ValidationException) {
+            return collect($exception->errors())->flatten()->first()
+                ?? 'Datos de la solicitud no válidos.';
+        }
+
+        if (str_starts_with($exception::class, 'App\\')) {
+            $message = trim($exception->getMessage());
+
+            if ($message !== '') {
+                return $message;
+            }
+        }
+
+        return self::defaultMessage($status);
     }
 
-    private static function resolveStatusCode(Throwable $exception): int
+    public static function errorCode(Throwable $exception, int $status): string
+    {
+        if ($exception instanceof ThrottleRequestsException) {
+            return 'TOO_MANY_REQUESTS';
+        }
+
+        return match ($status) {
+            Response::HTTP_BAD_REQUEST => 'BAD_REQUEST',
+            Response::HTTP_UNAUTHORIZED => 'UNAUTHENTICATED',
+            Response::HTTP_FORBIDDEN => 'FORBIDDEN',
+            Response::HTTP_NOT_FOUND => 'NOT_FOUND',
+            Response::HTTP_METHOD_NOT_ALLOWED => 'METHOD_NOT_ALLOWED',
+            Response::HTTP_CONFLICT => 'CONFLICT',
+            Response::HTTP_UNPROCESSABLE_ENTITY => 'UNPROCESSABLE_ENTITY',
+            Response::HTTP_TOO_MANY_REQUESTS => 'TOO_MANY_REQUESTS',
+            default => 'INTERNAL_SERVER_ERROR',
+        };
+    }
+
+    public static function statusCode(Throwable $exception): int
     {
         if ($exception instanceof HttpExceptionInterface) {
             return $exception->getStatusCode();
@@ -74,26 +118,13 @@ final class ApiExceptionRenderer
         return Response::HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    private static function resolveErrorCode(Throwable $exception, int $status): string
+    private static function hasSafeAppRenderMethod(Throwable $exception): bool
     {
-        if ($exception instanceof ThrottleRequestsException) {
-            return 'TOO_MANY_REQUESTS';
-        }
-
-        return match ($status) {
-            Response::HTTP_BAD_REQUEST => 'BAD_REQUEST',
-            Response::HTTP_UNAUTHORIZED => 'UNAUTHENTICATED',
-            Response::HTTP_FORBIDDEN => 'FORBIDDEN',
-            Response::HTTP_NOT_FOUND => 'NOT_FOUND',
-            Response::HTTP_METHOD_NOT_ALLOWED => 'METHOD_NOT_ALLOWED',
-            Response::HTTP_CONFLICT => 'CONFLICT',
-            Response::HTTP_UNPROCESSABLE_ENTITY => 'UNPROCESSABLE_ENTITY',
-            Response::HTTP_TOO_MANY_REQUESTS => 'TOO_MANY_REQUESTS',
-            default => 'INTERNAL_SERVER_ERROR',
-        };
+        return str_starts_with($exception::class, 'App\\')
+            && method_exists($exception, 'render');
     }
 
-    private static function resolveMessage(Throwable $exception, int $status): string
+    private static function defaultMessage(int $status): string
     {
         return match ($status) {
             Response::HTTP_BAD_REQUEST => 'La solicitud no es válida.',

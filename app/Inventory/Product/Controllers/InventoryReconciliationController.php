@@ -161,10 +161,9 @@ class InventoryReconciliationController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
+            return $this->apiErrorResponse($e, 422, [
                 'message' => 'No se pudo reconciliar el inventario.',
-                'error' => $e->getMessage(),
-            ], 422);
+            ]);
         }
 
         return response()->json([
@@ -199,7 +198,7 @@ class InventoryReconciliationController extends Controller
                 );
             });
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->apiErrorResponse($e, 422);
         }
 
         $freshProduct = $product->fresh()->load([
