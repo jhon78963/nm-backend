@@ -40,6 +40,11 @@ class AuthController extends Controller
         );
     }
 
+    public function csrfToken(): JsonResponse
+    {
+        return response()->json(['csrf_token' => csrf_token()]);
+    }
+
     public function refresh(): JsonResponse
     {
         $refreshTokenPlain = request()->cookie('refresh_token');

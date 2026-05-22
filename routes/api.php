@@ -9,6 +9,8 @@ use Symfony\Component\Finder\Finder;
 | 1. Rutas públicas (public_api.php)
 |--------------------------------------------------------------------------
 | Catálogo ecommerce, login, tickets POS, etc. Sin auth:sanctum.
+| Auth público (csrf-token, login, refresh): throttle:5,1 en
+| app/Auth/Routes/public_api.php.
 */
 $publicFiles = Finder::create()
     ->in(app_path())
