@@ -16,6 +16,7 @@ use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
 use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use App\Shared\Foundation\Services\ModelService;
 use Exception;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -505,7 +506,7 @@ class SaleService extends ModelService
             $tenantId = $this->resolveTenantId($warehouseId);
 
             // A. Validar margen (precio > costo) y total solo desde cantidad × precio unitario del request
-            $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId($data['items']);
+            $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId($data['items'], $warehouseId);
             $computedTotal = 0.0;
             $lines = [];
             foreach ($data['items'] as $item) {
@@ -572,8 +573,10 @@ class SaleService extends ModelService
             $pairByProductSizeId = [];
             if ($psIdsForPairs !== []) {
                 foreach (DB::table('product_size')
-                    ->whereIn('id', $psIdsForPairs)
-                    ->get(['id', 'product_id', 'size_id']) as $row) {
+                    ->join('products', 'product_size.product_id', '=', 'products.id')
+                    ->where('products.warehouse_id', $warehouseId)
+                    ->whereIn('product_size.id', $psIdsForPairs)
+                    ->get(['product_size.id', 'product_size.product_id', 'product_size.size_id']) as $row) {
                     $pairByProductSizeId[(int) $row->id] = [(int) $row->product_id, (int) $row->size_id];
                 }
             }
@@ -595,6 +598,7 @@ class SaleService extends ModelService
                     ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
                     ->join('products', 'product_size.product_id', '=', 'products.id')
                     ->where('product_size.id', $productSizeId)
+                    ->where('products.warehouse_id', $warehouseId)
                     ->select('products.id as pid', 'products.name as pname', 'sizes.description as sname', 'sizes.id as sid')
                     ->first();
 
@@ -637,7 +641,7 @@ class SaleService extends ModelService
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, object{id: int, purchase_price: mixed, product_name: string}>
      */
-    private function loadPosLinePricingByProductSizeId(array $items): array
+    private function loadPosLinePricingByProductSizeId(array $items, int $warehouseId = 0): array
     {
         $productSizeIds = array_values(array_unique(array_filter(array_map(
             static fn (array $item): int => (int) ($item['product_size_id'] ?? 0),
@@ -648,10 +652,15 @@ class SaleService extends ModelService
             return [];
         }
 
-        $rows = DB::table('product_size')
+        $query = DB::table('product_size')
             ->join('products', 'product_size.product_id', '=', 'products.id')
-            ->whereIn('product_size.id', $productSizeIds)
-            ->get([
+            ->whereIn('product_size.id', $productSizeIds);
+
+        if ($warehouseId > 0) {
+            $query->where('products.warehouse_id', $warehouseId);
+        }
+
+        $rows = $query->get([
                 'product_size.id',
                 'product_size.purchase_price',
                 'products.name as product_name',
@@ -705,7 +714,10 @@ class SaleService extends ModelService
             ];
         }
 
-        $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId($linesForPricing);
+        $pricingByProductSizeId = $this->loadPosLinePricingByProductSizeId(
+            $linesForPricing,
+            (int) ($model->warehouse_id ?? 0),
+        );
 
         foreach ($linesForPricing as $line) {
             $productSizeId = (int) $line['product_size_id'];
@@ -772,8 +784,8 @@ class SaleService extends ModelService
     {
         return DB::transaction(function () use ($data) {
             // A. ITEM QUE ENTRA (DEVOLUCIÓN)
-            $returnedDetail = SaleDetail::with('sale')->findOrFail($data['returned_detail_id']);
-            $originalSale = $returnedDetail->sale;
+            $returnedDetail = SaleDetail::query()->findOrFail($data['returned_detail_id']);
+            $originalSale = $this->resolveOriginalSaleForExchange($returnedDetail);
             $warehouseId = $this->resolveWarehouseId($originalSale);
             $tenantId = $this->resolveTenantId($warehouseId);
 
@@ -870,5 +882,45 @@ class SaleService extends ModelService
 
             return true;
         });
+    }
+
+    /**
+     * SaleDetail no tiene WarehouseScope; la venta padre sí.
+     *
+     * @throws AuthorizationException
+     */
+    private function resolveOriginalSaleForExchange(SaleDetail $returnedDetail): Sale
+    {
+        $user = Auth::user();
+        $isSuperAdmin = $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Super Admin');
+
+        $originalSale = Sale::query()->whereKey($returnedDetail->sale_id)->first();
+
+        if ($originalSale === null && $isSuperAdmin) {
+            $originalSale = Sale::query()
+                ->withoutGlobalScopes()
+                ->whereKey($returnedDetail->sale_id)
+                ->where('is_deleted', false)
+                ->first();
+        }
+
+        if ($originalSale === null) {
+            throw new AuthorizationException(
+                'No puedes procesar un cambio de una venta que pertenece a otro almacén.',
+            );
+        }
+
+        if (! $isSuperAdmin) {
+            $actorWarehouseId = (int) ($user?->warehouse_id ?? 0);
+            if ($actorWarehouseId < 1 || (int) $originalSale->warehouse_id !== $actorWarehouseId) {
+                throw new AuthorizationException(
+                    'No puedes procesar un cambio de una venta que pertenece a otro almacén.',
+                );
+            }
+        }
+
+        return $originalSale;
     }
 }

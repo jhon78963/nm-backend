@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -238,45 +239,57 @@ class PaymentController extends Controller
             FILTER_VALIDATE_BOOLEAN
         );
 
+        $receiptImage = $request->file('image');
+
         $team = Team::query()
             ->where('is_deleted', false)
             ->whereKey((int) $validated['team_id'])
             ->firstOrFail();
 
-        $movement = TeamPayment::create([
-            'team_id' => (int) $validated['team_id'],
-            'type' => $validated['type'],
-            'amount' => $validated['amount'],
-            'date' => $validated['date'],
-            'description' => $validated['description'] ?? null,
-            'creator_user_id' => auth()->id(),
-        ]);
+        $movement = DB::transaction(function () use (
+            $validated,
+            $syncCash,
+            $team,
+            $cashflowService,
+            $receiptImage,
+        ) {
+            $movement = TeamPayment::create([
+                'team_id' => (int) $validated['team_id'],
+                'type' => $validated['type'],
+                'amount' => $validated['amount'],
+                'date' => $validated['date'],
+                'description' => $validated['description'] ?? null,
+                'creator_user_id' => auth()->id(),
+            ]);
 
-        if ($syncCash) {
-            $typeLabel = match ($validated['type']) {
-                'ADVANCE' => 'Adelanto',
-                'PAYMENT' => 'Pago quincenal',
-                'DEDUCTION' => 'Descuento manual',
-            };
-            $description = 'Nómina personal: '
-                . $team->name
-                . ' '
-                . $team->surname
-                . ' — '
-                . $typeLabel;
-            if (! empty($validated['description'])) {
-                $description .= ' — ' . $validated['description'];
+            if ($syncCash) {
+                $typeLabel = match ($validated['type']) {
+                    'ADVANCE' => 'Adelanto',
+                    'PAYMENT' => 'Pago quincenal',
+                    'DEDUCTION' => 'Descuento manual',
+                };
+                $description = 'Nómina personal: '
+                    . $team->name
+                    . ' '
+                    . $team->surname
+                    . ' — '
+                    . $typeLabel;
+                if (! empty($validated['description'])) {
+                    $description .= ' — ' . $validated['description'];
+                }
+
+                $cashflowService->registerMovement([
+                    'type' => 'EXPENSE',
+                    'category' => 'ADMINISTRATIVE',
+                    'amount' => (float) $validated['amount'],
+                    'description' => $description,
+                    'date' => $validated['date'],
+                    'payment_method' => $validated['payment_method'] ?? 'CASH',
+                ], $receiptImage);
             }
 
-            $cashflowService->registerMovement([
-                'type' => 'EXPENSE',
-                'category' => 'ADMINISTRATIVE',
-                'amount' => (float) $validated['amount'],
-                'description' => $description,
-                'date' => $validated['date'],
-                'payment_method' => $validated['payment_method'] ?? 'CASH',
-            ], $request->file('image'));
-        }
+            return $movement;
+        });
 
         return response()->json([
             'message' => 'Movimiento registrado correctamente',

@@ -24,7 +24,7 @@ class PurchaseBulkRequest extends FormRequest
             'purchase.vendorId' => 'nullable|integer|exists:vendors,id',
             'purchase.documentNote' => 'nullable|string|max:500',
             'purchase.registeredAt' => 'nullable|date',
-            'purchase.warehouseId' => 'nullable|integer|min:1',
+            'purchase.warehouseId' => 'required|integer|min:1',
             'purchase.currency' => 'nullable|string|max:8',
 
             'catalogUpserts' => 'nullable|array',

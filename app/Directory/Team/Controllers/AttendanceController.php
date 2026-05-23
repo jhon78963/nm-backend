@@ -67,7 +67,10 @@ class AttendanceController extends Controller
             'year' => 'required|integer'
         ]);
 
-        $data = Attendance::where('team_id', $teamId)
+        // Team usa BelongsToWarehouse → findOrFail respeta WarehouseScope (404 si es de otro almacén).
+        $team = Team::findOrFail($teamId);
+
+        $data = Attendance::where('team_id', $team->id)
             ->whereMonth('date', $request->month)
             ->whereYear('date', $request->year)
             ->get()

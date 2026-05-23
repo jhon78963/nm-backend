@@ -11,6 +11,7 @@ use App\Finance\Sale\Services\SaleService;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -41,9 +42,38 @@ class PosController extends Controller
     public function searchCustomer(SearchCustomerDocRequest $request): JsonResponse
     {
         $dni = $request->validated()['dni'];
-        $customer = $this->customerService->findOrCreateByDoc($dni);
 
-        return response()->json($customer);
+        try {
+            $customer = $this->customerService->findOrCreateByDoc($dni);
+
+            if ($customer === null) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'DOC_NOT_FOUND',
+                    'message' => 'No se encontró un cliente registrado con ese documento.',
+                ], 404);
+            }
+
+            return response()->json($customer);
+        } catch (Exception $e) {
+            return match ($e->getMessage()) {
+                'SUNAT_TIMEOUT', 'SUNAT_UNAVAILABLE' => response()->json([
+                    'success' => false,
+                    'code' => $e->getMessage(),
+                    'message' => 'El servicio de SUNAT está inestable. Reintente en un momento.',
+                ], 503),
+                'DOC_NOT_FOUND' => response()->json([
+                    'success' => false,
+                    'code' => 'DOC_NOT_FOUND',
+                    'message' => 'El documento no está registrado en SUNAT/RENIEC.',
+                ], 404),
+                default => response()->json([
+                    'success' => false,
+                    'code' => 'SUNAT_LOOKUP_FAILED',
+                    'message' => 'No se pudo consultar el documento. Intente nuevamente.',
+                ], 500),
+            };
+        }
     }
 
     public function checkout(CheckoutPosRequest $request): JsonResponse

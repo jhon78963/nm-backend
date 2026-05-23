@@ -8,6 +8,7 @@ use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\InventoryLedger\Services\InventoryMovementService;
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
@@ -48,6 +49,8 @@ class PurchaseBulkService
         if ($warehouseId < 1) {
             throw new InvalidArgumentException('Debe enviar un warehouseId válido para registrar la compra.');
         }
+
+        WarehouseIdForInventoryResolver::assertUserCanAccessWarehouse($warehouseId);
 
         $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
         $vendorId = isset($purchase['vendorId']) ? (int) $purchase['vendorId'] : null;
