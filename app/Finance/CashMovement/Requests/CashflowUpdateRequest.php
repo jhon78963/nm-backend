@@ -47,7 +47,7 @@ class CashflowUpdateRequest extends FormRequest
             'amount' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
             'date' => 'nullable|date',
-            'payment_method' => 'nullable|string',
+            'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
             'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
         ];
     }

@@ -5,6 +5,7 @@ namespace App\Finance\CashMovement\Controllers;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Requests\CashflowStoreRequest;
 use App\Finance\CashMovement\Requests\CashflowUpdateRequest;
+use App\Finance\CashMovement\Resources\CashMovementResource;
 use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -33,7 +34,14 @@ class CashflowController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $report
+            'data' => [
+                'summary' => $report['summary'],
+                'lists' => [
+                    'sales' => $report['lists']['sales'],
+                    'incomes' => CashMovementResource::collection($report['lists']['incomes']),
+                    'expenses' => CashMovementResource::collection($report['lists']['expenses']),
+                ],
+            ],
         ]);
     }
 
@@ -46,7 +54,11 @@ class CashflowController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $report
+            'data' => [
+                'month' => $report['month'],
+                'total_monthly_admin' => $report['total_monthly_admin'],
+                'expenses' => CashMovementResource::collection($report['expenses']),
+            ],
         ]);
     }
 
@@ -57,11 +69,18 @@ class CashflowController extends Controller
         // Pasamos los datos y el archivo (si existe)
         $movement = $this->cashflowService->registerMovement($data, $request->file('image'));
 
-        return response()->json(['success' => true, 'data' => $movement]);
+        return response()->json([
+            'success' => true,
+            'data' => new CashMovementResource($movement),
+        ]);
     }
 
     public function update(CashflowUpdateRequest $request, CashMovement $cashMovement): JsonResponse
     {
+        if ($cashMovement->is_deleted) {
+            abort(404, 'Movimiento no encontrado');
+        }
+
         $data = $request->validated();
 
         $movement = $this->cashflowService->updateMovement(
@@ -70,7 +89,10 @@ class CashflowController extends Controller
             $request->file('image'),
         );
 
-        return response()->json(['success' => true, 'data' => $movement]);
+        return response()->json([
+            'success' => true,
+            'data' => new CashMovementResource($movement),
+        ]);
     }
 
     public function streamVoucher(Request $request): Response

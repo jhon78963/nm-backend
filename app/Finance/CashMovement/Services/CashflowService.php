@@ -57,26 +57,16 @@ class CashflowService
             })->filter()->values();
 
         // 2. OBTENER MOVIMIENTOS MANUALES (Filtrados también)
-        $movements = CashMovement::query()
+        $movementModels = CashMovement::query()
             ->whereBetween('date', [$startOfDay, $endOfDay])
             ->where('is_deleted', false)
             ->where('category', CashMovement::CATEGORY_STORE)
             ->whereIn('payment_method', $activeFilters)
             ->orderBy('date', 'desc')
-            ->get()
-            ->map(function ($mov) {
-                return [
-                    'id' => $mov->id,
-                    'type' => $mov->type,
-                    'time' => $mov->date->format('H:i A'),
-                    'description' => $mov->description,
-                    'method' => $mov->payment_method,
-                    'amount' => (float) $mov->amount,
-                ];
-            });
+            ->get();
 
-        $incomes = $movements->where('type', 'INCOME')->values();
-        $expenses = $movements->where('type', 'EXPENSE')->values();
+        $incomes = $movementModels->where('type', 'INCOME')->values();
+        $expenses = $movementModels->where('type', 'EXPENSE')->values();
 
         // 3. CÁLCULOS (Solo de lo que se está viendo)
         $totalSales = $sales->sum('amount');
@@ -117,17 +107,7 @@ class CashflowService
             ->whereMonth('date', $monthNum)
             ->where('is_deleted', false)
             ->orderBy('date', 'desc')
-            ->get()
-            ->map(function ($mov) {
-                return [
-                    'id' => $mov->id,
-                    'date' => $mov->date->format('Y-m-d H:i:s'),
-                    'description' => $mov->description,
-                    'amount' => (float) $mov->amount,
-                    'method' => $mov->payment_method,
-                    'voucher_path' => $mov->voucher_path,
-                ];
-            });
+            ->get();
 
         return [
             'month' => $date->format('F Y'),

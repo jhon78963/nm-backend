@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Finance\CashMovement\Resources;
+
+use App\Finance\CashMovement\Models\CashMovement;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * @mixin CashMovement
+ */
+class CashMovementResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'type' => $this->type,
+            'category' => $this->category,
+            'amount' => (float) $this->amount,
+            'description' => $this->description,
+            'payment_method' => $this->payment_method,
+            'method' => $this->payment_method,
+            'date' => $this->date?->format('Y-m-d H:i:s'),
+            'time' => $this->date?->format('H:i A'),
+            'voucher_path' => $this->voucher_path,
+            'expense_category' => $this->expense_category,
+            'reference_code' => $this->reference_code,
+        ];
+    }
+}
