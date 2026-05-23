@@ -44,4 +44,8 @@ return [
         'token' => env('SUNAT_TOKEN'),
     ],
 
+    'frontend' => [
+        'url' => env('FRONTEND_URL', 'http://localhost:4200'),
+    ],
+
 ];

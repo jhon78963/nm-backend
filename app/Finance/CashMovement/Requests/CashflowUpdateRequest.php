@@ -2,6 +2,7 @@
 
 namespace App\Finance\CashMovement\Requests;
 
+use App\Finance\CashMovement\Models\CashMovement;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CashflowUpdateRequest extends FormRequest
@@ -14,7 +15,21 @@ class CashflowUpdateRequest extends FormRequest
             return false;
         }
 
-        if ($this->input('category') === 'ADMINISTRATIVE') {
+        if (! $user->can('cashflow.update')) {
+            return false;
+        }
+
+        /** @var CashMovement|null $movement */
+        $movement = $this->route('cashMovement');
+
+        if ($movement === null) {
+            return false;
+        }
+
+        $isAdministrativeInDb = $movement->category === 'ADMINISTRATIVE';
+        $changingToAdministrative = $this->input('category') === 'ADMINISTRATIVE';
+
+        if ($isAdministrativeInDb || $changingToAdministrative) {
             return $user->can('cashflow.getAdminMonthlyReport');
         }
 

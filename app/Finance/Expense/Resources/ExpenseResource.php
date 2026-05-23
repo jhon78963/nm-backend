@@ -26,16 +26,16 @@ class ExpenseResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'expenseDate' => $this->expense_date?->format('d/m/Y H:i') ?? '---',
+            'expenseDate' => $this->date?->format('d/m/Y H:i') ?? '---',
             'description' => $this->description,
-            'category' => $this->category,
+            'category' => $this->expense_category,
             'amount' => $this->amount,
             'paymentMethod' => $this->payment_method,
             'referenceCode' => $this->reference_code,
             'user' => $this->creator
                 ? $this->creator->name . ' ' . $this->creator->surname
                 : '---',
-            'userId' => $this->user_id,
+            'userId' => $this->creator_user_id,
         ];
     }
 }

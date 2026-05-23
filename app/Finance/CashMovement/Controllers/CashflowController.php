@@ -2,6 +2,7 @@
 
 namespace App\Finance\CashMovement\Controllers;
 
+use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Requests\CashflowStoreRequest;
 use App\Finance\CashMovement\Requests\CashflowUpdateRequest;
 use App\Finance\CashMovement\Services\CashflowService;
@@ -59,11 +60,15 @@ class CashflowController extends Controller
         return response()->json(['success' => true, 'data' => $movement]);
     }
 
-    public function update(CashflowUpdateRequest $request, $id): JsonResponse
+    public function update(CashflowUpdateRequest $request, CashMovement $cashMovement): JsonResponse
     {
         $data = $request->validated();
 
-        $movement = $this->cashflowService->updateMovement($id, $data, $request->file('image'));
+        $movement = $this->cashflowService->updateMovement(
+            $cashMovement->id,
+            $data,
+            $request->file('image'),
+        );
 
         return response()->json(['success' => true, 'data' => $movement]);
     }

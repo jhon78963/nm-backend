@@ -3,50 +3,92 @@
 namespace App\Finance\Expense\Models;
 
 use App\Administration\User\Models\User;
+use App\Finance\CashMovement\Models\CashMovement;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
-use App\Traits\HasMedia;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Vista de gastos administrativos sobre cash_movements.
+ * Toda escritura de gastos administrativos debe persistir en cash_movements.
+ */
 class Expense extends Model
 {
-    use BelongsToWarehouse, HasMedia;
+    use BelongsToWarehouse;
 
     public $timestamps = false;
-    protected $table = 'expenses';
+
+    protected $table = 'cash_movements';
 
     protected $fillable = [
-        'expense_date',
+        'date',
         'description',
-        'category',
+        'expense_category',
         'amount',
         'payment_method',
         'reference_code',
-        'user_id',
-        'warehouse_id',
         'creator_user_id',
+        'warehouse_id',
     ];
 
     protected $casts = [
-        'expense_date' => 'datetime',
+        'date' => 'datetime',
         'amount' => 'decimal:2',
         'is_deleted' => 'boolean',
         'creation_time' => 'datetime',
         'last_modification_time' => 'datetime',
     ];
 
-    /**
-     * Relación: Un gasto es registrado por un usuario.
-     */
-    public function creator(): BelongsTo
+    protected static function booted(): void
     {
-        return $this->belongsTo(User::class, 'user_id');
+        static::addGlobalScope('administrative_expense', function (Builder $builder): void {
+            $builder
+                ->where('type', CashMovement::TYPE_EXPENSE)
+                ->where('category', CashMovement::CATEGORY_ADMINISTRATIVE);
+        });
+
+        static::creating(function (Expense $expense): void {
+            $expense->type = CashMovement::TYPE_EXPENSE;
+            $expense->category = CashMovement::CATEGORY_ADMINISTRATIVE;
+        });
     }
 
-    /**
-     * Scope para filtrar gastos activos (no eliminados).
-     * Uso: Expense::active()->get();
-     */
+    public function getExpenseDateAttribute(): mixed
+    {
+        return $this->date;
+    }
+
+    public function setExpenseDateAttribute(mixed $value): void
+    {
+        $this->attributes['date'] = $value;
+    }
+
+    public function getCategoryAttribute(): ?string
+    {
+        return $this->attributes['expense_category'] ?? null;
+    }
+
+    public function setCategoryAttribute(?string $value): void
+    {
+        $this->attributes['expense_category'] = $value;
+    }
+
+    public function getUserIdAttribute(): ?int
+    {
+        return $this->creator_user_id !== null ? (int) $this->creator_user_id : null;
+    }
+
+    public function setUserIdAttribute(?int $value): void
+    {
+        $this->creator_user_id = $value;
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creator_user_id');
+    }
+
     public function scopeActive($query): mixed
     {
         return $query->where('is_deleted', false);

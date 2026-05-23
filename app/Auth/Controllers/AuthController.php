@@ -5,6 +5,7 @@ namespace App\Auth\Controllers;
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\LoginRequest;
+use App\Auth\Requests\ResetPasswordRequest;
 use App\Auth\Requests\UpdateMeRequest;
 use App\Administration\User\Models\User;
 use App\Auth\Resources\MeResource;
@@ -12,6 +13,7 @@ use App\Auth\Services\AuthService;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Auth;
+use Illuminate\Support\Facades\Password;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthController extends Controller
@@ -90,6 +92,26 @@ class AuthController extends Controller
         $user->refresh();
 
         return response()->json(new MeResource($user));
+    }
+
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $status = $this->authService->resetPasswordWithToken(
+            $request->validated('email'),
+            $request->validated('password'),
+            $request->validated('token'),
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json([
+                'success' => false,
+                'message' => __($status),
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Contraseña establecida correctamente. Ya puedes iniciar sesión.',
+        ]);
     }
 
     public function logout(): JsonResponse

@@ -10,6 +10,7 @@ use App\Auth\Models\PersonalAccessToken;
 use App\Auth\Requests\UpdateMeRequest;
 use Carbon\Carbon;
 use Hash;
+use Illuminate\Support\Facades\Password;
 
 class AuthService
 {
@@ -44,6 +45,24 @@ class AuthService
         $user->password = $newPassword;
         $user->must_change_password = false;
         $user->save();
+    }
+
+    public function resetPasswordWithToken(string $email, string $password, string $token): string
+    {
+        return Password::reset(
+            [
+                'email' => $email,
+                'password' => $password,
+                'password_confirmation' => $password,
+                'token' => $token,
+            ],
+            function (User $user, string $newPassword): void {
+                $user->forceFill([
+                    'password' => $newPassword,
+                    'must_change_password' => false,
+                ])->save();
+            },
+        );
     }
 
     public function createTokens(User $user, bool $revokeExistingTokens = false): array

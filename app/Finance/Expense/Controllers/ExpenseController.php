@@ -65,8 +65,8 @@ class ExpenseController extends Controller
             request: $request,
             entityName: 'Finance\\Expense',
             modelName: 'Expense',
-            columnSearch: ['id', 'expense_date', 'description', 'category', 'amount', 'payment_method', 'reference_code'],
-            orderBy: 'expense_date',
+            columnSearch: ['id', 'date', 'description', 'expense_category', 'amount', 'payment_method', 'reference_code'],
+            orderBy: 'date',
             orderDir: 'desc',
         );
 

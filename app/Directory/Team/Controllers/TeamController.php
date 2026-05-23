@@ -4,6 +4,7 @@ namespace App\Directory\Team\Controllers;
 
 use App\Administration\User\Models\User;
 use App\Directory\Team\Models\Team;
+use App\Directory\Team\Notifications\TeamMemberWelcomeNotification;
 use App\Directory\Team\Requests\TeamCreateRequest;
 use App\Directory\Team\Requests\TeamUpdateRequest;
 use App\Directory\Team\Resources\TeamResource;
@@ -16,6 +17,7 @@ use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 class TeamController extends Controller
@@ -42,8 +44,6 @@ class TeamController extends Controller
                 throw new \InvalidArgumentException('La tienda seleccionada no tiene un cliente (tenant) asociado.');
             }
 
-            $plainPassword = Str::password(12);
-
             $email = sprintf('%s.%s@novedadesmaritex.net.pe', $team->name, $team->surname);
             $username = sprintf('%s.%s', $team->name, $team->surname);
 
@@ -53,7 +53,7 @@ class TeamController extends Controller
                 'name' => $team->name,
                 'surname' => $team->surname,
             ]);
-            $user->password = Hash::make($plainPassword);
+            $user->password = Hash::make(Str::random(32));
             $user->must_change_password = true;
             $user->warehouse_id = $team->warehouse_id;
             $user->tenant_id = $tenantId;
@@ -64,16 +64,15 @@ class TeamController extends Controller
             $team->user_id = $user->id;
             $team->save();
 
+            $emailSent = $this->sendWelcomePasswordSetupEmail($user);
+
             $team->load('user');
 
             return response()->json([
-                'message' => 'Colaborador y usuario de acceso creados.',
+                'message' => $emailSent
+                    ? 'Colaborador y usuario de acceso creados. Se envió un correo para establecer la contraseña.'
+                    : 'Colaborador y usuario de acceso creados. No se pudo enviar el correo de activación; verifique la configuración de correo.',
                 'data' => new TeamResource($team),
-                'login' => [
-                    'email' => $user->email,
-                    'username' => $user->username,
-                    'temporary_password' => $plainPassword,
-                ],
             ], 201);
         });
     }
@@ -121,5 +120,19 @@ class TeamController extends Controller
             $query['total'],
             $query['pages']
         ));
+    }
+
+    private function sendWelcomePasswordSetupEmail(User $user): bool
+    {
+        try {
+            $token = Password::broker()->createToken($user);
+            $user->notify(new TeamMemberWelcomeNotification($token));
+
+            return true;
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
     }
 }

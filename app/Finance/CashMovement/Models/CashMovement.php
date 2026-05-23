@@ -3,11 +3,20 @@
 namespace App\Finance\CashMovement\Models;
 
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class CashMovement extends Model
 {
     use BelongsToWarehouse;
+
+    public const TYPE_INCOME = 'INCOME';
+
+    public const TYPE_EXPENSE = 'EXPENSE';
+
+    public const CATEGORY_ADMINISTRATIVE = 'ADMINISTRATIVE';
+
+    public const CATEGORY_STORE = 'STORE';
 
     public $timestamps = false;
 
@@ -20,11 +29,14 @@ class CashMovement extends Model
         'description',
         'payment_method',
         'category',
+        'expense_category',
+        'reference_code',
         'voucher_path',
+        'legacy_expense_id',
         'warehouse_id',
         'creation_time',
         'creator_user_id',
-        'is_deleted'
+        'is_deleted',
     ];
 
     protected $casts = [
@@ -32,4 +44,28 @@ class CashMovement extends Model
         'creation_time' => 'datetime',
         'date' => 'datetime',
     ];
+
+    public function scopeExpenses(Builder $query): Builder
+    {
+        return $query->where('type', self::TYPE_EXPENSE);
+    }
+
+    public function scopeOperatingExpenses(Builder $query): Builder
+    {
+        return $query
+            ->expenses()
+            ->whereIn('category', [self::CATEGORY_ADMINISTRATIVE, self::CATEGORY_STORE]);
+    }
+
+    public function scopeAdministrativeExpenses(Builder $query): Builder
+    {
+        return $query
+            ->expenses()
+            ->where('category', self::CATEGORY_ADMINISTRATIVE);
+    }
+
+    public function scopeStoreMovements(Builder $query): Builder
+    {
+        return $query->where('category', self::CATEGORY_STORE);
+    }
 }

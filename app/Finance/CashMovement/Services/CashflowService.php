@@ -57,10 +57,11 @@ class CashflowService
             })->filter()->values();
 
         // 2. OBTENER MOVIMIENTOS MANUALES (Filtrados también)
-        $movements = CashMovement::whereBetween('date', [$startOfDay, $endOfDay])
+        $movements = CashMovement::query()
+            ->whereBetween('date', [$startOfDay, $endOfDay])
             ->where('is_deleted', false)
-            ->where('category', 'STORE')
-            ->whereIn('payment_method', $activeFilters) // Filtro para ingresos/gastos manuales
+            ->where('category', CashMovement::CATEGORY_STORE)
+            ->whereIn('payment_method', $activeFilters)
             ->orderBy('date', 'desc')
             ->get()
             ->map(function ($mov) {
@@ -110,10 +111,10 @@ class CashflowService
         $year = $date->year;
         $monthNum = $date->month;
 
-        $expenses = CashMovement::whereYear('date', $year)
+        $expenses = CashMovement::query()
+            ->administrativeExpenses()
+            ->whereYear('date', $year)
             ->whereMonth('date', $monthNum)
-            ->where('category', 'ADMINISTRATIVE')
-            ->where('type', 'EXPENSE')
             ->where('is_deleted', false)
             ->orderBy('date', 'desc')
             ->get()
@@ -154,6 +155,18 @@ class CashflowService
             'creator_user_id' => $this->resolveAuthenticatedUserId(),
             'date' => $data['date'],
         ]);
+    }
+
+    /**
+     * Los gastos administrativos deben registrarse siempre como
+     * type=EXPENSE + category=ADMINISTRATIVE en cash_movements.
+     */
+    public function registerAdministrativeExpense(array $data, ?UploadedFile $image = null): CashMovement
+    {
+        $data['type'] = CashMovement::TYPE_EXPENSE;
+        $data['category'] = CashMovement::CATEGORY_ADMINISTRATIVE;
+
+        return $this->registerMovement($data, $image);
     }
 
     public function updateMovement(int $id, array $data, ?UploadedFile $newImage = null)
