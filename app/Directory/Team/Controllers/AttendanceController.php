@@ -8,6 +8,8 @@ use App\Shared\Foundation\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
 {
@@ -80,7 +82,15 @@ class AttendanceController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'team_id' => 'required|exists:teams,id',
+            'team_id' => [
+                'required',
+                Rule::exists('teams', 'id')->where(function ($query) {
+                    $user = Auth::user();
+                    if ($user && ! $user->hasRole('Super Admin')) {
+                        $query->where('warehouse_id', $user->warehouse_id);
+                    }
+                }),
+            ],
             'date' => 'required|date',
             'status' => 'required|in:PUNTUAL,TARDE,FALTA,DESCANSO,VACACIONES,RECUPERACION,VALDEO,TOLERANCIA',
             'check_in_time' => 'nullable|date_format:H:i',

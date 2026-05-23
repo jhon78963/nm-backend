@@ -14,15 +14,12 @@ use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
 class PosController extends Controller
 {
-    private const TICKET_URL_TTL_MINUTES = 15;
-
     public function __construct(
         protected CustomerService $customerService,
         protected ProductService $productService,
@@ -72,7 +69,7 @@ class PosController extends Controller
             return response()->json([
                 'success' => true,
                 'sale_id' => $sale->id,
-                'ticket_url' => $this->signedTicketUrl((int) $sale->id),
+                'ticket_url' => $this->ticketPrintUrl((int) $sale->id),
                 'message' => 'Venta registrada correctamente',
             ]);
         } catch (ValidationException $e) {
@@ -97,21 +94,22 @@ class PosController extends Controller
         $this->findTicketSale($saleId);
 
         return response()->json([
-            'ticket_url' => $this->signedTicketUrl($saleId),
+            'ticket_url' => $this->ticketPrintUrl($saleId),
         ]);
     }
 
-    public function printTicket(Request $request, int $saleId): View
+    public function printTicket(int $saleId): View
     {
-        if (! $request->hasValidSignature()) {
-            abort(403, 'Enlace de ticket inválido o expirado.');
-        }
-
         $sale = $this->findTicketSale($saleId);
 
         return view('pos.ticket', compact('sale'));
     }
 
+    /**
+     * Sale usa BelongsToWarehouse → WarehouseScope filtra por almacén del actor autenticado.
+     * Super Admin puede cambiar almacén vía X-Warehouse-Id (AuthenticatedUserWarehouseResolver).
+     * Sin sesión válida el scope no aplica; la ruta exige auth:sanctum en api.php.
+     */
     private function findTicketSale(int $saleId): Sale
     {
         return Sale::query()
@@ -121,12 +119,8 @@ class PosController extends Controller
             ->firstOrFail();
     }
 
-    private function signedTicketUrl(int $saleId): string
+    private function ticketPrintUrl(int $saleId): string
     {
-        return URL::temporarySignedRoute(
-            'pos.sales.ticket',
-            now()->addMinutes(self::TICKET_URL_TTL_MINUTES),
-            ['saleId' => $saleId],
-        );
+        return route('pos.sales.ticket', ['saleId' => $saleId]);
     }
 }

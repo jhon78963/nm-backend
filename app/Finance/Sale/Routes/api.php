@@ -10,6 +10,12 @@ Route::controller(PosController::class)->group(function (): void {
     Route::post('/pos/checkout', 'checkout')->middleware('permission:pos.checkout');
     Route::get('/pos/sales/{saleId}/ticket-url', 'ticketUrl')
         ->middleware('permission:sale.get|pos.checkout');
+    Route::get('/pos/sales/{saleId}/ticket', 'printTicket')
+        ->name('pos.sales.ticket')
+        ->middleware('permission:sale.get|pos.checkout');
+    Route::get('/pos/sales/{saleId}/ticket/html', 'printTicket')
+        ->name('pos.sales.ticket.html')
+        ->middleware('permission:sale.get|pos.checkout');
 });
 
 Route::controller(SaleController::class)->group(function (): void {
