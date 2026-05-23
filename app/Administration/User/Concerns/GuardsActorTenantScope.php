@@ -24,7 +24,13 @@ trait GuardsActorTenantScope
         $tenantId = $this->input('tenantId', $this->input('tenant_id'));
 
         if ($tenantId === null) {
-            return true;
+            $routeUser = $this->route('user');
+
+            if ($routeUser !== null) {
+                return (int) $routeUser->tenant_id === (int) $actor->tenant_id;
+            }
+
+            return false;
         }
 
         return (int) $tenantId === (int) $actor->tenant_id;

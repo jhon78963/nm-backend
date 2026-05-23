@@ -2,6 +2,7 @@
 
 namespace App\Administration\User\Controllers;
 
+use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
 use App\Administration\User\Models\User;
 use App\Administration\User\Requests\UserCreateRequest;
 use App\Administration\User\Requests\UserUpdateRequest;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+
 class UserController extends Controller
 {
     public function __construct(
@@ -47,6 +49,7 @@ class UserController extends Controller
     public function update(UserUpdateRequest $request, User $user): JsonResponse
     {
         return DB::transaction(function () use ($request, $user): JsonResponse {
+            $this->assertActorCanAccessUser($user);
             $this->userService->validate($user, 'User');
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $roleNames = Arr::pull($data, 'role_names');
@@ -72,6 +75,7 @@ class UserController extends Controller
     public function delete(User $user): JsonResponse
     {
         return DB::transaction(function () use ($user): JsonResponse {
+            $this->assertActorCanAccessUser($user);
             $this->userService->validate($user, 'User');
             $this->userService->delete($user);
 
@@ -81,6 +85,7 @@ class UserController extends Controller
 
     public function get(User $user): JsonResponse
     {
+        $this->assertActorCanAccessUser($user);
         $this->userService->validate($user, 'User');
 
         return response()->json(new UserResource($user));
@@ -88,11 +93,19 @@ class UserController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
+        $extendQuery = null;
+        $actor = auth()->user();
+
+        if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
+            $extendQuery = fn ($query) => $query->where('tenant_id', (int) $actor->tenant_id);
+        }
+
         $query = $this->sharedService->query(
             request: $request,
             entityName: 'Administration\\User',
             modelName: 'User',
-            columnSearch: ['username', 'email', 'name', 'surname']
+            columnSearch: ['username', 'email', 'name', 'surname'],
+            extendQuery: $extendQuery,
         );
 
         return response()->json(new GetAllCollection(
@@ -100,5 +113,28 @@ class UserController extends Controller
             $query['total'],
             $query['pages']
         ));
+    }
+
+    private function assertActorCanAccessUser(User $user): void
+    {
+        $actor = auth()->user();
+
+        if ($actor === null) {
+            abort(403, 'Forbidden');
+        }
+
+        if ($this->actorIsSuperAdmin($actor)) {
+            return;
+        }
+
+        if ((int) $user->tenant_id !== (int) $actor->tenant_id) {
+            abort(403, 'No tiene permiso para gestionar usuarios de otro tenant.');
+        }
+    }
+
+    private function actorIsSuperAdmin(User $actor): bool
+    {
+        return method_exists($actor, 'hasRole')
+            && $actor->hasRole(GuardsSuperAdminRoleAssignment::SUPER_ADMIN_ROLE);
     }
 }

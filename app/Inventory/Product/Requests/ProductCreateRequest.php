@@ -2,17 +2,16 @@
 
 namespace App\Inventory\Product\Requests;
 
+use App\Inventory\Product\Concerns\ValidatesAccessibleWarehouseInput;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class ProductCreateRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
+    use ValidatesAccessibleWarehouseInput;
+
     public function authorize(): bool
     {
-        return true;
+        return $this->authorizesRequestedWarehouse();
     }
 
     /**
@@ -22,14 +21,16 @@ class ProductCreateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $warehouseRules = $this->accessibleWarehouseRule('nullable');
+
         return [
             'name' => 'required|string|max:50',
             'barcode' => 'nullable|string',
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'genderId' => 'required|integer',
-            'warehouseId' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
-            'warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
+            'warehouseId' => $warehouseRules,
+            'warehouse_id' => $warehouseRules,
         ];
     }
 }

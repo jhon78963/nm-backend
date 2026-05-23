@@ -146,6 +146,8 @@ class ProductController extends Controller
             );
         }
 
+        WarehouseIdForInventoryResolver::assertUserCanAccessWarehouse($warehouseId);
+
         return $warehouseId;
     }
 }

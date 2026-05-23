@@ -2,16 +2,16 @@
 
 namespace App\Inventory\Product\Requests;
 
+use App\Inventory\Product\Concerns\ValidatesAccessibleWarehouseInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProductUpdateRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
+    use ValidatesAccessibleWarehouseInput;
+
     public function authorize(): bool
     {
-        return true;
+        return $this->authorizesRequestedWarehouse();
     }
 
     /**
@@ -23,6 +23,8 @@ class ProductUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $warehouseRules = $this->accessibleWarehouseRule('sometimes');
+
         return [
             'name' => 'sometimes|string|max:50',
             'barcode' => 'nullable|string',
@@ -31,7 +33,8 @@ class ProductUpdateRequest extends FormRequest
             'description' => 'nullable|string|max:255',
             'stock' => 'nullable|integer',
             'genderId' => 'sometimes|integer',
-            'warehouseId' => 'sometimes|integer',
+            'warehouseId' => $warehouseRules,
+            'warehouse_id' => $warehouseRules,
         ];
     }
 }
