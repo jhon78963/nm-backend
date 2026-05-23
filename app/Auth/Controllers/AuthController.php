@@ -158,11 +158,11 @@ class AuthController extends Controller
             $value,
             $minutes,
             '/',
-            null,
+            config('session.domain'),
             config('session.secure'),
             true,
             false,
-            'Lax',
+            config('session.same_site'),
         );
     }
 

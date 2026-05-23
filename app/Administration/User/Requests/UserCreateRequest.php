@@ -46,7 +46,7 @@ class UserCreateRequest extends FormRequest
                 Rule::exists('warehouses', 'id')->where('tenant_id', $this->input('tenantId')),
             ],
             'password' => 'required|string|min:8|confirmed',
-            'file' => 'nullable|max:2048',
+            'file' => 'nullable|mimes:jpeg,png,jpg,webp|max:2048',
         ];
     }
 }

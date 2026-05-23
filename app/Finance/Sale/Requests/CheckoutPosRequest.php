@@ -30,7 +30,7 @@ class CheckoutPosRequest extends FormRequest
             // Subtotal por línea ignorado en servidor (se deriva de cantidad × precio unitario).
             'items.*.total' => 'nullable|decimal:0,2|min:0',
             'payments' => 'required|array|min:1',
-            'payments.*.method' => 'required|string',
+            'payments.*.method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
             'payments.*.amount' => 'required|decimal:0,2|min:0',
             'payments.*.reference' => 'nullable|string',
         ];
