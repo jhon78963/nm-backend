@@ -43,6 +43,11 @@ class ProductController extends Controller
         return DB::transaction(function () use ($request, $product) {
             $this->productService->validate($product, 'Product');
             $data = $this->sharedService->convertCamelToSnake($request->validated());
+
+            if (array_key_exists('warehouse_id', $data) && $data['warehouse_id'] !== null) {
+                WarehouseIdForInventoryResolver::assertUserCanAccessWarehouse((int) $data['warehouse_id']);
+            }
+
             $this->productService->update($product, $data);
 
             return response()->json([

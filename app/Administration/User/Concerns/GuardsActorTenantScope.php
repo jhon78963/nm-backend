@@ -21,26 +21,28 @@ trait GuardsActorTenantScope
             return true;
         }
 
+        $actorTenantId = (int) $actor->tenant_id;
         $tenantId = $this->input('tenantId', $this->input('tenant_id'));
 
-        if ($tenantId === null) {
-            $routeUser = $this->route('user');
-
-            if ($routeUser !== null) {
-                return (int) $routeUser->tenant_id === (int) $actor->tenant_id;
-            }
-
+        if ($tenantId !== null && (int) $tenantId !== $actorTenantId) {
             return false;
         }
 
-        return (int) $tenantId === (int) $actor->tenant_id;
+        $routeUser = $this->route('user');
+
+        if ($routeUser !== null) {
+            return (int) $routeUser->tenant_id === $actorTenantId;
+        }
+
+        return true;
     }
 
     protected function tenantIdForWarehouseValidation(): mixed
     {
         return $this->input('tenantId')
             ?? $this->input('tenant_id')
-            ?? $this->route('user')?->tenant_id;
+            ?? $this->route('user')?->tenant_id
+            ?? $this->user()?->tenant_id;
     }
 
     protected function failedActorTenantScopeAuthorization(): never

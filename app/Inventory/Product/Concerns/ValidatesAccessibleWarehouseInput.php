@@ -2,7 +2,9 @@
 
 namespace App\Inventory\Product\Concerns;
 
+use App\Inventory\InventoryLedger\Rules\AccessibleWarehouseForActor;
 use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\Rule;
 
 trait ValidatesAccessibleWarehouseInput
@@ -21,7 +23,13 @@ trait ValidatesAccessibleWarehouseInput
             return true;
         }
 
-        return WarehouseIdForInventoryResolver::userCanAccessWarehouse($warehouseId, $user);
+        if (! WarehouseIdForInventoryResolver::userCanAccessWarehouse($warehouseId, $user)) {
+            throw new AuthorizationException(
+                'No tiene permiso para acceder a este almacén.',
+            );
+        }
+
+        return true;
     }
 
     protected function requestedWarehouseId(): ?int
@@ -44,7 +52,8 @@ trait ValidatesAccessibleWarehouseInput
      */
     protected function accessibleWarehouseRule(string $presence = 'nullable'): array
     {
-        $tenantId = (int) ($this->user()?->tenant_id ?? 0);
+        $user = $this->user();
+        $tenantId = (int) ($user?->tenant_id ?? 0);
 
         $existsRule = Rule::exists('warehouses', 'id');
         if ($tenantId > 0) {
@@ -58,6 +67,7 @@ trait ValidatesAccessibleWarehouseInput
             'integer',
             'min:1',
             $existsRule,
+            new AccessibleWarehouseForActor($user),
         ];
     }
 }
