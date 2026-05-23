@@ -7,6 +7,7 @@ use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Requests\CheckoutPosRequest;
 use App\Finance\Sale\Requests\SearchCustomerDocRequest;
 use App\Finance\Sale\Requests\SearchProductSkuRequest;
+use App\Finance\Sale\Services\ElectronicDocumentService;
 use App\Finance\Sale\Services\SaleService;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
@@ -22,9 +23,10 @@ use Throwable;
 class PosController extends Controller
 {
     public function __construct(
-        protected CustomerService $customerService,
-        protected ProductService $productService,
-        protected SaleService $saleService,
+        protected CustomerService            $customerService,
+        protected ProductService             $productService,
+        protected SaleService                $saleService,
+        protected ElectronicDocumentService  $electronicDocumentService,
     ) {
     }
 
@@ -82,8 +84,10 @@ class PosController extends Controller
 
         try {
             $serviceData = [
-                'customer_id' => data_get($data, 'customer.id'),
-                'payments' => $data['payments'],
+                'customer_id'   => data_get($data, 'customer.id'),
+                'document_type' => $data['document_type'],
+                'serie'         => $data['serie'] ?? null,
+                'payments'      => $data['payments'],
                 'items' => collect($data['items'])->map(function ($i) {
                     return [
                         'product_size_id' => $i['color']['product_size_id'],
@@ -96,11 +100,28 @@ class PosController extends Controller
 
             $sale = $this->saleService->processPosSale($serviceData);
 
+            // sendDocument() corre FUERA de la TX de la venta: SOAP no participa
+            // en el commit. Si SUNAT falla la venta queda PENDING y se reintenta.
+            if ($sale->sunat_status === 'PENDING') {
+                try {
+                    $this->electronicDocumentService->sendDocument($sale);
+                } catch (Throwable $e) {
+                    Log::error('SUNAT send failed after checkout', [
+                        'sale_id' => $sale->id,
+                        'error'   => $e->getMessage(),
+                    ]);
+                    // La venta fue registrada correctamente; el fallo de SUNAT
+                    // no revierte la venta — se informa como advertencia.
+                }
+            }
+
             return response()->json([
-                'success' => true,
-                'sale_id' => $sale->id,
-                'ticket_url' => $this->ticketPrintUrl((int) $sale->id),
-                'message' => 'Venta registrada correctamente',
+                'success'      => true,
+                'sale_id'      => $sale->id,
+                'ticket_url'   => $this->ticketPrintUrl((int) $sale->id),
+                'sunat_status' => $sale->sunat_status,
+                'invoice_number' => $sale->full_invoice_number,
+                'message'      => 'Venta registrada correctamente',
             ]);
         } catch (ValidationException $e) {
             return \App\Shared\Foundation\Exceptions\ApiExceptionRenderer::render($e, request())

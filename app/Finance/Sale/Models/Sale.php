@@ -27,6 +27,16 @@ class Sale extends Model
         'notes',
         'creation_time',
         'warehouse_id',
+        // Campos de facturación electrónica (SUNAT)
+        'document_type',
+        'serie',
+        'correlativo',
+        'full_invoice_number',
+        'taxable_base',
+        'igv_amount',
+        'sunat_status',
+        'xml_path',
+        'cdr_path',
     ];
 
     /**
@@ -49,6 +59,9 @@ class Sale extends Model
         'deletion_time' => 'datetime',
         'total_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'taxable_base' => 'decimal:2',
+        'igv_amount' => 'decimal:2',
+        'correlativo' => 'integer',
         'is_deleted' => 'boolean'
     ];
 

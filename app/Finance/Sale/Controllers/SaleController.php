@@ -12,7 +12,9 @@ use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -78,6 +80,31 @@ class SaleController extends Controller
 
             return response()->json(['message' => 'Sale updated.'], 200);
         });
+    }
+
+    /**
+     * Genera y descarga la Representación Impresa del comprobante electrónico en PDF.
+     *
+     * El modelo `Sale` ya está resuelto por Route Model Binding con WarehouseScope,
+     * por lo que un usuario solo puede acceder a ventas de su propio almacén.
+     *
+     * Devuelve una respuesta binaria con Content-Type: application/pdf.
+     * El navegador fuerza la descarga gracias a Content-Disposition: attachment.
+     */
+    public function downloadPdf(Sale $sale): Response
+    {
+        $this->saleService->validate($sale, 'Sale');
+
+        $sale->load(['details', 'customer']);
+
+        $filename = $sale->full_invoice_number
+            ? str_replace('-', '_', $sale->full_invoice_number) . '.pdf'
+            : "TICKET_{$sale->code}.pdf";
+
+        $pdf = Pdf::loadView('sale.invoice-pdf', compact('sale'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download($filename);
     }
 
     public function exchange(ExchangeSaleRequest $request): JsonResponse

@@ -27,6 +27,9 @@ class CheckoutPosRequest extends FormRequest
         $warehouseId = $this->operativeWarehouseId();
 
         return [
+            'document_type' => 'required|string|in:BOLETA,FACTURA,TICKET_INTERNO',
+            // serie obligatoria para BOLETA/FACTURA; omitida para TICKET_INTERNO
+            'serie' => 'required_unless:document_type,TICKET_INTERNO|nullable|string|size:4',
             'customer' => 'nullable|array',
             'customer.id' => [
                 'nullable',

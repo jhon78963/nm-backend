@@ -5,6 +5,7 @@ namespace App\Finance\Sale\Services;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Models\SaleDetail;
+use App\Finance\Sale\Services\ElectronicDocumentService;
 use App\Inventory\Concerns\ProvidesInventoryLockSortKey;
 use App\Inventory\InventoryLedger\DTOs\InventoryMovementDTO;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
@@ -29,8 +30,11 @@ class SaleService extends ModelService
 {
     use ProvidesInventoryLockSortKey;
 
-    public function __construct(Sale $sale, protected InventoryMovementService $inventoryMovementService)
-    {
+    public function __construct(
+        Sale $sale,
+        protected InventoryMovementService $inventoryMovementService,
+        protected ElectronicDocumentService $electronicDocumentService,
+    ) {
         parent::__construct($sale);
     }
 
@@ -630,6 +634,15 @@ class SaleService extends ModelService
                     $qty,
                     (int) $sale->id,
                     (int) $detail->id,
+                );
+            }
+
+            // F. Emitir comprobante electrónico (dentro de la misma transacción)
+            if (! empty($data['document_type'])) {
+                $this->electronicDocumentService->issueDocument(
+                    $sale,
+                    (string) $data['document_type'],
+                    (string) ($data['serie'] ?? ''),
                 );
             }
 

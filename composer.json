@@ -11,6 +11,8 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "greenter/greenter": "^5.2",
+        "greenter/xml": "*",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
