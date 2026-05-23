@@ -203,6 +203,14 @@ class CashflowService
             abort(404, 'Comprobante no encontrado.');
         }
 
+        if ($movement->category === 'ADMINISTRATIVE') {
+            $user = auth()->user();
+
+            if ($user === null || ! $user->can('cashflow.getAdminMonthlyReport')) {
+                abort(403, 'Acceso denegado.');
+            }
+        }
+
         $response = $this->nodeUploaderService->fetch($path);
 
         return [
