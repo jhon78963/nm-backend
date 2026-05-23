@@ -8,6 +8,16 @@ class CashflowUpdateRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        $user = $this->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($this->input('category') === 'ADMINISTRATIVE') {
+            return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
         return true;
     }
 
