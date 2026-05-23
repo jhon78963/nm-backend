@@ -4,7 +4,6 @@ namespace App\Report\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
-use App\Inventory\InventoryLedger\Services\InventoryMovementService;
 use App\Inventory\Product\Models\Product;
 use App\Shared\Foundation\Support\WarehouseQueryFilter;
 use Carbon\Carbon;
@@ -295,8 +294,6 @@ class ReportService
      */
     public function getProductsInventoryReport(): array
     {
-        $inventoryMovementService = app(InventoryMovementService::class);
-
         $products = Product::query()
             ->where('is_deleted', false)
             ->orderBy('name')
@@ -313,22 +310,34 @@ class ReportService
             ])
             ->get();
 
-        return $products->map(function (Product $product) use ($inventoryMovementService) {
+        $stockByBalanceKey = $this->loadStockQuantityMapForProducts($products);
+
+        return $products->map(function (Product $product) use ($stockByBalanceKey) {
             $sizes = $product->productSizes
                 ->sortBy(fn ($ps) => $ps->size?->description ?? '')
                 ->values()
-                ->map(function ($ps) use ($inventoryMovementService, $product) {
+                ->map(function ($ps) use ($stockByBalanceKey, $product) {
                     $warehouseId = (int) $product->warehouse_id;
                     $productSizeId = (int) $ps->id;
                     $colors = $ps->colors->map(fn ($c) => [
                         'color_id' => $c->id,
                         'color' => $c->description,
-                        'stock' => $inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, (int) $c->id),
+                        'stock' => $this->resolveStockFromMap(
+                            $stockByBalanceKey,
+                            $warehouseId,
+                            $productSizeId,
+                            (int) $c->id,
+                        ),
                     ])->values()->all();
 
                     $stock = $colors !== []
                         ? array_sum(array_map(static fn (array $color): int => (int) $color['stock'], $colors))
-                        : $inventoryMovementService->getAvailableQuantity($warehouseId, $productSizeId, null);
+                        : $this->resolveStockFromMap(
+                            $stockByBalanceKey,
+                            $warehouseId,
+                            $productSizeId,
+                            null,
+                        );
 
                     return [
                         'product_size_id' => $ps->id,
@@ -349,6 +358,73 @@ class ReportService
                 'sizes' => $sizes,
             ];
         })->values()->all();
+    }
+
+    /**
+     * Carga en batch cantidades desde inventory_balances (misma fuente que getAvailableQuantity).
+     *
+     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @return array<string, int> clave warehouse:product_size:color → quantity
+     */
+    private function loadStockQuantityMapForProducts($products): array
+    {
+        $productSizeIds = [];
+        $warehouseIds = [];
+
+        foreach ($products as $product) {
+            $warehouseId = (int) $product->warehouse_id;
+            if ($warehouseId > 0) {
+                $warehouseIds[$warehouseId] = true;
+            }
+
+            foreach ($product->productSizes as $productSize) {
+                $productSizeIds[(int) $productSize->id] = true;
+            }
+        }
+
+        if ($productSizeIds === []) {
+            return [];
+        }
+
+        $query = DB::table('inventory_balances')
+            ->whereIn('product_size_id', array_keys($productSizeIds))
+            ->select(['warehouse_id', 'product_size_id', 'color_id', 'quantity']);
+
+        if ($warehouseIds !== []) {
+            $query->whereIn('warehouse_id', array_keys($warehouseIds));
+        }
+
+        WarehouseQueryFilter::apply($query, 'inventory_balances.warehouse_id');
+
+        $map = [];
+        foreach ($query->get() as $row) {
+            $colorId = $row->color_id !== null ? (int) $row->color_id : null;
+            $key = $this->stockBalanceKey(
+                (int) $row->warehouse_id,
+                (int) $row->product_size_id,
+                $colorId,
+            );
+            $map[$key] = (int) $row->quantity;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, int>  $stockByBalanceKey
+     */
+    private function resolveStockFromMap(
+        array $stockByBalanceKey,
+        int $warehouseId,
+        int $productSizeId,
+        ?int $colorId,
+    ): int {
+        return $stockByBalanceKey[$this->stockBalanceKey($warehouseId, $productSizeId, $colorId)] ?? 0;
+    }
+
+    private function stockBalanceKey(int $warehouseId, int $productSizeId, ?int $colorId): string
+    {
+        return $warehouseId.':'.$productSizeId.':'.($colorId ?? 'null');
     }
 
     /**
