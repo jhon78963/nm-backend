@@ -32,7 +32,10 @@ foreach ($publicFiles as $file) {
 |
 | Vendedora / Vendedor: solo POS (pos.*) y caja diaria (cashflow.getDaily,
 | cashflow.store). Sin inventario, productos, ventas listado, compras ni admin.
-*/
+|
+| Gastos administrativos y de tienda: unificados en /cash-flow (cash_movements).
+| La API legacy /expenses fue retirada.
+ */
 Route::middleware([
     'auth:sanctum',
     'ability:'.TokenAbility::ACCESS_API->value,

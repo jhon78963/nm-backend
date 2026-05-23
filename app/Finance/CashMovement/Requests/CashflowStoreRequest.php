@@ -30,10 +30,10 @@ class CashflowStoreRequest extends FormRequest
             'type' => 'required|in:INCOME,EXPENSE',
             'category' => 'required|in:ADMINISTRATIVE,STORE',
             'amount' => 'required|numeric|min:0',
-            'description' => 'required|string',
+            'description' => 'required|string|min:1',
             'date' => 'required|date',
             'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
-            'payment_method' => 'nullable|string',
+            'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
         ];
     }
 }

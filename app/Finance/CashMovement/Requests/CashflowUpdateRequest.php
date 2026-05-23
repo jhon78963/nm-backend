@@ -45,7 +45,7 @@ class CashflowUpdateRequest extends FormRequest
             'type' => 'nullable|in:INCOME,EXPENSE',
             'category' => 'nullable|in:ADMINISTRATIVE,STORE',
             'amount' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
+            'description' => 'required|string|min:1',
             'date' => 'nullable|date',
             'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
             'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
