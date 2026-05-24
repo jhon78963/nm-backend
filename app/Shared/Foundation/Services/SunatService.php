@@ -58,6 +58,10 @@ class SunatService
             throw new Exception('SUNAT_TIMEOUT');
         }
 
+        if ($httpStatusCode === 401 || $httpStatusCode === 403) {
+            throw new Exception('SUNAT_UNAVAILABLE');
+        }
+
         if ($httpStatusCode === 404) {
             throw new Exception('DOC_NOT_FOUND');
         }
