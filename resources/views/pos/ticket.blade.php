@@ -88,6 +88,15 @@
         drawer {
             display: none;
         }
+
+        @media print {
+            html,
+            body {
+                width: 80mm !important;
+                max-width: 80mm !important;
+                margin: 0 !important;
+            }
+        }
     </style>
 </head>
 
@@ -170,14 +179,6 @@
         <p><strong>NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES</strong></p>
         <p><strong>***</strong></p>
     </div>
-
-    <script type="text/javascript">
-        try {
-            window.onload = function () {
-                window.print();
-            }
-        } catch (e) {}
-    </script>
 
 </body>
 </html>
