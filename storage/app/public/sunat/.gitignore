@@ -1,0 +1,6 @@
+# Solo rastrear certificados .pem de prueba.
+# Los certificados de PRODUCCIÓN NO deben commitearse;
+# usa la variable SUNAT_CERT_CONTENT (base64) en el .env del servidor.
+*
+!.gitignore
+!*_prueba.pem

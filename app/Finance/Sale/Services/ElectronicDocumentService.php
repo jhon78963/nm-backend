@@ -290,13 +290,14 @@ class ElectronicDocumentService
             return $this->see;
         }
 
-        $config    = (array) config('sunat');
-        $ruc       = (string) ($config['ruc']       ?? '');
-        $solUser   = (string) ($config['sol_user']  ?? '');
-        $solPass   = (string) ($config['sol_pass']  ?? '');
-        $certPath  = (string) ($config['cert_path'] ?? '');
-        $endpoint  = (string) ($config['endpoint']  ?? SunatEndpoints::FE_BETA);
-        $cachePath = $config['cache_path'] ?? null;
+        $config      = (array) config('sunat');
+        $ruc         = (string) ($config['ruc']          ?? '');
+        $solUser     = (string) ($config['sol_user']     ?? '');
+        $solPass     = (string) ($config['sol_pass']     ?? '');
+        $certPath    = (string) ($config['cert_path']    ?? '');
+        $certContent = (string) ($config['cert_content'] ?? '');
+        $endpoint    = (string) ($config['endpoint']     ?? SunatEndpoints::FE_BETA);
+        $cachePath   = $config['cache_path'] ?? null;
 
         if ($ruc === '' || strlen($ruc) !== 11) {
             throw new RuntimeException('SUNAT: RUC del emisor inválido (revisa SUNAT_RUC en .env).');
@@ -304,15 +305,24 @@ class ElectronicDocumentService
         if ($solUser === '' || $solPass === '') {
             throw new RuntimeException('SUNAT: credenciales SOL no configuradas.');
         }
-        if ($certPath === '' || ! is_readable($certPath)) {
-            throw new RuntimeException(
-                "SUNAT: certificado digital no encontrado en: {$certPath}"
-            );
-        }
 
-        $certificate = file_get_contents($certPath);
-        if ($certificate === false || $certificate === '') {
-            throw new RuntimeException("SUNAT: no se pudo leer el certificado en: {$certPath}");
+        // Estrategia 1: contenido base64 (recomendado para producción / CI-CD)
+        // Estrategia 2: ruta absoluta al archivo .pem (conveniente en local)
+        if ($certContent !== '') {
+            $certificate = base64_decode($certContent, strict: true);
+            if ($certificate === false || $certificate === '') {
+                throw new RuntimeException('SUNAT: SUNAT_CERT_CONTENT no es un Base64 válido.');
+            }
+        } elseif ($certPath !== '' && is_readable($certPath)) {
+            $certificate = file_get_contents($certPath);
+            if ($certificate === false || $certificate === '') {
+                throw new RuntimeException("SUNAT: no se pudo leer el certificado en: {$certPath}");
+            }
+        } else {
+            throw new RuntimeException(
+                'SUNAT: certificado digital no configurado. ' .
+                'Define SUNAT_CERT_CONTENT (base64) o SUNAT_CERT_PATH (ruta absoluta) en .env.'
+            );
         }
 
         $see = new See();

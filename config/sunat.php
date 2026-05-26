@@ -49,10 +49,19 @@ return [
     |--------------------------------------------------------------------------
     | Certificado digital
     |--------------------------------------------------------------------------
-    | Ruta ABSOLUTA al archivo .pem (clave privada + cert público concatenados).
-    | Si está vacía y mode=beta, se intentará usar el cert demo de Greenter.
+    | Dos estrategias (se evalúan en orden):
+    |
+    |  1. SUNAT_CERT_PATH  → Ruta absoluta al .pem en el servidor.
+    |                         Útil en desarrollo local.
+    |
+    |  2. SUNAT_CERT_CONTENT → Contenido del .pem codificado en Base64.
+    |                           Recomendado para producción / CI/CD donde el
+    |                           archivo no se puede comprometer en el repo.
+    |                           Para generarlo:
+    |                             base64 -i cert.pem | tr -d '\n'
     */
-    'cert_path' => env('SUNAT_CERT_PATH'),
+    'cert_path'    => env('SUNAT_CERT_PATH'),
+    'cert_content' => env('SUNAT_CERT_CONTENT'),
 
     /*
     |--------------------------------------------------------------------------
