@@ -2,11 +2,11 @@
 
 namespace App\Administration\User\Concerns;
 
+use App\Administration\User\Support\SuperAdminRole;
 use Illuminate\Auth\Access\AuthorizationException;
 
 trait GuardsSuperAdminRoleAssignment
 {
-    public const SUPER_ADMIN_ROLE = 'Super Admin';
 
     public function authorizesSuperAdminRoleAssignment(): bool
     {
@@ -18,7 +18,7 @@ trait GuardsSuperAdminRoleAssignment
 
         return $actor !== null
             && method_exists($actor, 'hasRole')
-            && $actor->hasRole(self::SUPER_ADMIN_ROLE);
+            && $actor->hasRole(SuperAdminRole::NAME);
     }
 
     protected function failedAuthorization(): void
@@ -44,6 +44,6 @@ trait GuardsSuperAdminRoleAssignment
 
     protected function payloadAssignsSuperAdminRole(): bool
     {
-        return in_array(self::SUPER_ADMIN_ROLE, $this->roleNamesFromPayload(), true);
+        return in_array(SuperAdminRole::NAME, $this->roleNamesFromPayload(), true);
     }
 }

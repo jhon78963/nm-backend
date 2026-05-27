@@ -22,7 +22,7 @@ class GetAllRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'limit' => 'nullable|integer|min:1|max:100',
+            'limit' => 'nullable|integer|min:1|max:200',
             'page' => 'nullable|integer|min:1',
             'search' => 'nullable|string|max:255',
             'sizeTypeId' => 'nullable',

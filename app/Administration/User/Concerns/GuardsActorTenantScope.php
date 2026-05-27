@@ -2,6 +2,7 @@
 
 namespace App\Administration\User\Concerns;
 
+use App\Administration\User\Support\SuperAdminRole;
 use Illuminate\Auth\Access\AuthorizationException;
 
 trait GuardsActorTenantScope
@@ -16,7 +17,7 @@ trait GuardsActorTenantScope
 
         if (
             method_exists($actor, 'hasRole')
-            && $actor->hasRole(GuardsSuperAdminRoleAssignment::SUPER_ADMIN_ROLE)
+            && $actor->hasRole(SuperAdminRole::NAME)
         ) {
             return true;
         }
