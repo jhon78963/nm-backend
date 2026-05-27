@@ -2,6 +2,7 @@
 
 namespace App\Directory\Team\Models;
 
+use App\Finance\CashMovement\Models\CashMovement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -19,6 +20,7 @@ class TeamPayment extends Model
         'date',
         'description',
         'team_id',
+        'cash_movement_id',
         'creator_user_id',
     ];
 
@@ -60,5 +62,10 @@ class TeamPayment extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function cashMovement(): BelongsTo
+    {
+        return $this->belongsTo(CashMovement::class);
     }
 }

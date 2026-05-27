@@ -4,6 +4,7 @@ namespace App\Finance\CashMovement\Services;
 
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\Sale\Models\Sale;
+use App\Directory\Team\Models\TeamPayment;
 use App\Shared\Foundation\Services\NodeUploaderService;
 use Carbon\Carbon;
 use Illuminate\Auth\AuthenticationException;
@@ -233,7 +234,19 @@ class CashflowService
         if ($movement->category === 'ADMINISTRATIVE') {
             $user = auth()->user();
 
-            if ($user === null || ! $user->can('cashflow.getAdminMonthlyReport')) {
+            if ($user === null) {
+                abort(403, 'Acceso denegado.');
+            }
+
+            $linkedToTeamPayment = TeamPayment::query()
+                ->where('cash_movement_id', $movement->id)
+                ->where('is_deleted', false)
+                ->exists();
+
+            $canViewAdmin = $user->can('cashflow.getAdminMonthlyReport');
+            $canViewPayrollVoucher = $linkedToTeamPayment && $user->can('team.getPaymentByMonth');
+
+            if (! $canViewAdmin && ! $canViewPayrollVoucher) {
                 abort(403, 'Acceso denegado.');
             }
         }

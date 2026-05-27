@@ -5,6 +5,7 @@ namespace App\Directory\Team\Controllers;
 use App\Directory\Team\Models\Attendance;
 use App\Directory\Team\Models\Team;
 use App\Directory\Team\Models\TeamPayment;
+use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
 use Carbon\Carbon;
@@ -98,10 +99,14 @@ class PaymentController extends Controller
             ->get();
 
         $payments = TeamPayment::query()
+            ->with(['cashMovement' => static function ($query): void {
+                $query->where('is_deleted', false);
+            }])
             ->where('team_id', $teamId)
             ->where('is_deleted', false)
             ->whereYear('date', $year)
             ->whereMonth('date', $month)
+            ->orderByDesc('date')
             ->get();
 
         $scopeVista = $this->attendanceBreakdown($attendances, $year, $month, $period, $dailyRate);
@@ -195,6 +200,7 @@ class PaymentController extends Controller
                     'payments' => $movPeriodo['PAYMENT'],
                     'deductions' => $movPeriodo['DEDUCTION'],
                 ],
+                'paymentItems' => $this->formatPaymentItems($payments, $period, $daysInMonth),
                 'estimates' => [
                     'salarioBase' => $salary,
                     'descuentoAsistenciaMesCompleto' => $descuentoAsistenciaMes,
@@ -253,7 +259,7 @@ class PaymentController extends Controller
             $cashflowService,
             $receiptImage,
         ) {
-            $movement = TeamPayment::create([
+            $teamPayment = TeamPayment::create([
                 'team_id' => (int) $validated['team_id'],
                 'type' => $validated['type'],
                 'amount' => $validated['amount'],
@@ -278,23 +284,81 @@ class PaymentController extends Controller
                     $description .= ' — ' . $validated['description'];
                 }
 
-                $cashflowService->registerMovement([
-                    'type' => 'EXPENSE',
-                    'category' => 'ADMINISTRATIVE',
+                $cashMovement = $cashflowService->registerMovement([
+                    'type' => CashMovement::TYPE_EXPENSE,
+                    'category' => CashMovement::CATEGORY_ADMINISTRATIVE,
                     'amount' => (float) $validated['amount'],
                     'description' => $description,
                     'date' => $validated['date'],
                     'payment_method' => $validated['payment_method'] ?? 'CASH',
                 ], $receiptImage);
+
+                $teamPayment->cash_movement_id = $cashMovement->id;
+                $teamPayment->save();
             }
 
-            return $movement;
+            return $teamPayment->fresh(['cashMovement']);
         });
 
         return response()->json([
             'message' => 'Movimiento registrado correctamente',
-            'data' => $movement,
+            'data' => $this->formatPaymentItem($movement),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function formatPaymentItems(Collection $payments, string $period, int $daysInMonth): array
+    {
+        return $payments
+            ->filter(static function (TeamPayment $payment) use ($period, $daysInMonth): bool {
+                $day = (int) Carbon::parse($payment->date)->format('j');
+
+                return match ($period) {
+                    'q1' => $day >= 1 && $day <= 15,
+                    'q2' => $day >= 16 && $day <= $daysInMonth,
+                    default => true,
+                };
+            })
+            ->sortByDesc(static fn (TeamPayment $payment) => Carbon::parse($payment->date)->timestamp)
+            ->map(fn (TeamPayment $payment) => $this->formatPaymentItem($payment))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatPaymentItem(TeamPayment $payment): array
+    {
+        $cashMovement = $payment->relationLoaded('cashMovement')
+            ? $payment->cashMovement
+            : null;
+
+        return [
+            'id' => $payment->id,
+            'type' => $payment->type,
+            'typeLabel' => $this->paymentTypeLabel((string) $payment->type),
+            'amount' => (float) $payment->amount,
+            'date' => Carbon::parse($payment->date)->format('Y-m-d H:i:s'),
+            'description' => $payment->description,
+            'syncedToAdmin' => $payment->cash_movement_id !== null,
+            'cashMovementId' => $payment->cash_movement_id,
+            'paymentMethod' => $cashMovement?->payment_method,
+            'voucherPath' => $cashMovement?->voucher_path,
+            'adminExpenseDescription' => $cashMovement?->description,
+        ];
+    }
+
+    private function paymentTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'ADVANCE' => 'Adelanto',
+            'PAYMENT' => 'Pago quincenal',
+            'DEDUCTION' => 'Descuento manual',
+            default => $type,
+        };
     }
 
     /**
