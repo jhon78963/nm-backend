@@ -61,6 +61,9 @@ class RoleAndPermissionSeeder extends Seeder
             'pos.checkout',
             'cashflow.getDaily',
             'cashflow.store',
+            // Ver listado de ventas propias y ticket de impresión
+            'sale.getAll',
+            'sale.get',
         ];
     }
 

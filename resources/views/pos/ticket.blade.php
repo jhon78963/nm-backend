@@ -111,7 +111,13 @@
             Trujillo, La Libertad, Perú
         </div>
         <div>
-            Ticket: {{ $sale->code }}<br>
+            @if($sale->document_type === 'FACTURA')
+                Factura: {{ $sale->full_invoice_number ?? $sale->code }}<br>
+            @elseif($sale->document_type === 'BOLETA')
+                Boleta: {{ $sale->full_invoice_number ?? $sale->code }}<br>
+            @else
+                Ticket: {{ $sale->code }}<br>
+            @endif
             Fecha: {{ $sale->creation_time->format('d/m/Y H:i') }}
         </div>
     </div>
