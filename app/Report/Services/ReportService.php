@@ -96,9 +96,12 @@ class ReportService
         $costOfGoods = $costOfGoodsQuery
             ->sum(DB::raw('sd.quantity * COALESCE(ps.purchase_price, 0)'));
 
-        // 3. GASTOS
+        // 3. GASTOS OPERATIVOS
+        // Se excluyen las compras de mercadería (INVENTORY_PURCHASE): son intercambios de activos
+        // (caja → inventario), no gastos deducibles. Su impacto ya aparece en el Costo de Ventas.
         $operatingExpenses = CashMovement::whereBetween('date', [$start, $end])
-            ->where('type', 'EXPENSE')->where('is_deleted', false)
+            ->operatingExpenses()
+            ->where('is_deleted', false)
             ->sum('amount');
 
         $grossProfit = $totalRevenue - (float) $costOfGoods;
@@ -116,28 +119,25 @@ class ReportService
 
     public function getAllTimeMonthlyReport()
     {
-        // VENTAS
+        // VENTAS — Yape, Tarjeta y Transferencia se unifican en 'bancos' (misma cuenta contable).
         $sales = Sale::selectRaw("
             TO_CHAR(creation_time, 'YYYY-MM') as sort_month,
             TO_CHAR(creation_time, 'MM-YYYY') as month_year,
             SUM(total_amount) as total_sales_raw,
             SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
-            SUM(CASE WHEN payment_method = 'YAPE' THEN total_amount ELSE 0 END) as yape_amount,
-            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as card_transfer_amount
+            SUM(CASE WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as bancos_amount
         ")
             ->where('status', 'COMPLETED')->where('is_deleted', false)
             ->groupByRaw("TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
             ->get()->keyBy('sort_month');
 
-        // MOVIMIENTOS
+        // MOVIMIENTOS — misma unificación para ingresos/gastos manuales.
         $movements = CashMovement::selectRaw("
             TO_CHAR(date, 'YYYY-MM') as sort_month,
             SUM(CASE WHEN payment_method = 'CASH' AND type = 'INCOME' THEN amount
                      WHEN payment_method = 'CASH' AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_cash,
-            SUM(CASE WHEN payment_method = 'YAPE' AND type = 'INCOME' THEN amount
-                     WHEN payment_method = 'YAPE' AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_yape,
-            SUM(CASE WHEN payment_method IN ('CARD', 'TRANSFER') AND type = 'INCOME' THEN amount
-                     WHEN payment_method IN ('CARD', 'TRANSFER') AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_card_transfer
+            SUM(CASE WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') AND type = 'INCOME' THEN amount
+                     WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_bancos
         ")
             ->where('is_deleted', false)
             ->groupByRaw("TO_CHAR(date, 'YYYY-MM')")
@@ -152,17 +152,13 @@ class ReportService
             $fecha = $saleData ? $saleData->month_year : Carbon::createFromFormat('Y-m', $month)->format('m-Y');
 
             $efectivo = ($saleData ? (float) $saleData->cash_amount : 0) + ($movData ? (float) $movData->net_cash : 0);
-            $yape = ($saleData ? (float) $saleData->yape_amount : 0) + ($movData ? (float) $movData->net_yape : 0);
-            $tarjeta = ($saleData ? (float) $saleData->card_transfer_amount : 0) + ($movData ? (float) $movData->net_card_transfer : 0);
-
-            $incomesAndExpenses = $movData ? ($movData->net_cash + $movData->net_yape + $movData->net_card_transfer) : 0;
-            $totalMensual = ($saleData ? (float) $saleData->total_sales_raw : 0) + (float) $incomesAndExpenses;
+            $bancos = ($saleData ? (float) $saleData->bancos_amount : 0) + ($movData ? (float) $movData->net_bancos : 0);
+            $totalMensual = $efectivo + $bancos;
 
             $report[] = [
                 'fecha' => $fecha,
                 'efectivo' => $efectivo,
-                'yape' => $yape,
-                'tarjeta_transferencia' => $tarjeta,
+                'bancos' => $bancos,
                 'total_mensual' => $totalMensual,
             ];
         }
@@ -180,7 +176,8 @@ class ReportService
 
         $expenses = CashMovement::selectRaw("TO_CHAR(date, 'YYYY-MM-DD') as date, SUM(amount) as total")
             ->whereBetween('date', [$start, $end])
-            ->where('type', 'EXPENSE')->where('is_deleted', false)
+            ->operatingExpenses()
+            ->where('is_deleted', false)
             ->groupByRaw("TO_CHAR(date, 'YYYY-MM-DD')")
             ->pluck('total', 'date');
 

@@ -18,6 +18,12 @@ class CashMovement extends Model
 
     public const CATEGORY_STORE = 'STORE';
 
+    /**
+     * Compras de mercadería: intercambio de activos (caja → inventario).
+     * NO se deduce en el P&L como gasto operativo; ya impacta en COGS cuando se vende.
+     */
+    public const CATEGORY_INVENTORY_PURCHASE = 'INVENTORY_PURCHASE';
+
     public $timestamps = false;
 
     protected $table = 'cash_movements';
@@ -67,5 +73,12 @@ class CashMovement extends Model
     public function scopeStoreMovements(Builder $query): Builder
     {
         return $query->where('category', self::CATEGORY_STORE);
+    }
+
+    public function scopeInventoryPurchases(Builder $query): Builder
+    {
+        return $query
+            ->expenses()
+            ->where('category', self::CATEGORY_INVENTORY_PURCHASE);
     }
 }
