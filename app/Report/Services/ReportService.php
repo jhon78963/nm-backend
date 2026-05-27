@@ -185,13 +185,24 @@ class ReportService
         $costOfGoods = $costOfGoodsQuery
             ->sum(DB::raw('sd.quantity * COALESCE(ps.purchase_price, 0)'));
 
-        // 3. GASTOS OPERATIVOS
+        // 3. GASTOS OPERATIVOS (desglosados)
         // Se excluyen las compras de mercadería (INVENTORY_PURCHASE): son intercambios de activos
         // (caja → inventario), no gastos deducibles. Su impacto ya aparece en el Costo de Ventas.
-        $operatingExpenses = CashMovement::whereBetween('date', [$start, $end])
+        $expenseBreakdown = CashMovement::whereBetween('date', [$start, $end])
             ->operatingExpenses()
             ->where('is_deleted', false)
-            ->sum('amount');
+            ->selectRaw("
+                SUM(CASE WHEN category = ? THEN amount ELSE 0 END) as administrative,
+                SUM(CASE WHEN category = ? THEN amount ELSE 0 END) as store
+            ", [
+                CashMovement::CATEGORY_ADMINISTRATIVE,
+                CashMovement::CATEGORY_STORE,
+            ])
+            ->first();
+
+        $administrativeExpenses = (float) ($expenseBreakdown->administrative ?? 0);
+        $storeExpenses = (float) ($expenseBreakdown->store ?? 0);
+        $operatingExpenses = $administrativeExpenses + $storeExpenses;
 
         $grossProfit = $totalRevenue - (float) $costOfGoods;
 
@@ -200,8 +211,10 @@ class ReportService
             'sales_revenue' => $totalRevenue,
             'cost_of_goods' => (float) $costOfGoods,
             'gross_profit' => $grossProfit,
-            'operating_expenses' => (float) $operatingExpenses,
-            'net_utility' => $grossProfit - (float) $operatingExpenses,
+            'administrative_expenses' => $administrativeExpenses,
+            'store_expenses' => $storeExpenses,
+            'operating_expenses' => $operatingExpenses,
+            'net_utility' => $grossProfit - $operatingExpenses,
             'chart_data' => $this->getDailyChartData($start, $end),
         ];
     }
