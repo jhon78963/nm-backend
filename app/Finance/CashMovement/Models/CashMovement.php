@@ -2,6 +2,7 @@
 
 namespace App\Finance\CashMovement\Models;
 
+use App\Inventory\Purchase\Models\Purchase;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +40,7 @@ class CashMovement extends Model
         'reference_code',
         'voucher_path',
         'legacy_expense_id',
+        'purchase_id',
         'warehouse_id',
         'creation_time',
         'creator_user_id',
@@ -80,5 +82,13 @@ class CashMovement extends Model
         return $query
             ->expenses()
             ->where('category', self::CATEGORY_INVENTORY_PURCHASE);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Purchase, CashMovement>
+     */
+    public function purchase(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Purchase::class);
     }
 }

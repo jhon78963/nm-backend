@@ -3,6 +3,7 @@
 namespace App\Inventory\Purchase\Models;
 
 use App\Directory\Vendor\Models\Vendor;
+use App\Finance\CashMovement\Models\CashMovement;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Model;
@@ -68,6 +69,15 @@ class Purchase extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(PurchaseLine::class, 'purchase_id');
+    }
+
+    /**
+     * @return HasMany<CashMovement>
+     */
+    public function cashMovements(): HasMany
+    {
+        return $this->hasMany(CashMovement::class, 'purchase_id')
+            ->where('is_deleted', false);
     }
 
     public function isCancelled(): bool

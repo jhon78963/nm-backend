@@ -132,6 +132,7 @@ class CashflowService
             'description' => $data['description'],
             'voucher_path' => $data['voucher_path'] ?? null,
             'payment_method' => $data['payment_method'] ?? 'CASH',
+            'purchase_id' => $data['purchase_id'] ?? null,
             'creator_user_id' => $this->resolveAuthenticatedUserId(),
             'date' => $data['date'],
         ]);
@@ -147,6 +148,39 @@ class CashflowService
         $data['category'] = CashMovement::CATEGORY_ADMINISTRATIVE;
 
         return $this->registerMovement($data, $image);
+    }
+
+    /**
+     * Vincula un movimiento de caja (con voucher) a una compra de inventario.
+     * Reclasifica como INVENTORY_PURCHASE para que no reste en Gastos Operativos.
+     */
+    public function linkToPurchase(CashMovement $movement, int $purchaseId): CashMovement
+    {
+        if ($movement->is_deleted) {
+            abort(404, 'Movimiento no encontrado');
+        }
+
+        if ($movement->type !== CashMovement::TYPE_EXPENSE) {
+            abort(422, 'Solo se pueden vincular egresos.');
+        }
+
+        $purchase = \App\Inventory\Purchase\Models\Purchase::query()
+            ->where('is_deleted', false)
+            ->findOrFail($purchaseId);
+
+        $movement->purchase_id = (int) $purchase->id;
+
+        if ($movement->category !== CashMovement::CATEGORY_INVENTORY_PURCHASE) {
+            $movement->category = CashMovement::CATEGORY_INVENTORY_PURCHASE;
+            if (! str_contains((string) $movement->description, '(Vinculado a compra')) {
+                $movement->description = trim((string) $movement->description)
+                    ." (Vinculado a compra #{$purchase->id})";
+            }
+        }
+
+        $movement->save();
+
+        return $movement->fresh();
     }
 
     public function updateMovement(int $id, array $data, ?UploadedFile $newImage = null)
@@ -200,6 +234,14 @@ class CashflowService
             $user = auth()->user();
 
             if ($user === null || ! $user->can('cashflow.getAdminMonthlyReport')) {
+                abort(403, 'Acceso denegado.');
+            }
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_INVENTORY_PURCHASE) {
+            $user = auth()->user();
+
+            if ($user === null || ! $user->can('purchase.get')) {
                 abort(403, 'Acceso denegado.');
             }
         }

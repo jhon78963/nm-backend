@@ -39,6 +39,39 @@ class PurchaseDetailResource extends JsonResource
             'cancellationReason' => $this->cancellation_reason,
             'lines' => PurchaseLineResource::collection($this->whenLoaded('lines')),
             'payloadSnapshot' => $payload,
+            'linkedPayment' => $this->resolveLinkedPayment(),
+        ];
+    }
+
+    /**
+     * Pago/voucher vinculado desde un movimiento de caja (ej. gasto administrativo migrado).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolveLinkedPayment(): ?array
+    {
+        if (! $this->relationLoaded('cashMovements')) {
+            return null;
+        }
+
+        $movement = $this->cashMovements
+            ->first(fn ($m) => $m->voucher_path !== null && $m->voucher_path !== '');
+
+        if ($movement === null) {
+            $movement = $this->cashMovements->first();
+        }
+
+        if ($movement === null) {
+            return null;
+        }
+
+        return [
+            'cashMovementId' => $movement->id,
+            'amount' => (float) $movement->amount,
+            'paymentMethod' => $movement->payment_method,
+            'description' => $movement->description,
+            'date' => $movement->date?->format('Y-m-d H:i:s'),
+            'voucherPath' => $movement->voucher_path,
         ];
     }
 

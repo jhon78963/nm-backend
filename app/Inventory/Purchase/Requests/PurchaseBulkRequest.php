@@ -12,6 +12,21 @@ class PurchaseBulkRequest extends FormRequest
     }
 
     /**
+     * Cuando el request llega como `multipart/form-data` (con voucher),
+     * el payload de compra viene serializado en el campo `payload` (JSON string).
+     * Lo decodificamos y lo mezclamos para que las reglas anidadas funcionen igual.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('payload') && is_string($this->input('payload'))) {
+            $decoded = json_decode($this->input('payload'), true);
+            if (is_array($decoded)) {
+                $this->merge($decoded);
+            }
+        }
+    }
+
+    /**
      * Payload alineado con el frontend (`PurchaseBulkPayload`): camelCase.
      *
      * @return array<string, mixed>
@@ -65,6 +80,10 @@ class PurchaseBulkRequest extends FormRequest
             'lines.*.productSizeId' => 'nullable|integer',
 
             'totals' => 'nullable|array',
+
+            // Campos extra para el registro de salida de caja con voucher
+            'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
+            'image'          => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ];
     }
 }

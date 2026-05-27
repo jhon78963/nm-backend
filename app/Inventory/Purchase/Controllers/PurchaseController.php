@@ -2,6 +2,8 @@
 
 namespace App\Inventory\Purchase\Controllers;
 
+use App\Finance\CashMovement\Models\CashMovement;
+use App\Finance\CashMovement\Services\CashflowService;
 use App\Inventory\Purchase\Enums\PurchaseStatus;
 use App\Inventory\Purchase\Models\Purchase;
 use App\Inventory\Purchase\Models\PurchaseLine;
@@ -18,9 +20,11 @@ use App\Inventory\Purchase\Services\PurchaseLineMutationService;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PurchaseController extends Controller
 {
@@ -29,17 +33,65 @@ class PurchaseController extends Controller
         protected PurchaseCancellationService $purchaseCancellationService,
         protected PurchaseLineMutationService $purchaseLineMutationService,
         protected SharedService $sharedService,
+        protected CashflowService $cashflowService,
     ) {
     }
 
     public function registerBulk(PurchaseBulkRequest $request): JsonResponse
     {
-        $id = $this->purchaseBulkService->handle($request->validated());
+        $data = $request->validated();
+
+        $id = $this->purchaseBulkService->handle($data);
+
+        // Registrar la salida de caja como Compra de Mercadería (INVENTORY_PURCHASE).
+        // Esta categoría queda excluida de los Gastos Operativos del P&L; su impacto
+        // contable aparece únicamente en el Costo de Ventas cuando el stock se vende.
+        $this->recordPurchaseCashMovement($request, $data, $id);
 
         return response()->json([
             'message' => 'Compra registrada e inventario actualizado.',
             'purchaseId' => $id,
         ], 201);
+    }
+
+    /**
+     * Crea el movimiento de egreso en `cash_movements` replicando el patrón
+     * exacto de `CashflowService` (upload de imagen a Node.js vía `NodeUploaderService`).
+     */
+    private function recordPurchaseCashMovement(PurchaseBulkRequest $request, array $data, int $purchaseId): void
+    {
+        try {
+            $totals = $data['totals'] ?? [];
+            $grandSubtotal = (float) ($totals['grandSubtotal'] ?? 0);
+
+            if ($grandSubtotal <= 0) {
+                return;
+            }
+
+            $purchaseBlock = $data['purchase'] ?? [];
+            $supplierName  = (string) ($purchaseBlock['supplierName'] ?? 'Proveedor');
+            $registeredAt  = isset($purchaseBlock['registeredAt'])
+                ? Carbon::parse((string) $purchaseBlock['registeredAt'])->format('Y-m-d H:i:s')
+                : now()->format('Y-m-d H:i:s');
+
+            $movementData = [
+                'type'           => CashMovement::TYPE_EXPENSE,
+                'category'       => CashMovement::CATEGORY_INVENTORY_PURCHASE,
+                'amount'         => $grandSubtotal,
+                'description'    => "Compra de mercadería - {$supplierName}",
+                'payment_method' => $request->input('payment_method', 'CASH'),
+                'date'           => $registeredAt,
+                'purchase_id'    => $purchaseId,
+            ];
+
+            // Delega la subida del voucher a Node.js al mismo servicio que usa Gastos.
+            $this->cashflowService->registerMovement($movementData, $request->file('image'));
+        } catch (\Throwable $e) {
+            // El inventario ya fue comprometido; registramos el error pero no revertimos.
+            Log::error('[PurchaseController] No se pudo registrar el movimiento de caja.', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function getAll(PurchaseIndexRequest $request): JsonResponse
@@ -84,6 +136,7 @@ class PurchaseController extends Controller
             'lines.size',
             'lines.colorDeltas.color',
             'warehouse',
+            'cashMovements',
         ]);
 
         return response()->json(new PurchaseDetailResource($purchase));

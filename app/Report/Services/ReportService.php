@@ -12,8 +12,95 @@ use Illuminate\Support\Facades\DB;
 class ReportService
 {
     /**
+     * Categorías que sí restan como gasto en reportes de flujo/P&L.
+     * INVENTORY_PURCHASE queda fuera: es intercambio caja → inventario.
+     */
+    private function operatingExpenseCategoriesForSql(): string
+    {
+        return "'".CashMovement::CATEGORY_ADMINISTRATIVE."','".CashMovement::CATEGORY_STORE."'";
+    }
+
+    /**
+     * Métodos digitales/bancarios. Misma agrupación que el reporte diario de caja
+     * (CashflowService::getDailyReport) cuando están activos YAPE + PLIN + CARD.
+     */
+    private function digitalPaymentMethodsForSql(): string
+    {
+        return "'YAPE','PLIN','CARD','TRANSFER'";
+    }
+
+    /**
+     * Ventas mensuales repartidas por canal usando sale_payments (soporta MIXTO).
+     * Misma lógica que /api/cash-flow/daily: cada fila de pago va a su método.
+     * Ventas legacy sin sale_payments usan payment_method de la cabecera.
+     */
+    private function getMonthlySalesAggregatedByPaymentChannel()
+    {
+        $bancosMethods = $this->digitalPaymentMethodsForSql();
+
+        $fromPayments = DB::table('sales as s')
+            ->join('sale_payments as sp', 's.id', '=', 'sp.sale_id')
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false)
+            ->selectRaw("
+                TO_CHAR(s.creation_time, 'YYYY-MM') as sort_month,
+                TO_CHAR(s.creation_time, 'MM-YYYY') as month_year,
+                SUM(sp.amount) as total_sales_raw,
+                SUM(CASE WHEN sp.method = 'CASH' THEN sp.amount ELSE 0 END) as cash_amount,
+                SUM(CASE WHEN sp.method IN ({$bancosMethods}) THEN sp.amount ELSE 0 END) as bancos_amount
+            ")
+            ->groupByRaw("TO_CHAR(s.creation_time, 'YYYY-MM'), TO_CHAR(s.creation_time, 'MM-YYYY')")
+            ->get()
+            ->keyBy('sort_month');
+
+        $legacyWithoutPayments = DB::table('sales as s')
+            ->where('s.status', 'COMPLETED')
+            ->where('s.is_deleted', false)
+            ->whereNotExists(function ($query): void {
+                $query->select(DB::raw(1))
+                    ->from('sale_payments as sp')
+                    ->whereColumn('sp.sale_id', 's.id');
+            })
+            ->selectRaw("
+                TO_CHAR(s.creation_time, 'YYYY-MM') as sort_month,
+                TO_CHAR(s.creation_time, 'MM-YYYY') as month_year,
+                SUM(s.total_amount) as total_sales_raw,
+                SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total_amount ELSE 0 END) as cash_amount,
+                SUM(CASE WHEN s.payment_method IN ({$bancosMethods}) THEN s.total_amount ELSE 0 END) as bancos_amount
+            ")
+            ->groupByRaw("TO_CHAR(s.creation_time, 'YYYY-MM'), TO_CHAR(s.creation_time, 'MM-YYYY')")
+            ->get()
+            ->keyBy('sort_month');
+
+        return $this->mergeMonthlyPaymentChannelAggregates($fromPayments, $legacyWithoutPayments);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, object>  $primary
+     * @param  \Illuminate\Support\Collection<string, object>  $secondary
+     * @return \Illuminate\Support\Collection<string, object>
+     */
+    private function mergeMonthlyPaymentChannelAggregates($primary, $secondary)
+    {
+        $allMonths = $primary->keys()->merge($secondary->keys())->unique();
+
+        return $allMonths->mapWithKeys(function (string $month) use ($primary, $secondary) {
+            $a = $primary->get($month);
+            $b = $secondary->get($month);
+
+            return [$month => (object) [
+                'sort_month' => $month,
+                'month_year' => $a->month_year ?? $b->month_year,
+                'total_sales_raw' => (float) ($a->total_sales_raw ?? 0) + (float) ($b->total_sales_raw ?? 0),
+                'cash_amount' => (float) ($a->cash_amount ?? 0) + (float) ($b->cash_amount ?? 0),
+                'bancos_amount' => (float) ($a->bancos_amount ?? 0) + (float) ($b->bancos_amount ?? 0),
+            ]];
+        });
+    }
+
+    /**
      * CENTRALIZADOR DE CÁLCULO NETO
-     * Calcula: (Ventas Completadas + Ingresos Manuales) - Gastos Manuales.
+     * Calcula: (Ventas Completadas + Ingresos Manuales) - Gastos Operativos Manuales.
      */
     private function calculateNetBalance($start, $end)
     {
@@ -22,11 +109,13 @@ class ReportService
             ->where('is_deleted', false)
             ->sum('total_amount');
 
+        $operatingCategories = $this->operatingExpenseCategoriesForSql();
+
         $movements = CashMovement::whereBetween('date', [$start, $end])
             ->where('is_deleted', false)
             ->selectRaw("
                 SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as income,
-                SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as expense
+                SUM(CASE WHEN type = 'EXPENSE' AND category IN ({$operatingCategories}) THEN amount ELSE 0 END) as expense
             ")->first();
 
         return (float) ($sales + ($movements->income ?? 0) - ($movements->expense ?? 0));
@@ -119,25 +208,21 @@ class ReportService
 
     public function getAllTimeMonthlyReport()
     {
-        // VENTAS — Yape, Tarjeta y Transferencia se unifican en 'bancos' (misma cuenta contable).
-        $sales = Sale::selectRaw("
-            TO_CHAR(creation_time, 'YYYY-MM') as sort_month,
-            TO_CHAR(creation_time, 'MM-YYYY') as month_year,
-            SUM(total_amount) as total_sales_raw,
-            SUM(CASE WHEN payment_method = 'CASH' THEN total_amount ELSE 0 END) as cash_amount,
-            SUM(CASE WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') THEN total_amount ELSE 0 END) as bancos_amount
-        ")
-            ->where('status', 'COMPLETED')->where('is_deleted', false)
-            ->groupByRaw("TO_CHAR(creation_time, 'YYYY-MM'), TO_CHAR(creation_time, 'MM-YYYY')")
-            ->get()->keyBy('sort_month');
+        // VENTAS — reparto por sale_payments (MIXTO incluido), igual que cash-flow/daily.
+        $sales = $this->getMonthlySalesAggregatedByPaymentChannel();
 
-        // MOVIMIENTOS — misma unificación para ingresos/gastos manuales.
+        // MOVIMIENTOS — solo gastos operativos restan; INVENTORY_PURCHASE no afecta este reporte.
+        $operatingCategories = $this->operatingExpenseCategoriesForSql();
+        $bancosMethods = $this->digitalPaymentMethodsForSql();
+
         $movements = CashMovement::selectRaw("
             TO_CHAR(date, 'YYYY-MM') as sort_month,
             SUM(CASE WHEN payment_method = 'CASH' AND type = 'INCOME' THEN amount
-                     WHEN payment_method = 'CASH' AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_cash,
-            SUM(CASE WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') AND type = 'INCOME' THEN amount
-                     WHEN payment_method IN ('YAPE', 'CARD', 'TRANSFER') AND type = 'EXPENSE' THEN -amount ELSE 0 END) as net_bancos
+                     WHEN payment_method = 'CASH' AND type = 'EXPENSE'
+                          AND category IN ({$operatingCategories}) THEN -amount ELSE 0 END) as net_cash,
+            SUM(CASE WHEN payment_method IN ({$bancosMethods}) AND type = 'INCOME' THEN amount
+                     WHEN payment_method IN ({$bancosMethods}) AND type = 'EXPENSE'
+                          AND category IN ({$operatingCategories}) THEN -amount ELSE 0 END) as net_bancos
         ")
             ->where('is_deleted', false)
             ->groupByRaw("TO_CHAR(date, 'YYYY-MM')")

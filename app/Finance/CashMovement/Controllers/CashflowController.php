@@ -95,41 +95,21 @@ class CashflowController extends Controller
         ]);
     }
 
-    /**
-     * Reclasifica un movimiento de gasto como Compra de Mercadería.
-     *
-     * Las compras de inventario son intercambios de activos (caja → stock), no gastos
-     * operativos deducibles. Al convertirlas, dejan de aparecer en los Gastos Operativos
-     * del P&L y así se elimina la doble tributación con el Costo de Ventas.
-     */
-    public function convertToPurchase(CashMovement $cashMovement): JsonResponse
+    public function linkPurchase(Request $request, CashMovement $cashMovement): JsonResponse
     {
-        if ($cashMovement->is_deleted) {
-            abort(404, 'Movimiento no encontrado');
-        }
+        $validated = $request->validate([
+            'purchase_id' => 'required|integer|min:1|exists:purchases,id',
+        ]);
 
-        if ($cashMovement->type !== CashMovement::TYPE_EXPENSE) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Solo se pueden convertir movimientos de tipo EXPENSE.',
-            ], 422);
-        }
-
-        if ($cashMovement->category === CashMovement::CATEGORY_INVENTORY_PURCHASE) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Este movimiento ya está clasificado como Compra de Mercadería.',
-            ], 422);
-        }
-
-        $cashMovement->category = CashMovement::CATEGORY_INVENTORY_PURCHASE;
-        $cashMovement->description = trim(($cashMovement->description ?? '').' (Migrado de Gasto Operativo)');
-        $cashMovement->save();
+        $movement = $this->cashflowService->linkToPurchase(
+            $cashMovement,
+            (int) $validated['purchase_id'],
+        );
 
         return response()->json([
             'success' => true,
-            'message' => 'Movimiento reclasificado como Compra de Mercadería.',
-            'data' => new CashMovementResource($cashMovement),
+            'message' => 'Movimiento vinculado a la compra. El voucher quedará visible en el detalle de la compra.',
+            'data' => new CashMovementResource($movement),
         ]);
     }
 
