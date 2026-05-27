@@ -23,4 +23,6 @@ Route::controller(PaymentController::class)->group(function (): void {
     Route::get('/payments/payroll', 'getPayroll')->middleware('permission:team.getPaymentByMonth');
     Route::get('/payments', 'getByMonth')->middleware('permission:team.getPaymentByMonth');
     Route::post('/payments', 'store')->middleware('permission:team.storePayment');
+    Route::patch('/payments/{teamPayment}', 'update')->middleware('permission:team.storePayment');
+    Route::delete('/payments/{teamPayment}', 'destroy')->middleware('permission:team.storePayment');
 });

@@ -112,9 +112,9 @@ class PaymentController extends Controller
         $scopeVista = $this->attendanceBreakdown($attendances, $year, $month, $period, $dailyRate);
         $scopeMes = $this->attendanceBreakdown($attendances, $year, $month, 'full', $dailyRate);
 
-        $movMes = $this->paymentSumsForRange($payments, 1, $daysInMonth);
-        $movQ1 = $this->paymentSumsForRange($payments, 1, 15);
-        $movQ2 = $this->paymentSumsForRange($payments, 16, $daysInMonth);
+        $movMes = $this->paymentSumsForPeriod($payments, null);
+        $movQ1 = $this->paymentSumsForPeriod($payments, 'q1');
+        $movQ2 = $this->paymentSumsForPeriod($payments, 'q2');
         $movPeriodo = match ($period) {
             'q1' => $movQ1,
             'q2' => $movQ2,
@@ -234,12 +234,17 @@ class PaymentController extends Controller
             'type' => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
             'amount' => 'required|numeric|min:0.1',
             'date' => 'required|date',
+            'payroll_period' => 'required|in:q1,q2',
             'description' => 'nullable|string',
             'sync_cash_movement' => 'nullable|boolean',
-            'payment_method' => 'nullable|string|max:32',
+            'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
             'images' => 'nullable|array|max:10',
             'images.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
+
+        $validated['payment_method'] = $this->normalizePaymentMethod(
+            (string) $validated['payment_method'],
+        );
 
         $syncCash = filter_var(
             $request->input('sync_cash_movement', false),
@@ -265,6 +270,8 @@ class PaymentController extends Controller
                 'type' => $validated['type'],
                 'amount' => $validated['amount'],
                 'date' => $validated['date'],
+                'payroll_period' => $validated['payroll_period'],
+                'payment_method' => $validated['payment_method'],
                 'description' => $validated['description'] ?? null,
                 'creator_user_id' => auth()->id(),
             ]);
@@ -291,7 +298,7 @@ class PaymentController extends Controller
                     'amount' => (float) $validated['amount'],
                     'description' => $description,
                     'date' => $validated['date'],
-                    'payment_method' => $validated['payment_method'] ?? 'CASH',
+                    'payment_method' => $validated['payment_method'],
                 ], $receiptImage);
 
                 $teamPayment->cash_movement_id = $cashMovement->id;
@@ -308,20 +315,103 @@ class PaymentController extends Controller
     }
 
     /**
+     * Actualiza fecha, tipo, monto o descripción de un pago registrado.
+     * Si está vinculado a un cash_movement, sincroniza fecha y monto en ambas tablas.
+     */
+    public function update(Request $request, TeamPayment $teamPayment): JsonResponse
+    {
+        if ($teamPayment->is_deleted) {
+            abort(404, 'Movimiento no encontrado.');
+        }
+
+        $validated = $request->validate([
+            'date' => 'required|date',
+            'payroll_period' => 'required|in:q1,q2',
+            'type' => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $validated['payment_method'] = $this->normalizePaymentMethod(
+            (string) $validated['payment_method'],
+        );
+
+        DB::transaction(function () use ($teamPayment, $validated): void {
+            $teamPayment->date = $validated['date'];
+            $teamPayment->payroll_period = $validated['payroll_period'];
+            $teamPayment->type = $validated['type'];
+            $teamPayment->amount = $validated['amount'];
+            $teamPayment->payment_method = $validated['payment_method'];
+            $teamPayment->description = $validated['description'] ?? null;
+            $teamPayment->save();
+
+            // Sincronizar el cash_movement vinculado si existe
+            if ($teamPayment->cash_movement_id !== null) {
+                $movement = CashMovement::find($teamPayment->cash_movement_id);
+                if ($movement && ! $movement->is_deleted) {
+                    $movement->date = $validated['date'];
+                    $movement->amount = $validated['amount'];
+                    $movement->payment_method = $validated['payment_method'];
+                    $movement->save();
+                }
+            }
+        });
+
+        $teamPayment->load(['cashMovement' => static function ($query): void {
+            $query->where('is_deleted', false)->with('vouchers');
+        }]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Movimiento actualizado correctamente.',
+            'data' => $this->formatPaymentItem($teamPayment),
+        ]);
+    }
+
+    /**
+     * Elimina (soft delete) un pago de nómina y, si aplica, el gasto administrativo vinculado.
+     */
+    public function destroy(TeamPayment $teamPayment): JsonResponse
+    {
+        if ($teamPayment->is_deleted) {
+            abort(404, 'Movimiento no encontrado.');
+        }
+
+        DB::transaction(function () use ($teamPayment): void {
+            if ($teamPayment->cash_movement_id !== null) {
+                $movement = CashMovement::query()
+                    ->whereKey($teamPayment->cash_movement_id)
+                    ->where('is_deleted', false)
+                    ->first();
+
+                if ($movement !== null) {
+                    $movement->is_deleted = true;
+                    $movement->deleter_user_id = auth()->id();
+                    $movement->deletion_time = now();
+                    $movement->save();
+                }
+            }
+
+            $teamPayment->is_deleted = true;
+            $teamPayment->deleter_user_id = auth()->id();
+            $teamPayment->deletion_time = now();
+            $teamPayment->save();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Movimiento eliminado correctamente.',
+        ]);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function formatPaymentItems(Collection $payments, string $period, int $daysInMonth): array
     {
         return $payments
-            ->filter(static function (TeamPayment $payment) use ($period, $daysInMonth): bool {
-                $day = (int) Carbon::parse($payment->date)->format('j');
-
-                return match ($period) {
-                    'q1' => $day >= 1 && $day <= 15,
-                    'q2' => $day >= 16 && $day <= $daysInMonth,
-                    default => true,
-                };
-            })
+            ->filter(fn (TeamPayment $payment) => $this->paymentBelongsToViewPeriod($payment, $period))
             ->sortByDesc(static fn (TeamPayment $payment) => Carbon::parse($payment->date)->timestamp)
             ->map(fn (TeamPayment $payment) => $this->formatPaymentItem($payment))
             ->values()
@@ -354,10 +444,14 @@ class PaymentController extends Controller
             'typeLabel' => $this->paymentTypeLabel((string) $payment->type),
             'amount' => (float) $payment->amount,
             'date' => Carbon::parse($payment->date)->format('Y-m-d H:i:s'),
+            'payrollPeriod' => $this->resolvePayrollPeriod($payment),
+            'payrollPeriodLabel' => $this->payrollPeriodLabel($this->resolvePayrollPeriod($payment)),
             'description' => $payment->description,
             'syncedToAdmin' => $payment->cash_movement_id !== null,
             'cashMovementId' => $payment->cash_movement_id,
-            'paymentMethod' => $cashMovement?->payment_method,
+            'paymentMethod' => $payment->payment_method
+                ?? $cashMovement?->payment_method
+                ?? 'CASH',
             'voucherPath' => $cashMovement?->voucher_path,
             'voucherPaths' => $voucherPaths,
             'adminExpenseDescription' => $cashMovement?->description,
@@ -375,21 +469,60 @@ class PaymentController extends Controller
     }
 
     /**
+     * Suma movimientos por quincena de nómina (payroll_period), no por fecha de pago.
+     *
      * @return array{ADVANCE: float, PAYMENT: float, DEDUCTION: float}
      */
-    private function paymentSumsForRange(Collection $payments, int $dayStart, int $dayEnd): array
+    private function paymentSumsForPeriod(Collection $payments, ?string $period): array
     {
-        $filtered = $payments->filter(static function (TeamPayment $p) use ($dayStart, $dayEnd): bool {
-            $day = (int) Carbon::parse($p->date)->format('j');
-
-            return $day >= $dayStart && $day <= $dayEnd;
-        });
+        $filtered = $payments->filter(
+            fn (TeamPayment $p) => $this->paymentBelongsToViewPeriod($p, $period ?? 'full')
+        );
 
         return [
             'ADVANCE' => round((float) $filtered->where('type', 'ADVANCE')->sum('amount'), 2),
             'PAYMENT' => round((float) $filtered->where('type', 'PAYMENT')->sum('amount'), 2),
             'DEDUCTION' => round((float) $filtered->where('type', 'DEDUCTION')->sum('amount'), 2),
         ];
+    }
+
+    private function paymentBelongsToViewPeriod(TeamPayment $payment, string $period): bool
+    {
+        if ($period === 'full') {
+            return true;
+        }
+
+        return $this->resolvePayrollPeriod($payment) === $period;
+    }
+
+    private function resolvePayrollPeriod(TeamPayment $payment): string
+    {
+        if (in_array($payment->payroll_period, ['q1', 'q2'], true)) {
+            return $payment->payroll_period;
+        }
+
+        // Fallback legacy: inferir desde el día de la fecha
+        $day = (int) Carbon::parse($payment->date)->format('j');
+
+        return $day <= 15 ? 'q1' : 'q2';
+    }
+
+    private function payrollPeriodLabel(string $period): string
+    {
+        return match ($period) {
+            'q1' => '1.ª quincena',
+            'q2' => '2.ª quincena',
+            default => $period,
+        };
+    }
+
+    private function normalizePaymentMethod(string $method): string
+    {
+        $normalized = strtoupper(trim($method));
+
+        return in_array($normalized, ['CASH', 'YAPE', 'CARD', 'TRANSFER'], true)
+            ? $normalized
+            : 'CASH';
     }
 
     /**

@@ -18,6 +18,8 @@ class TeamPayment extends Model
         'type',
         'amount',
         'date',
+        'payroll_period',
+        'payment_method',
         'description',
         'team_id',
         'cash_movement_id',
