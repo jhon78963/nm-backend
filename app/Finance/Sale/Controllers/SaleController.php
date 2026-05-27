@@ -8,6 +8,7 @@ use App\Finance\Sale\Requests\SaleUpdateRequest;
 use App\Finance\Sale\Resources\SaleDetailResource;
 use App\Finance\Sale\Resources\SaleResource;
 use App\Finance\Sale\Services\SaleService;
+use App\Finance\Sale\Support\SaleAccessScope;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
@@ -46,6 +47,7 @@ class SaleController extends Controller
     public function get(Sale $sale): JsonResponse
     {
         $this->saleService->validate($sale, 'Sale');
+        SaleAccessScope::assertSaleInAccessibleRange($sale);
         $sale->load(['details', 'payments', 'customer']);
 
         return response()->json(new SaleDetailResource($sale));
@@ -59,7 +61,13 @@ class SaleController extends Controller
             modelName: 'Sale',
             columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name'],
             filters: [],
-            extendQuery: fn ($q) => $q->with('customer'),
+            extendQuery: function ($q): void {
+                $q->with('customer');
+
+                if (SaleAccessScope::restrictsToCurrentMonth()) {
+                    SaleAccessScope::applyCurrentMonthFilter($q);
+                }
+            },
             orderBy: 'creation_time',
             orderDir: 'desc',
         );

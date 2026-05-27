@@ -9,6 +9,7 @@ use App\Finance\Sale\Requests\SearchCustomerDocRequest;
 use App\Finance\Sale\Requests\SearchProductSkuRequest;
 use App\Finance\Sale\Services\ElectronicDocumentService;
 use App\Finance\Sale\Services\SaleService;
+use App\Finance\Sale\Support\SaleAccessScope;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
@@ -163,11 +164,16 @@ class PosController extends Controller
      */
     private function findTicketSale(int $saleId): Sale
     {
-        return Sale::query()
+        $query = Sale::query()
             ->with(['details', 'customer'])
             ->where('is_deleted', false)
-            ->whereKey($saleId)
-            ->firstOrFail();
+            ->whereKey($saleId);
+
+        if (SaleAccessScope::restrictsToCurrentMonth()) {
+            SaleAccessScope::applyCurrentMonthFilter($query);
+        }
+
+        return $query->firstOrFail();
     }
 
     private function ticketPrintUrl(int $saleId): string
