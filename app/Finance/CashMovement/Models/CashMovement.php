@@ -85,6 +85,14 @@ class CashMovement extends Model
     }
 
     /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<CashMovementVoucher>
+     */
+    public function vouchers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CashMovementVoucher::class)->orderBy('sort_order');
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Purchase, CashMovement>
      */
     public function purchase(): \Illuminate\Database\Eloquent\Relations\BelongsTo

@@ -67,7 +67,7 @@ class CashflowController extends Controller
         $data = $request->validated();
 
         // Pasamos los datos y el archivo (si existe)
-        $movement = $this->cashflowService->registerMovement($data, $request->file('image'));
+        $movement = $this->cashflowService->registerMovement($data, $request->file('images') ?: null);
 
         return response()->json([
             'success' => true,
@@ -86,7 +86,7 @@ class CashflowController extends Controller
         $movement = $this->cashflowService->updateMovement(
             $cashMovement->id,
             $data,
-            $request->file('image'),
+            $request->file('images') ?: null,
         );
 
         return response()->json([

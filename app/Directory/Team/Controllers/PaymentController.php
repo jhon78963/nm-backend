@@ -237,7 +237,8 @@ class PaymentController extends Controller
             'description' => 'nullable|string',
             'sync_cash_movement' => 'nullable|boolean',
             'payment_method' => 'nullable|string|max:32',
-            'image' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'images' => 'nullable|array|max:10',
+            'images.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
 
         $syncCash = filter_var(
@@ -245,7 +246,7 @@ class PaymentController extends Controller
             FILTER_VALIDATE_BOOLEAN
         );
 
-        $receiptImage = $request->file('image');
+        $receiptImage = $request->file('images') ?: null;
 
         $team = Team::query()
             ->where('is_deleted', false)

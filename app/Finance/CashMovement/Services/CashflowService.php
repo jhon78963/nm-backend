@@ -2,9 +2,10 @@
 
 namespace App\Finance\CashMovement\Services;
 
-use App\Finance\CashMovement\Models\CashMovement;
-use App\Finance\Sale\Models\Sale;
 use App\Directory\Team\Models\TeamPayment;
+use App\Finance\CashMovement\Models\CashMovement;
+use App\Finance\CashMovement\Models\CashMovementVoucher;
+use App\Finance\Sale\Models\Sale;
 use App\Shared\Foundation\Services\NodeUploaderService;
 use Carbon\Carbon;
 use Illuminate\Auth\AuthenticationException;
@@ -17,31 +18,25 @@ class CashflowService
     ) {
     }
 
-    /**
-     * Obtiene el reporte completo de caja para una fecha específica.
-     */
-
     public function getDailyReport(string $date, array $activeFilters = ['CASH', 'YAPE', 'CARD'])
     {
         $startOfDay = Carbon::parse($date)->startOfDay();
         $endOfDay = Carbon::parse($date)->endOfDay();
 
-        // 1. OBTENER VENTAS (SALES)
         $sales = Sale::whereBetween('creation_time', [$startOfDay, $endOfDay])
             ->where('status', 'COMPLETED')
             ->where('is_deleted', false)
             ->with(['payments', 'details'])
-            ->orderBy('creation_time', 'desc') // <-- AQUÍ ESTÁ LA MAGIA (De más reciente a más antigua)
+            ->orderBy('creation_time', 'desc')
             ->get()
             ->map(function ($sale) use ($activeFilters) {
-                // AQUÍ ESTÁ EL TRUCO: Solo sumamos los pagos que coinciden con los filtros activos
                 $filteredAmount = $sale->payments
                     ->whereIn('method', $activeFilters)
                     ->sum('amount');
 
-                // Si el monto filtrado es 0 (ej: venta es solo CARD y solo filtraste CASH), no la mostramos
-                if ($filteredAmount <= 0)
+                if ($filteredAmount <= 0) {
                     return null;
+                }
 
                 $itemsDescription = $sale->details->map(function ($detail) {
                     return "{$detail->product_name_snapshot} | {$detail->size_name_snapshot} | {$detail->color_name_snapshot}";
@@ -52,34 +47,30 @@ class CashflowService
                     'type' => 'SALE',
                     'time' => $sale->creation_time->format('H:i A'),
                     'description' => "{$sale->code} | {$itemsDescription}",
-                    'method' => $sale->payment_method, // Sigue diciendo MIXTO si lo es
-                    'amount' => (float) $filteredAmount, // Pero el monto es PARCIAL según el filtro
+                    'method' => $sale->payment_method,
+                    'amount' => (float) $filteredAmount,
                 ];
             })->filter()->values();
 
-        // 2. OBTENER MOVIMIENTOS MANUALES (Filtrados también)
         $movementModels = CashMovement::query()
             ->whereBetween('date', [$startOfDay, $endOfDay])
             ->where('is_deleted', false)
             ->where('category', CashMovement::CATEGORY_STORE)
             ->whereIn('payment_method', $activeFilters)
             ->orderBy('date', 'desc')
+            ->with('vouchers')
             ->get();
 
         $incomes = $movementModels->where('type', 'INCOME')->values();
         $expenses = $movementModels->where('type', 'EXPENSE')->values();
 
-        // 3. CÁLCULOS (Solo de lo que se está viendo)
         $totalSales = $sales->sum('amount');
         $totalIncomes = $incomes->sum('amount');
         $totalExpenses = $expenses->sum('amount');
 
-        // Mantenemos los 100 de apertura pero para el cálculo final los ignoraremos en el Front
-        $openingBalance = 100.00;
-
         return [
             'summary' => [
-                'opening_balance' => $openingBalance,
+                'opening_balance' => 100.00,
                 'total_sales' => $totalSales,
                 'total_incomes' => $totalIncomes,
                 'total_expenses' => $totalExpenses,
@@ -87,15 +78,11 @@ class CashflowService
             'lists' => [
                 'sales' => $sales,
                 'incomes' => $incomes,
-                'expenses' => $expenses
-            ]
+                'expenses' => $expenses,
+            ],
         ];
     }
 
-    /**
-     * Obtiene los gastos administrativos filtrados por mes y año.
-     * Formato esperado de $month: 'YYYY-MM' (ej: '2026-04')
-     */
     public function getMonthlyAdminExpenses(string $month)
     {
         $date = Carbon::parse($month);
@@ -107,54 +94,72 @@ class CashflowService
             ->whereYear('date', $year)
             ->whereMonth('date', $monthNum)
             ->where('is_deleted', false)
+            ->with('vouchers')
             ->orderBy('date', 'desc')
             ->get();
 
         return [
             'month' => $date->format('F Y'),
             'total_monthly_admin' => $expenses->sum('amount'),
-            'expenses' => $expenses
+            'expenses' => $expenses,
         ];
     }
 
     /**
-     * Registra un movimiento manual (Gasto o Ingreso)
+     * Registra un movimiento manual. Acepta uno o varios vouchers.
+     *
+     * @param array<UploadedFile>|UploadedFile|null $images
      */
-    public function registerMovement(array $data, ?UploadedFile $image = null)
+    public function registerMovement(array $data, array|UploadedFile|null $images = null): CashMovement
     {
-        if ($image) {
-            $data['voucher_path'] = $this->uploadToNode($image);
+        $imageArray = $this->normalizeImages($images);
+
+        // Para el primer voucher mantenemos compatibilidad con voucher_path en cash_movements
+        $firstPath = null;
+        if (! empty($imageArray)) {
+            $firstPath = $this->uploadToNode($imageArray[0]);
         }
 
-        return CashMovement::create([
+        $movement = CashMovement::create([
             'type' => $data['type'],
             'category' => $data['category'],
             'amount' => $data['amount'],
             'description' => $data['description'],
-            'voucher_path' => $data['voucher_path'] ?? null,
+            'voucher_path' => $data['voucher_path'] ?? $firstPath,
             'payment_method' => $data['payment_method'] ?? 'CASH',
             'purchase_id' => $data['purchase_id'] ?? null,
             'creator_user_id' => $this->resolveAuthenticatedUserId(),
             'date' => $data['date'],
         ]);
+
+        // Guardar todos los vouchers en la tabla dedicada
+        $paths = [];
+        if ($firstPath !== null) {
+            $paths[] = $firstPath;
+        }
+        foreach (array_slice($imageArray, 1) as $extra) {
+            $paths[] = $this->uploadToNode($extra);
+        }
+
+        foreach ($paths as $order => $path) {
+            CashMovementVoucher::create([
+                'cash_movement_id' => $movement->id,
+                'voucher_path' => $path,
+                'sort_order' => $order,
+            ]);
+        }
+
+        return $movement->load('vouchers');
     }
 
-    /**
-     * Los gastos administrativos deben registrarse siempre como
-     * type=EXPENSE + category=ADMINISTRATIVE en cash_movements.
-     */
-    public function registerAdministrativeExpense(array $data, ?UploadedFile $image = null): CashMovement
+    public function registerAdministrativeExpense(array $data, array|UploadedFile|null $images = null): CashMovement
     {
         $data['type'] = CashMovement::TYPE_EXPENSE;
         $data['category'] = CashMovement::CATEGORY_ADMINISTRATIVE;
 
-        return $this->registerMovement($data, $image);
+        return $this->registerMovement($data, $images);
     }
 
-    /**
-     * Vincula un movimiento de caja (con voucher) a una compra de inventario.
-     * Reclasifica como INVENTORY_PURCHASE para que no reste en Gastos Operativos.
-     */
     public function linkToPurchase(CashMovement $movement, int $purchaseId): CashMovement
     {
         if ($movement->is_deleted) {
@@ -181,20 +186,36 @@ class CashflowService
 
         $movement->save();
 
-        return $movement->fresh();
+        return $movement->fresh(['vouchers']);
     }
 
-    public function updateMovement(int $id, array $data, ?UploadedFile $newImage = null)
+    /**
+     * Actualiza un movimiento. Si se pasan nuevas imágenes se agregan (no reemplazan).
+     *
+     * @param array<UploadedFile>|UploadedFile|null $newImages
+     */
+    public function updateMovement(int $id, array $data, array|UploadedFile|null $newImages = null): CashMovement
     {
-        $movement = CashMovement::findOrFail($id);
+        $movement = CashMovement::with('vouchers')->findOrFail($id);
 
-        if ($newImage) {
-            // 1. Borramos el anterior si existe
-            if ($movement->voucher_path) {
-                $this->deleteFromNode($movement->voucher_path);
+        $imageArray = $this->normalizeImages($newImages);
+
+        if (! empty($imageArray)) {
+            $currentCount = $movement->vouchers->count();
+
+            foreach ($imageArray as $order => $file) {
+                $path = $this->uploadToNode($file);
+                CashMovementVoucher::create([
+                    'cash_movement_id' => $movement->id,
+                    'voucher_path' => $path,
+                    'sort_order' => $currentCount + $order,
+                ]);
+
+                // Actualizar el campo legacy para el primer voucher nuevo si aún no tiene
+                if ($currentCount === 0 && $order === 0 && $movement->voucher_path === null) {
+                    $data['voucher_path'] = $path;
+                }
             }
-            // 2. Subimos el nuevo
-            $data['voucher_path'] = $this->uploadToNode($newImage);
         }
 
         $movement->update([
@@ -209,7 +230,7 @@ class CashflowService
             'date' => $data['date'] ?? $movement->date,
         ]);
 
-        return $movement;
+        return $movement->fresh(['vouchers']);
     }
 
     public function streamVoucher(string $path): array
@@ -222,16 +243,42 @@ class CashflowService
             abort(403, 'Path no válido.');
         }
 
-        $movement = CashMovement::query()
+        // Buscar primero en la tabla dedicada de vouchers (nueva estructura)
+        $voucherRecord = CashMovementVoucher::query()
             ->where('voucher_path', $path)
-            ->where('is_deleted', false)
             ->first();
+
+        if ($voucherRecord !== null) {
+            $movement = CashMovement::query()
+                ->where('id', $voucherRecord->cash_movement_id)
+                ->where('is_deleted', false)
+                ->first();
+        } else {
+            // Fallback: voucher_path en la propia tabla cash_movements (registros legacy)
+            $movement = CashMovement::query()
+                ->where('voucher_path', $path)
+                ->where('is_deleted', false)
+                ->first();
+        }
 
         if ($movement === null) {
             abort(404, 'Comprobante no encontrado.');
         }
 
-        if ($movement->category === 'ADMINISTRATIVE') {
+        $this->authorizeVoucherAccess($movement);
+
+        $response = $this->nodeUploaderService->fetch($path);
+
+        return [
+            'body' => $response->body(),
+            'content_type' => $response->header('Content-Type') ?? 'application/octet-stream',
+            'filename' => basename($path),
+        ];
+    }
+
+    private function authorizeVoucherAccess(CashMovement $movement): void
+    {
+        if ($movement->category === CashMovement::CATEGORY_ADMINISTRATIVE) {
             $user = auth()->user();
 
             if ($user === null) {
@@ -258,14 +305,6 @@ class CashflowService
                 abort(403, 'Acceso denegado.');
             }
         }
-
-        $response = $this->nodeUploaderService->fetch($path);
-
-        return [
-            'body' => $response->body(),
-            'content_type' => $response->header('Content-Type') ?? 'application/octet-stream',
-            'filename' => basename($path),
-        ];
     }
 
     private function uploadToNode(UploadedFile $file): string
@@ -273,12 +312,28 @@ class CashflowService
         return $this->nodeUploaderService->upload($file, 'vouchers');
     }
 
-    /**
-     * Lógica privada para borrar en Node.js
-     */
     private function deleteFromNode(string $path): void
     {
         $this->nodeUploaderService->delete($path);
+    }
+
+    /**
+     * Normaliza el parámetro de imágenes a un array de UploadedFile.
+     *
+     * @param array<UploadedFile>|UploadedFile|null $input
+     * @return array<UploadedFile>
+     */
+    private function normalizeImages(array|UploadedFile|null $input): array
+    {
+        if ($input === null) {
+            return [];
+        }
+
+        if ($input instanceof UploadedFile) {
+            return [$input];
+        }
+
+        return array_values(array_filter($input, static fn ($f) => $f instanceof UploadedFile));
     }
 
     private function resolveAuthenticatedUserId(): int

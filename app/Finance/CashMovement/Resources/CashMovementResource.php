@@ -27,6 +27,11 @@ class CashMovementResource extends JsonResource
             'date' => $this->date?->format('Y-m-d H:i:s'),
             'time' => $this->date?->format('H:i A'),
             'voucher_path' => $this->voucher_path,
+            'voucher_paths' => $this->whenLoaded(
+                'vouchers',
+                fn () => $this->vouchers->pluck('voucher_path')->values(),
+                fn () => ($this->voucher_path ? [$this->voucher_path] : []),
+            ),
             'purchase_id' => $this->purchase_id,
             'expense_category' => $this->expense_category,
             'reference_code' => $this->reference_code,
