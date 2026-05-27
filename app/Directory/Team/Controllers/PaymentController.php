@@ -100,7 +100,7 @@ class PaymentController extends Controller
 
         $payments = TeamPayment::query()
             ->with(['cashMovement' => static function ($query): void {
-                $query->where('is_deleted', false);
+                $query->where('is_deleted', false)->with('vouchers');
             }])
             ->where('team_id', $teamId)
             ->where('is_deleted', false)
@@ -337,6 +337,17 @@ class PaymentController extends Controller
             ? $payment->cashMovement
             : null;
 
+        // Obtener todos los vouchers del movimiento de caja (nueva tabla)
+        $voucherPaths = [];
+        if ($cashMovement !== null) {
+            if ($cashMovement->relationLoaded('vouchers')) {
+                $voucherPaths = $cashMovement->vouchers->pluck('voucher_path')->filter()->values()->all();
+            } elseif ($cashMovement->voucher_path) {
+                // Fallback legacy
+                $voucherPaths = [$cashMovement->voucher_path];
+            }
+        }
+
         return [
             'id' => $payment->id,
             'type' => $payment->type,
@@ -348,6 +359,7 @@ class PaymentController extends Controller
             'cashMovementId' => $payment->cash_movement_id,
             'paymentMethod' => $cashMovement?->payment_method,
             'voucherPath' => $cashMovement?->voucher_path,
+            'voucherPaths' => $voucherPaths,
             'adminExpenseDescription' => $cashMovement?->description,
         ];
     }
