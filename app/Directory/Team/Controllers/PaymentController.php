@@ -26,6 +26,9 @@ class PaymentController extends Controller
 
     /** Jornada nominal 8:00–19:30 para prorratear descuento por minutos no cumplidos. */
     private const MINUTES_NOMINAL_SHIFT = 11 * 60 + 30;
+
+    /** Días fijos del mes para valor día, descuentos por falta y prorrateos de nómina. */
+    private const PAYROLL_DAYS_IN_MONTH = 30;
     /**
      * Resumen de movimientos (adelantos, pagos quincenales, descuentos) por mes.
      */
@@ -88,9 +91,10 @@ class PaymentController extends Controller
             ->whereKey($teamId)
             ->firstOrFail();
 
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $calendarDaysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $payrollDaysInMonth = self::PAYROLL_DAYS_IN_MONTH;
         $salary = round((float) $team->salary, 2);
-        $dailyRate = $daysInMonth > 0 ? round($salary / $daysInMonth, 4) : 0.0;
+        $dailyRate = round($salary / $payrollDaysInMonth, 4);
 
         $attendances = Attendance::query()
             ->where('team_id', $teamId)
@@ -133,9 +137,8 @@ class PaymentController extends Controller
         );
 
         $daysInPeriod = match ($period) {
-            'q1' => 15,
-            'q2' => max(0, $daysInMonth - 15),
-            default => $daysInMonth,
+            'q1', 'q2' => intdiv($payrollDaysInMonth, 2),
+            default => $payrollDaysInMonth,
         };
         // Pago quincenal: base fija = 50 % del salario (como «referencia media quincena»),
         // no prorrateo por días del mes (15/28–31).
@@ -152,8 +155,8 @@ class PaymentController extends Controller
         $restanteAlCierre = round($netoTrasFaltasPeriodo - $totalSalidaPeriodo, 2);
 
         $cierreDia = match ($period) {
-            'q1' => min(15, $daysInMonth),
-            default => $daysInMonth,
+            'q1' => min(15, $calendarDaysInMonth),
+            default => $calendarDaysInMonth,
         };
         $cierreLegible = $this->spanishLongDate($year, $month, $cierreDia);
 
@@ -170,9 +173,9 @@ class PaymentController extends Controller
                 'calendar' => [
                     'month' => $month,
                     'year' => $year,
-                    'daysInMonth' => $daysInMonth,
+                    'daysInMonth' => $payrollDaysInMonth,
                     'period' => $period,
-                    'periodLabel' => $this->periodLabel($period, $daysInMonth),
+                    'periodLabel' => $this->periodLabel($period, $calendarDaysInMonth),
                 ],
                 'rates' => [
                     'dailyRate' => $dailyRate,
@@ -200,7 +203,7 @@ class PaymentController extends Controller
                     'payments' => $movPeriodo['PAYMENT'],
                     'deductions' => $movPeriodo['DEDUCTION'],
                 ],
-                'paymentItems' => $this->formatPaymentItems($payments, $period, $daysInMonth),
+                'paymentItems' => $this->formatPaymentItems($payments, $period, $payrollDaysInMonth),
                 'estimates' => [
                     'salarioBase' => $salary,
                     'descuentoAsistenciaMesCompleto' => $descuentoAsistenciaMes,
@@ -647,8 +650,8 @@ class PaymentController extends Controller
         $faltasEquivalentes = $falta + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
         $descuentoPorAusencias = round($faltasADescontar * $dailyRate, 2);
-        // Siempre valor día = sueldo ÷ días del mes y jornada nominal 690 min, también en vista
-        // quincenal (solo cambia qué días entran en minutos/faltas; evita desbalance 15 vs 16 días).
+        // Siempre valor día = sueldo ÷ 30 y jornada nominal 690 min, también en vista quincenal
+        // (solo cambia qué días entran en minutos/faltas; evita desbalance 15 vs 16 días).
         $descuentoPorTiempoNoCumplido = self::MINUTES_NOMINAL_SHIFT > 0
             ? round(($totalDeudaMin / self::MINUTES_NOMINAL_SHIFT) * $dailyRate, 2)
             : 0.0;
