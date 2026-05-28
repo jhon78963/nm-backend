@@ -209,7 +209,7 @@ class PaymentController extends Controller
                     'descuentoAsistenciaMesCompleto' => $descuentoAsistenciaMes,
                     'salarioTrasDescuentoFaltas' => $trasFaltas,
                     'estimadoAPagarFinMes' => $estimadoFinMes,
-                    'nota' => 'Incluye descuentos por ausencias (Falta/Valdeo netas), proporcional al tiempo no cumplido (retraso tras tolerancia y salida antes de 19:30), más adelantos, pagos quincenales y descuentos manuales del mes.',
+                    'nota' => 'Incluye descuentos por ausencias (Falta/Valdeo netas), proporcional al tiempo no cumplido (retraso desde las 8:00 si el estado es TARDE, o tras tolerancia en otros casos, y salida antes de 19:30), más adelantos, pagos quincenales y descuentos manuales del mes.',
                 ],
                 'liquidacionPeriodo' => [
                     'period' => $period,
@@ -531,6 +531,7 @@ class PaymentController extends Controller
     /**
      * @return array{
      *   falta: int,
+     *   faltaInjustificada: int,
      *   valdeo: int,
      *   recuperacion: int,
      *   faltasEquivalentes: int,
@@ -582,6 +583,7 @@ class PaymentController extends Controller
         };
 
         $falta = 0;
+        $faltaInjustificada = 0;
         $valdeo = 0;
         $recuperacion = 0;
         $sumEntradaTarde = 0;
@@ -607,6 +609,8 @@ class PaymentController extends Controller
             $status = (string) $row->status;
             if ($status === 'FALTA') {
                 $falta++;
+            } elseif ($status === 'FALTA_INJUSTIFICADA') {
+                $faltaInjustificada++;
             } elseif ($status === 'VALDEO') {
                 $valdeo++;
             } elseif ($status === 'RECUPERACION') {
@@ -647,7 +651,8 @@ class PaymentController extends Controller
         usort($deudaPorDia, static fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
 
         $totalDeudaMin = $sumEntradaTarde + $sumSalidaAnticipada;
-        $faltasEquivalentes = $falta + $valdeo;
+        // FALTA_INJUSTIFICADA cuenta doble (= 2 días descontados por cada ocurrencia).
+        $faltasEquivalentes = $falta + ($faltaInjustificada * 2) + $valdeo;
         $faltasADescontar = max(0, $faltasEquivalentes - $recuperacion);
         $descuentoPorAusencias = round($faltasADescontar * $dailyRate, 2);
         // Siempre valor día = sueldo ÷ 30 y jornada nominal 690 min, también en vista quincenal
@@ -661,6 +666,7 @@ class PaymentController extends Controller
 
         return [
             'falta' => $falta,
+            'faltaInjustificada' => $faltaInjustificada,
             'valdeo' => $valdeo,
             'recuperacion' => $recuperacion,
             'faltasEquivalentes' => $faltasEquivalentes,
@@ -708,9 +714,15 @@ class PaymentController extends Controller
         $limit8 = $dateOnly->copy()->setTime(8, 0, 0);
 
         if ($this->statusUsesEntryRules($status) && $entry !== null) {
-            $toleranceEnd = $limit8->copy()->addMinutes(self::ENTRY_TOLERANCE_MINUTES);
-            if ($entry > $toleranceEnd) {
-                $deudaEntrada = $this->minutesLateAfter($toleranceEnd, $entry);
+            if ($status === 'TARDE') {
+                if ($entry > $limit8) {
+                    $deudaEntrada = $this->minutesLateAfter($limit8, $entry);
+                }
+            } else {
+                $toleranceEnd = $limit8->copy()->addMinutes(self::ENTRY_TOLERANCE_MINUTES);
+                if ($entry > $toleranceEnd) {
+                    $deudaEntrada = $this->minutesLateAfter($toleranceEnd, $entry);
+                }
             }
         }
 

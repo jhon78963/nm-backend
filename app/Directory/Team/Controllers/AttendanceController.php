@@ -95,7 +95,7 @@ class AttendanceController extends Controller
                 }),
             ],
             'date' => 'required|date',
-            'status' => 'required|in:PUNTUAL,TARDE,FALTA,DESCANSO,VACACIONES,RECUPERACION,VALDEO,TOLERANCIA',
+            'status' => 'required|in:PUNTUAL,TARDE,FALTA,FALTA_INJUSTIFICADA,DESCANSO,VACACIONES,RECUPERACION,VALDEO,TOLERANCIA',
             'check_in_time' => 'nullable|date_format:H:i',
             'check_out_time' => 'nullable|date_format:H:i',
             'delay_minutes' => 'nullable|integer',
