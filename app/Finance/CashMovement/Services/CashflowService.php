@@ -160,35 +160,6 @@ class CashflowService
         return $this->registerMovement($data, $images);
     }
 
-    public function linkToPurchase(CashMovement $movement, int $purchaseId): CashMovement
-    {
-        if ($movement->is_deleted) {
-            abort(404, 'Movimiento no encontrado');
-        }
-
-        if ($movement->type !== CashMovement::TYPE_EXPENSE) {
-            abort(422, 'Solo se pueden vincular egresos.');
-        }
-
-        $purchase = \App\Inventory\Purchase\Models\Purchase::query()
-            ->where('is_deleted', false)
-            ->findOrFail($purchaseId);
-
-        $movement->purchase_id = (int) $purchase->id;
-
-        if ($movement->category !== CashMovement::CATEGORY_INVENTORY_PURCHASE) {
-            $movement->category = CashMovement::CATEGORY_INVENTORY_PURCHASE;
-            if (! str_contains((string) $movement->description, '(Vinculado a compra')) {
-                $movement->description = trim((string) $movement->description)
-                    ." (Vinculado a compra #{$purchase->id})";
-            }
-        }
-
-        $movement->save();
-
-        return $movement->fresh(['vouchers']);
-    }
-
     /**
      * Actualiza un movimiento. Si se pasan nuevas imágenes se agregan (no reemplazan).
      *

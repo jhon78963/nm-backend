@@ -10,5 +10,4 @@ Route::controller(CashflowController::class)->group(function (): void {
     Route::get('/cash-flow/admin/monthly', 'getAdminMonthlyReport')->middleware('permission:cashflow.getAdminMonthlyReport');
     Route::post('/cash-flow', 'store')->middleware('permission:cashflow.store');
     Route::put('/cash-flow/{cashMovement}', 'update')->middleware('permission:cashflow.update');
-    Route::post('/cash-flow/{cashMovement}/link-purchase', 'linkPurchase')->middleware('permission:cashflow.update');
 });

@@ -95,24 +95,6 @@ class CashflowController extends Controller
         ]);
     }
 
-    public function linkPurchase(Request $request, CashMovement $cashMovement): JsonResponse
-    {
-        $validated = $request->validate([
-            'purchase_id' => 'required|integer|min:1|exists:purchases,id',
-        ]);
-
-        $movement = $this->cashflowService->linkToPurchase(
-            $cashMovement,
-            (int) $validated['purchase_id'],
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Movimiento vinculado a la compra. El voucher quedará visible en el detalle de la compra.',
-            'data' => new CashMovementResource($movement),
-        ]);
-    }
-
     public function streamVoucher(Request $request): Response
     {
         $path = $request->query('path');
