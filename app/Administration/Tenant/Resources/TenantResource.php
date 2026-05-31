@@ -2,6 +2,7 @@
 
 namespace App\Administration\Tenant\Resources;
 
+use App\Administration\Tenant\Resources\TenantSettingResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,9 +14,10 @@ class TenantResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'name' => $this->name,
+            'id'       => $this->id,
+            'name'     => $this->name,
             'isActive' => $this->is_active,
+            'setting'  => $this->whenLoaded('setting', fn () => new TenantSettingResource($this->setting)),
         ];
     }
 }

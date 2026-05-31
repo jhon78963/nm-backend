@@ -58,12 +58,14 @@ class TenantController extends Controller
 
     public function get(Tenant $tenant): JsonResponse
     {
+        $tenant->load('setting');
+
         return response()->json(new TenantResource($tenant));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $query = Tenant::query()->orderBy('name');
+        $query = Tenant::query()->with('setting')->orderBy('name');
         $limit = (int) $request->query('limit', 10);
         $page = (int) $request->query('page', 1);
         $search = (string) $request->query('search', '');

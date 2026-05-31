@@ -7,8 +7,10 @@ use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Requests\CheckoutPosRequest;
 use App\Finance\Sale\Requests\SearchCustomerDocRequest;
 use App\Finance\Sale\Requests\SearchProductSkuRequest;
+use App\Administration\Tenant\Models\TenantSetting;
 use App\Finance\Sale\Services\ElectronicDocumentService;
 use App\Finance\Sale\Services\SaleService;
+use App\Finance\Sale\Services\SunatQrService;
 use App\Finance\Sale\Support\SaleAccessScope;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
@@ -28,6 +30,7 @@ class PosController extends Controller
         protected ProductService             $productService,
         protected SaleService                $saleService,
         protected ElectronicDocumentService  $electronicDocumentService,
+        protected SunatQrService             $sunatQrService,
     ) {
     }
 
@@ -154,7 +157,20 @@ class PosController extends Controller
     {
         $sale = $this->findTicketSale($saleId);
 
-        return view('pos.ticket', compact('sale'));
+        $qrSvg   = $this->sunatQrService->generateQrSvg($sale);
+        $xmlHash = $this->sunatQrService->getXmlHash($sale);
+
+        // Carga la configuración del tenant dueño del almacén de esta venta.
+        // No usa BelongsToWarehouse scope (warehouses es modelo plano).
+        $tenantId = \DB::table('warehouses')
+            ->where('id', $sale->warehouse_id)
+            ->value('tenant_id');
+
+        $tenantSetting = $tenantId
+            ? TenantSetting::where('tenant_id', $tenantId)->first()
+            : null;
+
+        return view('pos.ticket', compact('sale', 'qrSvg', 'xmlHash', 'tenantSetting'));
     }
 
     /**
@@ -165,7 +181,7 @@ class PosController extends Controller
     private function findTicketSale(int $saleId): Sale
     {
         $query = Sale::query()
-            ->with(['details', 'customer'])
+            ->with(['details', 'customer', 'payments'])
             ->where('is_deleted', false)
             ->whereKey($saleId);
 

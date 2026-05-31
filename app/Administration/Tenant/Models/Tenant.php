@@ -6,6 +6,7 @@ use App\Inventory\Warehouse\Models\Warehouse;
 use App\Administration\User\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
@@ -29,5 +30,10 @@ class Tenant extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function setting(): HasOne
+    {
+        return $this->hasOne(TenantSetting::class);
     }
 }
