@@ -109,7 +109,7 @@ class ProductController extends Controller
             request:      $request,
             entityName:   'Inventory\\Product',
             modelName:    'Product',
-            columnSearch: ['id', 'name', 'gender.name', $stockSubquery],
+            columnSearch: ['id', 'name', 'barcode', 'gender.name', 'productSizes.barcode', $stockSubquery],
             filters:      $filters,
             extendQuery: function ($q) use ($warehouseId) {
                 if ($warehouseId > 0) {
