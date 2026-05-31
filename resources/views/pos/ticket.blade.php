@@ -223,6 +223,21 @@
             };
         }
 
+        /** Renderiza email con &#64; para evitar ofuscación de Cloudflare/proxies en producción. */
+        function _tkt_email_html(?string $email): string {
+            if (empty($email)) {
+                return '';
+            }
+            $parts = explode('@', $email, 2);
+            if (count($parts) !== 2) {
+                return e($email);
+            }
+
+            return e($parts[0]) . '&#64;' . e($parts[1]);
+        }
+
+        $emailHtml = _tkt_email_html($email);
+
         // ── Número de serie formateado ────────────────────────────────────────
         // Ej: full_invoice_number = "F001-00005"  → serie "F001", correl "00005"
         $fullNumber = $sale->full_invoice_number ?? $sale->code;
@@ -245,8 +260,15 @@
         </div>
         @if($phone || $email)
             <div class="header-contact">
-                @if($phone) Tel: {{ $phone }}@if($email) &nbsp;|&nbsp; @endif @endif
-                @if($email) {{ $email }} @endif
+                @if($phone)
+                    Tel: {{ $phone }}
+                @endif
+                @if($phone && $email)
+                    &nbsp;|&nbsp;
+                @endif
+                @if($email)
+                    {!! $emailHtml !!}
+                @endif
             </div>
         @endif
         @if($website)
