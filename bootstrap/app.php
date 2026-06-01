@@ -22,6 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Debe ir primero en el grupo `api` (EnsureFrontendRequestsAreStateful).
         $middleware->statefulApi();
 
+        // SEC-004: headers HTTP en todas las rutas api/* (nginx puede duplicar/reforzar).
+        $middleware->appendToGroup('api', \App\Shared\Foundation\Middleware\SecurityHeaders::class);
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
@@ -37,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withCommands([
+        \App\Console\Commands\ConfigCheckSecurityCommand::class,
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
         \App\Console\Commands\InventoryFixMismatchesCommand::class,
         \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
