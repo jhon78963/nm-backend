@@ -16,10 +16,14 @@ return new class extends Migration {
         });
 
         // Backfill: inferir quincena desde el día de la fecha existente
+        $dayExpr = DB::getDriverName() === 'sqlite'
+            ? "CAST(strftime('%d', date) AS INTEGER)"
+            : 'EXTRACT(DAY FROM date)';
+
         DB::statement("
             UPDATE team_payments
             SET payroll_period = CASE
-                WHEN EXTRACT(DAY FROM date) <= 15 THEN 'q1'
+                WHEN {$dayExpr} <= 15 THEN 'q1'
                 ELSE 'q2'
             END
             WHERE payroll_period IS NULL

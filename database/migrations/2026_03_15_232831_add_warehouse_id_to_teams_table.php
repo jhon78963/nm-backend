@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('teams', 'warehouse_id')) {
+            return;
+        }
+
         Schema::table('teams', function (Blueprint $table) {
             $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->default(1);
         });

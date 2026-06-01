@@ -2,11 +2,14 @@
 
 namespace App\Administration\Role\Controllers;
 
+use App\Administration\Role\Concerns\GuardsBuiltinSystemRoles;
+use App\Administration\Role\Concerns\GuardsRoleTenantScope;
 use App\Administration\Role\Requests\RoleStoreRequest;
 use App\Administration\Role\Requests\RoleUpdateRequest;
 use App\Administration\Role\Requests\SyncRolePermissionsRequest;
 use App\Administration\Role\Resources\PermissionResource;
 use App\Administration\Role\Resources\RoleResource;
+use App\Administration\User\Support\SuperAdminRole;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
@@ -17,6 +20,9 @@ use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
+    use GuardsBuiltinSystemRoles;
+    use GuardsRoleTenantScope;
+
     public function getAll(GetAllRequest $request): JsonResponse
     {
         $limit = (int) $request->query('limit', 10);
@@ -24,6 +30,12 @@ class RoleController extends Controller
         $search = (string) $request->query('search', '');
 
         $query = Role::query()->where('guard_name', 'web');
+
+        // SEC-001: Non-Super Admin only sees roles belonging to their tenant.
+        $actor = auth()->user();
+        if ($actor !== null && ! $actor->hasRole(SuperAdminRole::NAME)) {
+            $query->where('tenant_id', $actor->tenant_id);
+        }
 
         if ($search !== '') {
             $query->where('name', 'ilike', '%'.$search.'%');
@@ -46,6 +58,9 @@ class RoleController extends Controller
 
     public function get(Role $role): JsonResponse
     {
+        // SEC-001: Verify actor can access this role.
+        $this->authorizeRoleTenantScope($role);
+
         $role->load('permissions');
 
         return response()->json(new RoleResource($role));
@@ -58,6 +73,11 @@ class RoleController extends Controller
                 'name' => $request->validated('name'),
                 'guard_name' => 'web',
             ]);
+
+            // SEC-001: Assign tenant_id based on actor (Super Admin → null system role).
+            $role->tenant_id = $this->tenantIdForNewRole();
+            $role->save();
+
             $permissions = $request->validated('permissions');
             if (is_array($permissions) && $permissions !== []) {
                 $role->syncPermissions($permissions);
@@ -71,6 +91,11 @@ class RoleController extends Controller
 
     public function update(RoleUpdateRequest $request, Role $role): JsonResponse
     {
+        // SEC-002: Built-in system roles are immutable via API.
+        $this->authorizeBuiltinSystemRoleMutation($role);
+        // SEC-001: Verify actor owns this role (same tenant) or is Super Admin.
+        $this->authorizeRoleTenantScope($role);
+
         return DB::transaction(function () use ($request, $role): JsonResponse {
             $validated = $request->validated();
             if (array_key_exists('name', $validated)) {
@@ -87,6 +112,11 @@ class RoleController extends Controller
 
     public function delete(Role $role): JsonResponse
     {
+        // SEC-002: Built-in system roles are immutable via API.
+        $this->authorizeBuiltinSystemRoleMutation($role);
+        // SEC-001: Verify actor owns this role (same tenant) or is Super Admin.
+        $this->authorizeRoleTenantScope($role);
+
         return DB::transaction(function () use ($role): JsonResponse {
             $role->delete();
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
@@ -97,6 +127,11 @@ class RoleController extends Controller
 
     public function syncPermissions(SyncRolePermissionsRequest $request, Role $role): JsonResponse
     {
+        // SEC-002: Built-in system roles are immutable via API.
+        $this->authorizeBuiltinSystemRoleMutation($role);
+        // SEC-001: Verify actor owns this role (same tenant) or is Super Admin.
+        $this->authorizeRoleTenantScope($role);
+
         return DB::transaction(function () use ($request, $role): JsonResponse {
             $names = $request->validated('permissions');
             $role->syncPermissions($names);
