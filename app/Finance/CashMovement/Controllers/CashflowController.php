@@ -2,6 +2,8 @@
 
 namespace App\Finance\CashMovement\Controllers;
 
+use App\Administration\Audit\Services\UserActionLogService;
+use App\Administration\Audit\Support\AuditActions;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Requests\CashflowStoreRequest;
 use App\Finance\CashMovement\Requests\CashflowUpdateRequest;
@@ -69,6 +71,11 @@ class CashflowController extends Controller
         // Pasamos los datos y el archivo (si existe)
         $movement = $this->cashflowService->registerMovement($data, $request->file('images') ?: null);
 
+        UserActionLogService::log(
+            AuditActions::CASHFLOW_CREATED,
+            metadata: ['cash_movement_id' => $movement->id],
+        );
+
         return response()->json([
             'success' => true,
             'data' => new CashMovementResource($movement),
@@ -87,6 +94,11 @@ class CashflowController extends Controller
             $cashMovement->id,
             $data,
             $request->file('images') ?: null,
+        );
+
+        UserActionLogService::log(
+            AuditActions::CASHFLOW_UPDATED,
+            metadata: ['cash_movement_id' => $movement->id],
         );
 
         return response()->json([

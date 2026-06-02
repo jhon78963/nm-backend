@@ -4,6 +4,7 @@ namespace App\Finance\Sale\Services;
 
 use App\Directory\Customer\Models\Customer;
 use App\Finance\Sale\Models\ElectronicDocumentLog;
+use App\Finance\Sale\Support\SunatLogRedactor;
 use App\Finance\Sale\Models\Sale;
 use Greenter\Model\Response\BaseResult;
 use Greenter\Model\Response\BillResult;
@@ -135,7 +136,7 @@ class ElectronicDocumentService
         // ── Log de auditoría ────────────────────────────────────────────────
         $this->writeLog($sale, 'ISSUE', null, [
             'sunat_code'  => $cdr?->getCode(),
-            'description' => $cdr?->getDescription(),
+            'description' => SunatLogRedactor::redactString($cdr?->getDescription()),
             'notes'       => $cdr?->getNotes(),
         ]);
     }
@@ -197,7 +198,7 @@ class ElectronicDocumentService
 
         $this->writeLog($sale, 'ISSUE', null, [
             'error_code' => $errorCode,
-            'error_msg'  => $errorMessage,
+            'error_msg'  => SunatLogRedactor::redactString($errorMessage),
         ]);
     }
 
@@ -214,14 +215,18 @@ class ElectronicDocumentService
         ?array $responsePayload,
     ): void {
         try {
+            $redactedRequest = SunatLogRedactor::redactPayload($requestPayload);
+            $redactedResponse = SunatLogRedactor::redactPayload($responsePayload);
+            $sunatCode = is_array($redactedResponse)
+                ? ($redactedResponse['sunat_code'] ?? $redactedResponse['error_code'] ?? null)
+                : null;
+
             ElectronicDocumentLog::create([
                 'sale_id'          => $sale->id,
                 'action'           => $action,
-                'request_payload'  => $requestPayload,
-                'response_payload' => $responsePayload,
-                'sunat_code'       => $responsePayload['sunat_code']
-                                       ?? $responsePayload['error_code']
-                                       ?? null,
+                'request_payload'  => $redactedRequest,
+                'response_payload' => $redactedResponse,
+                'sunat_code'       => $sunatCode,
             ]);
         } catch (\Throwable $e) {
             // El log nunca debe romper el flujo principal.
