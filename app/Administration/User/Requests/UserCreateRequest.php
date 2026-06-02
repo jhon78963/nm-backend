@@ -4,6 +4,7 @@ namespace App\Administration\User\Requests;
 
 use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
+use App\Auth\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -45,8 +46,16 @@ class UserCreateRequest extends FormRequest
                 'required',
                 Rule::exists('warehouses', 'id')->where('tenant_id', $this->input('tenantId')),
             ],
-            'password' => 'required|string|min:8|confirmed',
+            'password' => PasswordPolicy::rules(),
             'file' => 'nullable|mimes:jpeg,png,jpg,webp|max:2048',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return PasswordPolicy::messages();
     }
 }

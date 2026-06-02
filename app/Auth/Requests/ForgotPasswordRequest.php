@@ -2,21 +2,13 @@
 
 namespace App\Auth\Requests;
 
-use App\Auth\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
-class ResetPasswordRequest extends FormRequest
+class ForgotPasswordRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
-    }
-
-    protected function prepareForValidation(): void
-    {
-        if ($this->has('passwordConfirmation') && ! $this->has('password_confirmation')) {
-            $this->merge(['password_confirmation' => $this->input('passwordConfirmation')]);
-        }
     }
 
     /**
@@ -25,9 +17,7 @@ class ResetPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => PasswordPolicy::rules(),
         ];
     }
 
@@ -36,10 +26,9 @@ class ResetPasswordRequest extends FormRequest
      */
     public function messages(): array
     {
-        return array_merge(PasswordPolicy::messages(), [
-            'token.required' => 'El token de restablecimiento es obligatorio.',
+        return [
             'email.required' => 'El correo electrónico es obligatorio.',
             'email.email' => 'El correo electrónico no es válido.',
-        ]);
+        ];
     }
 }
