@@ -2,6 +2,7 @@
 
 namespace App\Finance\CashMovement\Requests;
 
+use App\Finance\CashMovement\Models\CashMovement;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CashflowStoreRequest extends FormRequest
@@ -14,11 +15,9 @@ class CashflowStoreRequest extends FormRequest
             return false;
         }
 
-        if ($this->input('category') === 'ADMINISTRATIVE') {
-            return $user->can('cashflow.getAdminMonthlyReport');
-        }
+        $category = $this->input('category', CashMovement::CATEGORY_STORE);
 
-        return true;
+        return $user->can('create', [CashMovement::class, $category]);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Administration\User\Requests;
 
 use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
+use App\Administration\User\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,6 +15,12 @@ class UserCreateRequest extends FormRequest
 
     public function authorize(): bool
     {
+        $user = $this->user();
+
+        if ($user === null || ! $user->can('create', User::class)) {
+            return false;
+        }
+
         if (! $this->authorizesActorTenantScope()) {
             $this->failedActorTenantScopeAuthorization();
         }

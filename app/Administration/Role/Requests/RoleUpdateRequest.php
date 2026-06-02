@@ -4,12 +4,18 @@ namespace App\Administration\Role\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class RoleUpdateRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+        $role = $this->route('role');
+
+        return $user !== null
+            && $role instanceof Role
+            && $user->can('update', $role);
     }
 
     /**

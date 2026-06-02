@@ -11,29 +11,16 @@ class CashflowUpdateRequest extends FormRequest
     {
         $user = $this->user();
 
-        if ($user === null) {
-            return false;
-        }
-
-        if (! $user->can('cashflow.update')) {
-            return false;
-        }
-
         /** @var CashMovement|null $movement */
         $movement = $this->route('cashMovement');
 
-        if ($movement === null) {
+        if ($user === null || ! ($movement instanceof CashMovement)) {
             return false;
         }
 
-        $isAdministrativeInDb = $movement->category === 'ADMINISTRATIVE';
-        $changingToAdministrative = $this->input('category') === 'ADMINISTRATIVE';
+        $newCategory = $this->input('category');
 
-        if ($isAdministrativeInDb || $changingToAdministrative) {
-            return $user->can('cashflow.getAdminMonthlyReport');
-        }
-
-        return true;
+        return $user->can('update', [$movement, $newCategory]);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Administration\User\Requests;
 
 use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
+use App\Administration\User\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,8 +15,15 @@ class UserUpdateRequest extends FormRequest
 
     public function authorize(): bool
     {
-        if (! $this->authorizesActorTenantScope()) {
-            $this->failedActorTenantScopeAuthorization();
+        $actor = $this->user();
+        $target = $this->route('user');
+
+        if ($actor === null || ! ($target instanceof User)) {
+            return false;
+        }
+
+        if (! $actor->can('update', $target)) {
+            return false;
         }
 
         return $this->authorizesSuperAdminRoleAssignment();
