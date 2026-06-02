@@ -5,6 +5,7 @@ namespace App\Administration\User\Requests;
 use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
 use App\Administration\User\Models\User;
+use App\Shared\Foundation\Rules\ValidMagicBytes;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -37,7 +38,7 @@ class UserUpdateRequest extends FormRequest
         return [
             'name' => 'sometimes|max:25',
             'surname' => 'sometimes|max:25',
-            'file' => 'sometimes|max:2048',
+            'file' => ['sometimes', 'file', 'mimes:jpeg,png,jpg,webp', 'max:2048', new ValidMagicBytes(['jpeg', 'png', 'webp'])],
             'warehouseId' => [
                 'sometimes',
                 Rule::exists('warehouses', 'id')->where('tenant_id', $this->tenantIdForWarehouseValidation()),

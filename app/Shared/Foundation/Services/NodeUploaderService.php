@@ -8,6 +8,45 @@ use RuntimeException;
 
 class NodeUploaderService
 {
+    /**
+     * Sanitize an untrusted client-supplied filename before forwarding to the
+     * uploader service. Prevents path traversal, double-extension tricks, and
+     * characters that could be interpreted by downstream processors.
+     *
+     * The Node service derives the stored extension from this name, so we must
+     * ensure it reflects a single, safe extension that matches the actual file.
+     */
+    public static function sanitizeFilename(UploadedFile $file): string
+    {
+        // Derive extension from the server-detected MIME type, not the client name
+        $ext = self::mimeToExtension($file->getMimeType() ?? '');
+
+        // Build a safe stem: base name only (no directory parts), remove control chars,
+        // replace anything that is not alphanumeric / dash / underscore / dot
+        $clientName = basename($file->getClientOriginalName());
+        $clientName = preg_replace('/[\x00-\x1f\x7f]/', '', $clientName) ?? '';
+        $stem = pathinfo($clientName, PATHINFO_FILENAME);
+        $stem = preg_replace('/[^a-zA-Z0-9_-]/', '_', $stem) ?? 'upload';
+        $stem = trim($stem, '_') ?: 'upload';
+
+        return $stem.'.'.$ext;
+    }
+
+    /**
+     * Map server-detected MIME types to safe single extensions.
+     * Falls back to 'bin' for unknown types (Node will reject via its allowlist).
+     */
+    private static function mimeToExtension(string $mime): string
+    {
+        return match ($mime) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'application/pdf' => 'pdf',
+            default => 'bin',
+        };
+    }
+
     public function upload(UploadedFile $file, string $context = 'products'): string
     {
         $uploaderUrl = config('services.uploader.url');
@@ -21,7 +60,7 @@ class NodeUploaderService
             ->attach(
                 'files',
                 file_get_contents($file->getRealPath()),
-                $file->getClientOriginalName(),
+                self::sanitizeFilename($file),
             )
             ->post(rtrim((string) $uploaderUrl, '/').'/api/upload', ['context' => $context]);
 
