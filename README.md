@@ -2,6 +2,10 @@
 
 # NovedadesMaritex API
 
+![CI](https://github.com/jhon78963/nm-backend/actions/workflows/ci.yml/badge.svg)
+
+Pipeline en `.github/workflows/ci.yml`: PHP 8.2, Pest (`php artisan test`) y `composer audit` (falla en vulnerabilidades high/critical).
+
 1. Clonar el proyecto
 ```
 git clone https://github.com/jhon78963/nm-backend.git
