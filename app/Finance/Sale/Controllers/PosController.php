@@ -14,6 +14,7 @@ use App\Finance\Sale\Services\SunatQrService;
 use App\Finance\Sale\Support\SaleAccessScope;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Support\SafeLogContext;
 use App\Shared\Foundation\Exceptions\UserWarehouseNotAssignedException;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -133,10 +134,7 @@ class PosController extends Controller
         } catch (UserWarehouseNotAssignedException $e) {
             return $this->apiErrorResponse($e, 403);
         } catch (Throwable $e) {
-            Log::error('POS checkout failed', [
-                'message' => $e->getMessage(),
-                'exception' => $e,
-            ]);
+            Log::error('POS checkout failed', SafeLogContext::fromThrowable($e));
 
             return $this->apiErrorResponse($e, 500, [
                 'message' => 'Ocurrió un error al procesar la venta.',

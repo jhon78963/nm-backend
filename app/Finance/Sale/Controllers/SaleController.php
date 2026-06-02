@@ -2,6 +2,8 @@
 
 namespace App\Finance\Sale\Controllers;
 
+use App\Administration\Audit\Services\UserActionLogService;
+use App\Administration\Audit\Support\AuditActions;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Requests\ExchangeSaleRequest;
 use App\Finance\Sale\Requests\SaleUpdateRequest;
@@ -38,7 +40,13 @@ class SaleController extends Controller
     {
         return DB::transaction(function () use ($sale): JsonResponse {
             $this->saleService->validate($sale, 'Sale');
+            $saleId = $sale->id;
             $this->saleService->delete($sale);
+
+            UserActionLogService::log(
+                AuditActions::SALE_DELETED,
+                metadata: ['sale_id' => $saleId],
+            );
 
             return response()->json(['message' => 'Sale deleted successfully.']);
         });

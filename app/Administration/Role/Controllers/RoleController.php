@@ -2,6 +2,8 @@
 
 namespace App\Administration\Role\Controllers;
 
+use App\Administration\Audit\Services\UserActionLogService;
+use App\Administration\Audit\Support\AuditActions;
 use App\Administration\Role\Requests\RoleStoreRequest;
 use App\Administration\Role\Requests\RoleUpdateRequest;
 use App\Administration\Role\Requests\SyncRolePermissionsRequest;
@@ -65,6 +67,11 @@ class RoleController extends Controller
             $role->load('permissions');
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
+            UserActionLogService::log(
+                AuditActions::ROLE_CREATED,
+                metadata: ['role_id' => $role->id],
+            );
+
             return response()->json(new RoleResource($role), 201);
         });
     }
@@ -81,6 +88,11 @@ class RoleController extends Controller
             }
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
+            UserActionLogService::log(
+                AuditActions::ROLE_UPDATED,
+                metadata: ['role_id' => $role->id],
+            );
+
             return response()->json(new RoleResource($role->fresh(['permissions'])));
         });
     }
@@ -88,8 +100,14 @@ class RoleController extends Controller
     public function delete(Role $role): JsonResponse
     {
         return DB::transaction(function () use ($role): JsonResponse {
+            $roleId = $role->id;
             $role->delete();
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
+            UserActionLogService::log(
+                AuditActions::ROLE_DELETED,
+                metadata: ['role_id' => $roleId],
+            );
 
             return response()->json(['message' => 'Rol eliminado.']);
         });
@@ -102,6 +120,14 @@ class RoleController extends Controller
             $role->syncPermissions($names);
             $role->load('permissions');
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
+            UserActionLogService::log(
+                AuditActions::ROLE_PERMISSIONS_SYNCED,
+                metadata: [
+                    'role_id' => $role->id,
+                    'permission_count' => count($names),
+                ],
+            );
 
             return response()->json([
                 'message' => 'Permisos sincronizados.',
