@@ -3,6 +3,7 @@
 namespace App\Directory\Team\Requests;
 
 use App\Directory\Team\Models\TeamPayment;
+use App\Shared\Foundation\Rules\ValidMagicBytes;
 use Illuminate\Foundation\Http\FormRequest;
 
 class TeamPaymentStoreRequest extends FormRequest
@@ -24,16 +25,16 @@ class TeamPaymentStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'team_id'            => 'required|exists:teams,id',
-            'type'               => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
-            'amount'             => 'required|numeric|min:0.1',
-            'date'               => 'required|date',
-            'payroll_period'     => 'required|in:q1,q2',
-            'description'        => 'nullable|string',
+            'team_id' => 'required|exists:teams,id',
+            'type' => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
+            'amount' => 'required|numeric|min:0.1',
+            'date' => 'required|date',
+            'payroll_period' => 'required|in:q1,q2',
+            'description' => 'nullable|string',
             'sync_cash_movement' => 'nullable|boolean',
-            'payment_method'     => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
-            'images'             => 'nullable|array|max:10',
-            'images.*'           => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
+            'images' => 'nullable|array|max:10',
+            'images.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120', new ValidMagicBytes(['jpeg', 'png', 'webp', 'pdf'])],
         ];
     }
 }

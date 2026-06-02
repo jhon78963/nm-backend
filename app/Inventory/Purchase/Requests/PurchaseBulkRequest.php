@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Purchase\Requests;
 
+use App\Shared\Foundation\Rules\ValidMagicBytes;
 use Illuminate\Foundation\Http\FormRequest;
 
 class PurchaseBulkRequest extends FormRequest
@@ -83,7 +84,7 @@ class PurchaseBulkRequest extends FormRequest
 
             // Campos extra para el registro de salida de caja con voucher
             'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
-            'image'          => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120', new ValidMagicBytes(['jpeg', 'png', 'webp', 'pdf'])],
         ];
     }
 }
