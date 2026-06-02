@@ -15,7 +15,7 @@
         "greenter/xml": "*",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^3.0.2",
         "spatie/laravel-permission": "^6.25"
     },
     "require-dev": {
