@@ -7,6 +7,8 @@ use App\Administration\Audit\Support\AuditActions;
 use App\Directory\Team\Models\Attendance;
 use App\Directory\Team\Models\Team;
 use App\Directory\Team\Models\TeamPayment;
+use App\Directory\Team\Requests\TeamPaymentStoreRequest;
+use App\Directory\Team\Requests\TeamPaymentUpdateRequest;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Services\CashflowService;
 use App\Shared\Foundation\Controllers\Controller;
@@ -232,20 +234,9 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request, CashflowService $cashflowService): JsonResponse
+    public function store(TeamPaymentStoreRequest $request, CashflowService $cashflowService): JsonResponse
     {
-        $validated = $request->validate([
-            'team_id' => 'required|exists:teams,id',
-            'type' => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
-            'amount' => 'required|numeric|min:0.1',
-            'date' => 'required|date',
-            'payroll_period' => 'required|in:q1,q2',
-            'description' => 'nullable|string',
-            'sync_cash_movement' => 'nullable|boolean',
-            'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
-            'images' => 'nullable|array|max:10',
-            'images.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
-        ]);
+        $validated = $request->validated();
 
         $validated['payment_method'] = $this->normalizePaymentMethod(
             (string) $validated['payment_method'],
@@ -331,20 +322,13 @@ class PaymentController extends Controller
      * Actualiza fecha, tipo, monto o descripción de un pago registrado.
      * Si está vinculado a un cash_movement, sincroniza fecha y monto en ambas tablas.
      */
-    public function update(Request $request, TeamPayment $teamPayment): JsonResponse
+    public function update(TeamPaymentUpdateRequest $request, TeamPayment $teamPayment): JsonResponse
     {
         if ($teamPayment->is_deleted) {
             abort(404, 'Movimiento no encontrado.');
         }
 
-        $validated = $request->validate([
-            'date' => 'required|date',
-            'payroll_period' => 'required|in:q1,q2',
-            'type' => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
-            'amount' => 'required|numeric|min:0.01',
-            'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
-            'description' => 'nullable|string|max:255',
-        ]);
+        $validated = $request->validated();
 
         $validated['payment_method'] = $this->normalizePaymentMethod(
             (string) $validated['payment_method'],
@@ -395,6 +379,8 @@ class PaymentController extends Controller
      */
     public function destroy(TeamPayment $teamPayment): JsonResponse
     {
+        $this->authorize('delete', $teamPayment);
+
         if ($teamPayment->is_deleted) {
             abort(404, 'Movimiento no encontrado.');
         }

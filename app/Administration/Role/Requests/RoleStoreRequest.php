@@ -4,12 +4,15 @@ namespace App\Administration\Role\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class RoleStoreRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+        return $user !== null && $user->can('create', Role::class);
     }
 
     /**
