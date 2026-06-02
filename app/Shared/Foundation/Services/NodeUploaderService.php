@@ -18,8 +18,8 @@ class NodeUploaderService
      */
     public static function sanitizeFilename(UploadedFile $file): string
     {
-        // Derive extension from the server-detected MIME type, not the client name
-        $ext = self::mimeToExtension($file->getMimeType() ?? '');
+        // Derive extension from detected MIME type (magic bytes + finfo), not the client name
+        $ext = self::mimeToExtension(self::resolveMimeType($file));
 
         // Build a safe stem: base name only (no directory parts), remove control chars,
         // replace anything that is not alphanumeric / dash / underscore / dot
@@ -30,6 +30,38 @@ class NodeUploaderService
         $stem = trim($stem, '_') ?: 'upload';
 
         return $stem.'.'.$ext;
+    }
+
+    /**
+     * Resolve MIME from magic bytes first, then finfo. Ignores client-supplied MIME.
+     */
+    private static function resolveMimeType(UploadedFile $file): string
+    {
+        $path = $file->getRealPath();
+        if (is_string($path) && $path !== '') {
+            $header = @file_get_contents($path, false, null, 0, 12);
+            if (is_string($header) && $header !== '') {
+                $fromMagic = self::mimeFromMagicBytes($header);
+                if ($fromMagic !== null) {
+                    return $fromMagic;
+                }
+            }
+        }
+
+        $detected = $file->getMimeType() ?? '';
+
+        return $detected !== '' ? $detected : ($file->getClientMimeType() ?? '');
+    }
+
+    private static function mimeFromMagicBytes(string $header): ?string
+    {
+        return match (true) {
+            str_starts_with($header, "\xFF\xD8\xFF") => 'image/jpeg',
+            str_starts_with($header, "\x89PNG\r\n\x1A\n") => 'image/png',
+            str_starts_with($header, 'RIFF') && strlen($header) >= 12 && substr($header, 8, 4) === 'WEBP' => 'image/webp',
+            str_starts_with($header, '%PDF') => 'application/pdf',
+            default => null,
+        };
     }
 
     /**

@@ -138,8 +138,16 @@ describe('NodeUploaderService::sanitizeFilename', function () {
     /** Helper: UploadedFile with a given client name and server-detected MIME. */
     function fakeUploadedFile(string $clientName, string $mimeType): UploadedFile
     {
+        $header = match ($mimeType) {
+            'image/jpeg' => "\xFF\xD8\xFF\xE0",
+            'image/png' => "\x89PNG\r\n\x1A\n",
+            'image/webp' => 'RIFF'.pack('V', 20).'WEBP',
+            'application/pdf' => '%PDF-1.4',
+            default => 'dummy',
+        };
+
         $tmp = tempnam(sys_get_temp_dir(), 'svc_test_');
-        file_put_contents($tmp, 'dummy');
+        file_put_contents($tmp, $header.str_repeat("\x00", 20));
 
         return new UploadedFile($tmp, $clientName, $mimeType, UPLOAD_ERR_OK, true);
     }

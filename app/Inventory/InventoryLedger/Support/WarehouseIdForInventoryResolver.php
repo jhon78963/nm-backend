@@ -76,9 +76,7 @@ final class WarehouseIdForInventoryResolver
         }
 
         if (self::actingUserIsSuperAdmin($user)) {
-            $explicitWarehouseId = self::explicitFromRequest(request());
-
-            return $explicitWarehouseId > 0 && $explicitWarehouseId === $warehouseId;
+            return true;
         }
 
         return false;
