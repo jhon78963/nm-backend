@@ -4,6 +4,7 @@ namespace App\Auth\Controllers;
 
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Requests\ChangePasswordRequest;
+use App\Auth\Requests\ForgotPasswordRequest;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\ResetPasswordRequest;
 use App\Auth\Requests\UpdateMeRequest;
@@ -94,6 +95,15 @@ class AuthController extends Controller
         return response()->json(new MeResource($user));
     }
 
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        $this->authService->sendPasswordResetLink($request->validated('email'));
+
+        return response()->json([
+            'message' => AuthService::PASSWORD_RESET_REQUEST_MESSAGE,
+        ]);
+    }
+
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
         $status = $this->authService->resetPasswordWithToken(
@@ -105,7 +115,7 @@ class AuthController extends Controller
         if ($status !== Password::PASSWORD_RESET) {
             return response()->json([
                 'success' => false,
-                'message' => __($status),
+                'message' => AuthService::PASSWORD_RESET_FAILURE_MESSAGE,
             ], 422);
         }
 

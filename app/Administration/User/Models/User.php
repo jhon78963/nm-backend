@@ -3,6 +3,7 @@
 namespace App\Administration\User\Models;
 
 use App\Administration\Tenant\Models\Tenant;
+use App\Auth\Notifications\ForgotPasswordNotification;
 use App\Directory\Team\Models\Team;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -80,5 +81,10 @@ class User extends Authenticatable
     public function team(): HasOne
     {
         return $this->hasOne(Team::class, 'user_id');
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ForgotPasswordNotification($token));
     }
 }

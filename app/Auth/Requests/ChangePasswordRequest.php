@@ -2,6 +2,7 @@
 
 namespace App\Auth\Requests;
 
+use App\Auth\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ChangePasswordRequest extends FormRequest
@@ -33,7 +34,7 @@ class ChangePasswordRequest extends FormRequest
             'current_password' => $requiresCurrentPassword
                 ? ['required', 'string', 'current_password']
                 : ['nullable'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => PasswordPolicy::rules(),
         ];
     }
 
@@ -42,13 +43,10 @@ class ChangePasswordRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
+        return array_merge(PasswordPolicy::messages('nueva contraseña'), [
             'current_password.required' => 'La contraseña actual es obligatoria.',
             'current_password.current_password' => 'La contraseña actual no es correcta.',
-            'password.required' => 'La nueva contraseña es obligatoria.',
-            'password.min' => 'La nueva contraseña debe tener al menos 8 caracteres.',
-            'password.confirmed' => 'La confirmación de la nueva contraseña no coincide.',
-        ];
+        ]);
     }
 
     /**

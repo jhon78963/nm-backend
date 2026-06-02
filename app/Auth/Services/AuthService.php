@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Password;
 
 class AuthService
 {
+    public const PASSWORD_RESET_REQUEST_MESSAGE = 'Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña.';
+
+    public const PASSWORD_RESET_FAILURE_MESSAGE = 'No se pudo restablecer la contraseña. Verifica el enlace o solicita uno nuevo.';
     public function validateUser(string $password, ?User $user): User
     {
         if ($user === null || ! Hash::check($password, $user->password)) {
@@ -45,6 +48,11 @@ class AuthService
         $user->password = $newPassword;
         $user->must_change_password = false;
         $user->save();
+    }
+
+    public function sendPasswordResetLink(string $email): void
+    {
+        Password::sendResetLink(['email' => $email]);
     }
 
     public function resetPasswordWithToken(string $email, string $password, string $token): string
