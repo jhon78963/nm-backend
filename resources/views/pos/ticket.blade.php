@@ -45,9 +45,15 @@
             height: auto;
             display: block;
             margin: 0 auto 4px auto;
-            filter: grayscale(100%) brightness(0);
-            -webkit-filter: grayscale(100%) brightness(0);
+            object-fit: contain;
             background: transparent;
+        }
+
+        @media print {
+            .logo-img {
+                filter: grayscale(100%) brightness(0);
+                -webkit-filter: grayscale(100%) brightness(0);
+            }
         }
         .company-name { font-size: 14px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
         .company-legal { font-size: 8px; margin-top: 1px; }
@@ -173,6 +179,7 @@
         $instagram    = $ts?->social('instagram');
         $tiktok       = $ts?->social('tiktok');
         $logoUrl      = $ts?->logo_url;
+        $logoSrc      = \App\Finance\Sale\Support\TicketLogoEmbed::embedSrc($logoUrl);
         $footerNote   = $ts?->ticket_footer_note ?: 'NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES';
 
         // ── Totales ──────────────────────────────────────────────────────────
@@ -247,8 +254,8 @@
     {{-- ENCABEZADO                                         --}}
     {{-- ══════════════════════════════════════════════════ --}}
     <div class="header">
-        @if(!empty($logoUrl))
-            <img class="logo-img" src="{{ $logoUrl }}" alt="{{ $tradeName }}" width="150">
+        @if(!empty($logoSrc))
+            <img class="logo-img" src="{{ $logoSrc }}" alt="{{ $tradeName }}" width="150">
         @endif
         <div class="company-name">{{ $tradeName }}</div>
         @if($legalName && $legalName !== $tradeName)
