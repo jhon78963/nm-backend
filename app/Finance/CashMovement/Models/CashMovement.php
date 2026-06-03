@@ -31,6 +31,8 @@ class CashMovement extends Model
 
     protected $fillable = [
         'date',
+        'accounting_month',
+        'payroll_period',
         'type',
         'amount',
         'description',
@@ -98,5 +100,28 @@ class CashMovement extends Model
     public function purchase(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Purchase::class);
+    }
+
+    public function accountingPeriodLabel(): ?string
+    {
+        if ($this->accounting_month === null || $this->accounting_month === '') {
+            return null;
+        }
+
+        try {
+            $monthName = \Carbon\Carbon::createFromFormat('Y-m', $this->accounting_month)
+                ->locale('es')
+                ->translatedFormat('F Y');
+        } catch (\Throwable) {
+            $monthName = $this->accounting_month;
+        }
+
+        $quincena = match ($this->payroll_period) {
+            'q1' => ' · cierre 1–15',
+            'q2' => ' · cierre 16–fin',
+            default => '',
+        };
+
+        return $monthName.$quincena;
     }
 }

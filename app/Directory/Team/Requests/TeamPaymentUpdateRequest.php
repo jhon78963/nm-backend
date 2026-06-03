@@ -27,6 +27,7 @@ class TeamPaymentUpdateRequest extends FormRequest
         return [
             'date'           => 'required|date',
             'payroll_period' => 'required|in:q1,q2',
+            'accounting_month' => 'required|date_format:Y-m',
             'type'           => 'required|in:PAYMENT,ADVANCE,DEDUCTION',
             'amount'         => 'required|numeric|min:0.01',
             'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',

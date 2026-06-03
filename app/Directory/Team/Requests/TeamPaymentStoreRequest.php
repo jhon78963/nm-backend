@@ -30,6 +30,7 @@ class TeamPaymentStoreRequest extends FormRequest
             'amount' => 'required|numeric|min:0.1',
             'date' => 'required|date',
             'payroll_period' => 'required|in:q1,q2',
+            'accounting_month' => 'required|date_format:Y-m',
             'description' => 'nullable|string',
             'sync_cash_movement' => 'nullable|boolean',
             'payment_method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',

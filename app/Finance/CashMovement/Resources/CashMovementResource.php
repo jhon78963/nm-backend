@@ -25,6 +25,9 @@ class CashMovementResource extends JsonResource
             'payment_method' => $this->payment_method,
             'method' => $this->payment_method,
             'date' => $this->date?->format('Y-m-d H:i:s'),
+            'accounting_month' => $this->accounting_month,
+            'payroll_period' => $this->payroll_period,
+            'accounting_period_label' => $this->accountingPeriodLabel(),
             'time' => $this->date?->format('H:i A'),
             'voucher_path' => $this->voucher_path,
             'voucher_paths' => $this->whenLoaded(

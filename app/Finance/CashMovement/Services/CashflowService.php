@@ -89,10 +89,18 @@ class CashflowService
         $year = $date->year;
         $monthNum = $date->month;
 
+        $accountingMonth = $date->format('Y-m');
+
         $expenses = CashMovement::query()
             ->administrativeExpenses()
-            ->whereYear('date', $year)
-            ->whereMonth('date', $monthNum)
+            ->where(function ($query) use ($accountingMonth, $year, $monthNum): void {
+                $query->where('accounting_month', $accountingMonth)
+                    ->orWhere(function ($legacy) use ($year, $monthNum): void {
+                        $legacy->whereNull('accounting_month')
+                            ->whereYear('date', $year)
+                            ->whereMonth('date', $monthNum);
+                    });
+            })
             ->where('is_deleted', false)
             ->with('vouchers')
             ->orderBy('date', 'desc')
@@ -130,6 +138,8 @@ class CashflowService
             'purchase_id' => $data['purchase_id'] ?? null,
             'creator_user_id' => $this->resolveAuthenticatedUserId(),
             'date' => $data['date'],
+            'accounting_month' => $data['accounting_month'] ?? null,
+            'payroll_period' => $data['payroll_period'] ?? null,
         ]);
 
         // Guardar todos los vouchers en la tabla dedicada
@@ -199,6 +209,10 @@ class CashflowService
             'last_modifier_user_id' => $this->resolveAuthenticatedUserId(),
             'last_modification_time' => now(),
             'date' => $data['date'] ?? $movement->date,
+            'accounting_month' => $data['accounting_month'] ?? $movement->accounting_month,
+            'payroll_period' => array_key_exists('payroll_period', $data)
+                ? $data['payroll_period']
+                : $movement->payroll_period,
         ]);
 
         return $movement->fresh(['vouchers']);

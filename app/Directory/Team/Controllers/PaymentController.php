@@ -112,8 +112,9 @@ class PaymentController extends Controller
             }])
             ->where('team_id', $teamId)
             ->where('is_deleted', false)
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
+            ->where(function ($query) use ($year, $month): void {
+                $this->applyAccountingMonthFilter($query, $year, $month);
+            })
             ->orderByDesc('date')
             ->get();
 
@@ -267,6 +268,7 @@ class PaymentController extends Controller
                 'amount' => $validated['amount'],
                 'date' => $validated['date'],
                 'payroll_period' => $validated['payroll_period'],
+                'accounting_month' => $validated['accounting_month'],
                 'payment_method' => $validated['payment_method'],
                 'description' => $validated['description'] ?? null,
                 'creator_user_id' => auth()->id(),
@@ -294,6 +296,8 @@ class PaymentController extends Controller
                     'amount' => (float) $validated['amount'],
                     'description' => $description,
                     'date' => $validated['date'],
+                    'accounting_month' => $validated['accounting_month'],
+                    'payroll_period' => $validated['payroll_period'],
                     'payment_method' => $validated['payment_method'],
                 ], $receiptImage);
 
@@ -337,6 +341,7 @@ class PaymentController extends Controller
         DB::transaction(function () use ($teamPayment, $validated): void {
             $teamPayment->date = $validated['date'];
             $teamPayment->payroll_period = $validated['payroll_period'];
+            $teamPayment->accounting_month = $validated['accounting_month'];
             $teamPayment->type = $validated['type'];
             $teamPayment->amount = $validated['amount'];
             $teamPayment->payment_method = $validated['payment_method'];
@@ -350,6 +355,8 @@ class PaymentController extends Controller
                     $movement->date = $validated['date'];
                     $movement->amount = $validated['amount'];
                     $movement->payment_method = $validated['payment_method'];
+                    $movement->accounting_month = $validated['accounting_month'];
+                    $movement->payroll_period = $validated['payroll_period'];
                     $movement->save();
                 }
             }
@@ -464,6 +471,11 @@ class PaymentController extends Controller
             'date' => Carbon::parse($payment->date)->format('Y-m-d H:i:s'),
             'payrollPeriod' => $this->resolvePayrollPeriod($payment),
             'payrollPeriodLabel' => $this->payrollPeriodLabel($this->resolvePayrollPeriod($payment)),
+            'accountingMonth' => $payment->accounting_month,
+            'accountingPeriodLabel' => $this->accountingPeriodLabel(
+                $payment->accounting_month,
+                $this->resolvePayrollPeriod($payment),
+            ),
             'description' => $payment->description,
             'syncedToAdmin' => $payment->cash_movement_id !== null,
             'cashMovementId' => $payment->cash_movement_id,
@@ -528,10 +540,39 @@ class PaymentController extends Controller
     private function payrollPeriodLabel(string $period): string
     {
         return match ($period) {
-            'q1' => '1.ª quincena',
-            'q2' => '2.ª quincena',
+            'q1' => 'Cierre 1–15',
+            'q2' => 'Cierre 16–fin de mes',
             default => $period,
         };
+    }
+
+    private function accountingPeriodLabel(?string $accountingMonth, string $payrollPeriod): ?string
+    {
+        if ($accountingMonth === null || $accountingMonth === '') {
+            return null;
+        }
+
+        try {
+            $monthName = Carbon::createFromFormat('Y-m', $accountingMonth)
+                ->locale('es')
+                ->translatedFormat('F Y');
+        } catch (\Throwable) {
+            $monthName = $accountingMonth;
+        }
+
+        return $monthName.' · '.$this->payrollPeriodLabel($payrollPeriod);
+    }
+
+    private function applyAccountingMonthFilter($query, int $year, int $month): void
+    {
+        $accountingMonth = sprintf('%04d-%02d', $year, $month);
+
+        $query->where('accounting_month', $accountingMonth)
+            ->orWhere(function ($legacy) use ($year, $month): void {
+                $legacy->whereNull('accounting_month')
+                    ->whereYear('date', $year)
+                    ->whereMonth('date', $month);
+            });
     }
 
     private function normalizePaymentMethod(string $method): string

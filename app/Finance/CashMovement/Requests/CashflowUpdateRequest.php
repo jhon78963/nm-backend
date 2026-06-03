@@ -35,6 +35,8 @@ class CashflowUpdateRequest extends FormRequest
             'amount' => 'nullable|numeric|min:0',
             'description' => 'required|string|min:1',
             'date' => 'nullable|date',
+            'accounting_month' => 'nullable|date_format:Y-m',
+            'payroll_period' => 'nullable|in:q1,q2',
             'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
             'images' => 'nullable|array|max:10',
             'images.*' => ['file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:5120', new ValidMagicBytes(['jpeg', 'png', 'webp', 'pdf'])],
