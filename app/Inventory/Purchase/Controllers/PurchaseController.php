@@ -84,8 +84,8 @@ class PurchaseController extends Controller
                 'purchase_id'    => $purchaseId,
             ];
 
-            // Delega la subida del voucher a Node.js al mismo servicio que usa Gastos.
-            $this->cashflowService->registerMovement($movementData, $request->file('image'));
+            // Delega la subida de comprobantes a Node.js al mismo servicio que usa Gastos.
+            $this->cashflowService->registerMovement($movementData, $request->file('images') ?: null);
         } catch (\Throwable $e) {
             // El inventario ya fue comprometido; registramos el error pero no revertimos.
             Log::error('[PurchaseController] No se pudo registrar el movimiento de caja.', [

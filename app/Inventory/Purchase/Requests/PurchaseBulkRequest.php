@@ -82,9 +82,10 @@ class PurchaseBulkRequest extends FormRequest
 
             'totals' => 'nullable|array',
 
-            // Campos extra para el registro de salida de caja con voucher
+            // Campos extra para el registro de salida de caja con comprobantes
             'payment_method' => 'nullable|string|in:CASH,YAPE,CARD,TRANSFER',
-            'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120', new ValidMagicBytes(['jpeg', 'png', 'webp', 'pdf'])],
+            'images' => 'nullable|array|max:10',
+            'images.*' => ['file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:5120', new ValidMagicBytes(['jpeg', 'png', 'webp', 'pdf'])],
         ];
     }
 }
