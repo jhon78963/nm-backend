@@ -25,7 +25,6 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class PurchaseController extends Controller
 {
@@ -42,57 +41,53 @@ class PurchaseController extends Controller
     {
         $data = $request->validated();
 
-        $id = $this->purchaseBulkService->handle($data);
+        $purchaseId = DB::transaction(function () use ($request, $data): int {
+            $id = $this->purchaseBulkService->handle($data);
+            $this->recordPurchaseAccumulatedExpense($request, $data, $id);
 
-        // Registrar la salida de caja como Compra de Mercadería (INVENTORY_PURCHASE).
-        // Esta categoría queda excluida de los Gastos Operativos del P&L; su impacto
-        // contable aparece únicamente en el Costo de Ventas cuando el stock se vende.
-        $this->recordPurchaseCashMovement($request, $data, $id);
+            return $id;
+        });
 
         return response()->json([
             'message' => 'Compra registrada e inventario actualizado.',
-            'purchaseId' => $id,
+            'purchaseId' => $purchaseId,
         ], 201);
     }
 
     /**
-     * Crea el movimiento de egreso en `cash_movements` replicando el patrón
-     * exacto de `CashflowService` (upload de imagen a Node.js vía `NodeUploaderService`).
+     * Egreso automático en Cuenta Acumulada (ACCUMULATED).
+     * No afecta caja operativa ni gastos administrativos del mes; evita doble gasto en P&L.
      */
-    private function recordPurchaseCashMovement(PurchaseBulkRequest $request, array $data, int $purchaseId): void
-    {
-        try {
+    private function recordPurchaseAccumulatedExpense(
+        PurchaseBulkRequest $request,
+        array $data,
+        int $purchaseId,
+    ): void {
+        $purchase = Purchase::query()->findOrFail($purchaseId);
+        $totalAmount = (float) $purchase->total_subtotal;
+
+        if ($totalAmount <= 0) {
             $totals = $data['totals'] ?? [];
-            $grandSubtotal = (float) ($totals['grandSubtotal'] ?? 0);
-
-            if ($grandSubtotal <= 0) {
-                return;
-            }
-
-            $purchaseBlock = $data['purchase'] ?? [];
-            $supplierName  = (string) ($purchaseBlock['supplierName'] ?? 'Proveedor');
-            $registeredAt  = isset($purchaseBlock['registeredAt'])
-                ? Carbon::parse((string) $purchaseBlock['registeredAt'])->format('Y-m-d H:i:s')
-                : now()->format('Y-m-d H:i:s');
-
-            $movementData = [
-                'type'           => CashMovement::TYPE_EXPENSE,
-                'category'       => CashMovement::CATEGORY_INVENTORY_PURCHASE,
-                'amount'         => $grandSubtotal,
-                'description'    => "Compra de mercadería - {$supplierName}",
-                'payment_method' => $request->input('payment_method', 'CASH'),
-                'date'           => $registeredAt,
-                'purchase_id'    => $purchaseId,
-            ];
-
-            // Delega la subida de comprobantes a Node.js al mismo servicio que usa Gastos.
-            $this->cashflowService->registerMovement($movementData, $request->file('images') ?: null);
-        } catch (\Throwable $e) {
-            // El inventario ya fue comprometido; registramos el error pero no revertimos.
-            Log::error('[PurchaseController] No se pudo registrar el movimiento de caja.', [
-                'error' => $e->getMessage(),
-            ]);
+            $totalAmount = (float) ($totals['grandSubtotal'] ?? 0);
         }
+
+        if ($totalAmount <= 0) {
+            return;
+        }
+
+        $supplierName = (string) ($purchase->supplier_name ?: ($data['purchase']['supplierName'] ?? 'Proveedor'));
+        $registeredAt = $purchase->registered_at?->format('Y-m-d H:i:s')
+            ?? (isset($data['purchase']['registeredAt'])
+                ? Carbon::parse((string) $data['purchase']['registeredAt'])->format('Y-m-d H:i:s')
+                : now()->format('Y-m-d H:i:s'));
+
+        $this->cashflowService->registerAccumulatedExpense([
+            'amount' => $totalAmount,
+            'description' => "Compra de mercadería autogenerada - Ref: Compra #{$purchaseId} - Proveedor: {$supplierName}",
+            'payment_method' => $request->input('payment_method', 'CASH'),
+            'date' => $registeredAt,
+            'purchase_id' => $purchaseId,
+        ], $request->file('images') ?: null);
     }
 
     public function getAll(PurchaseIndexRequest $request): JsonResponse
@@ -158,7 +153,10 @@ class PurchaseController extends Controller
 
         return DB::transaction(function () use ($purchase, $images): JsonResponse {
             $movement = $purchase->cashMovements()
-                ->where('category', CashMovement::CATEGORY_INVENTORY_PURCHASE)
+                ->whereIn('category', [
+                    CashMovement::CATEGORY_ACCUMULATED,
+                    CashMovement::CATEGORY_INVENTORY_PURCHASE,
+                ])
                 ->with('vouchers')
                 ->first();
 
@@ -175,14 +173,12 @@ class PurchaseController extends Controller
 
                 $registeredAt = $purchase->registered_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
 
-                $this->cashflowService->registerMovement([
-                    'type'           => CashMovement::TYPE_EXPENSE,
-                    'category'       => CashMovement::CATEGORY_INVENTORY_PURCHASE,
-                    'amount'         => $total,
-                    'description'    => "Compra de mercadería - {$purchase->supplier_name}",
+                $this->cashflowService->registerAccumulatedExpense([
+                    'amount' => $total,
+                    'description' => "Compra de mercadería autogenerada - Ref: Compra #{$purchase->id} - Proveedor: {$purchase->supplier_name}",
                     'payment_method' => 'CASH',
-                    'date'           => $registeredAt,
-                    'purchase_id'    => $purchase->id,
+                    'date' => $registeredAt,
+                    'purchase_id' => $purchase->id,
                 ], $images);
             } else {
                 $currentCount = $movement->vouchers->count();

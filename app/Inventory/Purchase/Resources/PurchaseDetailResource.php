@@ -56,7 +56,9 @@ class PurchaseDetailResource extends JsonResource
         }
 
         $movement = $this->cashMovements
-            ->first(fn ($m) => $m->category === CashMovement::CATEGORY_INVENTORY_PURCHASE);
+            ->first(fn ($m) => $m->category === CashMovement::CATEGORY_ACCUMULATED)
+            ?? $this->cashMovements
+                ->first(fn ($m) => $m->category === CashMovement::CATEGORY_INVENTORY_PURCHASE);
 
         if ($movement === null) {
             $movement = $this->cashMovements->first();

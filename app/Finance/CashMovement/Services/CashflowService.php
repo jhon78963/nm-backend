@@ -3,6 +3,7 @@
 namespace App\Finance\CashMovement\Services;
 
 use App\Directory\Team\Models\TeamPayment;
+use App\Finance\AccumulatedAccount\Services\AccumulatedAccountService;
 use App\Finance\CashMovement\Models\CashMovement;
 use App\Finance\CashMovement\Models\CashMovementVoucher;
 use App\Finance\Sale\Models\Sale;
@@ -15,6 +16,7 @@ class CashflowService
 {
     public function __construct(
         protected NodeUploaderService $nodeUploaderService,
+        protected AccumulatedAccountService $accumulatedAccountService,
     ) {
     }
 
@@ -180,6 +182,10 @@ class CashflowService
             ]);
         }
 
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED) {
+            $this->accumulatedAccountService->applyExpenseToBalance($movement);
+        }
+
         return $movement->load('vouchers');
     }
 
@@ -207,6 +213,14 @@ class CashflowService
     public function updateMovement(int $id, array $data, array|UploadedFile|null $newImages = null): CashMovement
     {
         $movement = CashMovement::with('vouchers')->findOrFail($id);
+
+        $wasAccumulatedApplied = $movement->category === CashMovement::CATEGORY_ACCUMULATED
+            && $movement->accumulated_balance_applied;
+
+        if ($wasAccumulatedApplied) {
+            $this->accumulatedAccountService->reverseExpenseFromBalance($movement);
+            $movement->refresh();
+        }
 
         $imageArray = $this->normalizeImages($newImages);
 
@@ -244,7 +258,13 @@ class CashflowService
                 : $movement->payroll_period,
         ]);
 
-        return $movement->fresh(['vouchers']);
+        $movement = $movement->fresh(['vouchers']);
+
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED && ! $movement->is_deleted) {
+            $this->accumulatedAccountService->applyExpenseToBalance($movement);
+        }
+
+        return $movement;
     }
 
     public function streamVoucher(string $path): array

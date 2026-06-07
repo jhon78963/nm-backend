@@ -49,6 +49,7 @@ class CashMovement extends Model
         'voucher_path',
         'legacy_expense_id',
         'purchase_id',
+        'accumulated_balance_applied',
         'warehouse_id',
         'creation_time',
         'creator_user_id',
@@ -59,6 +60,7 @@ class CashMovement extends Model
         'amount' => 'decimal:2',
         'creation_time' => 'datetime',
         'date' => 'datetime',
+        'accumulated_balance_applied' => 'boolean',
     ];
 
     public function scopeExpenses(Builder $query): Builder
