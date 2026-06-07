@@ -31,7 +31,7 @@ class CashflowUpdateRequest extends FormRequest
     {
         return [
             'type' => 'nullable|in:INCOME,EXPENSE',
-            'category' => 'nullable|in:ADMINISTRATIVE,STORE',
+            'category' => 'nullable|in:ADMINISTRATIVE,STORE,ACCUMULATED',
             'amount' => 'nullable|numeric|min:0',
             'description' => 'required|string|min:1',
             'date' => 'nullable|date',

@@ -255,6 +255,7 @@ class ReportService
 
             $report[] = [
                 'fecha' => $fecha,
+                'sort_month' => $month,
                 'efectivo' => $efectivo,
                 'bancos' => $bancos,
                 'total_mensual' => $totalMensual,

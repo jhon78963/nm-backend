@@ -2,6 +2,7 @@
 
 namespace App\Report\Controllers;
 
+use App\Finance\AccumulatedAccount\Services\AccumulatedAccountService;
 use App\Report\Services\ReportService;
 use App\Shared\Foundation\Controllers\Controller;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -13,8 +14,10 @@ class ReportController extends Controller
 {
     protected ReportService $reportsService;
 
-    public function __construct(ReportService $reportsService)
-    {
+    public function __construct(
+        ReportService $reportsService,
+        protected AccumulatedAccountService $accumulatedAccountService,
+    ) {
         $this->reportsService = $reportsService;
     }
 
@@ -38,6 +41,7 @@ class ReportController extends Controller
         $financials = $this->reportsService->getFinancialReport($startDate, $endDate);
 
         $allTimeMonthlyReport = $this->reportsService->getAllTimeMonthlyReport();
+        $accumulatedGrowth = $this->accumulatedAccountService->getMonthlyGrowthReport();
 
         return response()->json([
             'success' => true,
@@ -47,6 +51,11 @@ class ReportController extends Controller
                 'least_products' => $leastProducts,
                 'financials' => $financials,
                 'all_time_monthly_report' => $allTimeMonthlyReport,
+                'accumulated_account_monthly_report' => $accumulatedGrowth['rows'],
+                'accumulated_account_summary' => [
+                    'opening' => $accumulatedGrowth['opening'],
+                    'current' => $accumulatedGrowth['current'],
+                ],
             ],
         ]);
     }

@@ -45,6 +45,7 @@ final class PermissionLabels
         'getPaymentByMonth' => 'Pagos · consultar por mes',
         'storePayment' => 'Pagos · registrar',
         'getAdminMonthlyReport' => 'Reporte mensual (administración)',
+        'getAccumulatedExpensesReport' => 'Egresos Cuenta Acumulada',
         'getDaily' => 'Consultar movimiento diario',
         'getAll' => 'Listar',
         'getAllSelected' => 'Listar seleccionados',

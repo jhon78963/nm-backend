@@ -18,7 +18,7 @@ class CashMovementPolicy
     }
 
     /**
-     * @param string $category The category of the movement being created ('ADMINISTRATIVE'|'STORE'|…).
+     * @param string $category The category of the movement being created ('ADMINISTRATIVE'|'STORE'|'ACCUMULATED'|…).
      */
     public function create(User $user, string $category = CashMovement::CATEGORY_STORE): bool
     {
@@ -28,6 +28,10 @@ class CashMovementPolicy
 
         if ($category === CashMovement::CATEGORY_ADMINISTRATIVE) {
             return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($category === CashMovement::CATEGORY_ACCUMULATED) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
         }
 
         return true;
@@ -44,9 +48,15 @@ class CashMovementPolicy
 
         $isAdministrativeInDb = $movement->category === CashMovement::CATEGORY_ADMINISTRATIVE;
         $changingToAdministrative = $newCategory === CashMovement::CATEGORY_ADMINISTRATIVE;
+        $isAccumulatedInDb = $movement->category === CashMovement::CATEGORY_ACCUMULATED;
+        $changingToAccumulated = $newCategory === CashMovement::CATEGORY_ACCUMULATED;
 
         if ($isAdministrativeInDb || $changingToAdministrative) {
             return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($isAccumulatedInDb || $changingToAccumulated) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
         }
 
         return true;

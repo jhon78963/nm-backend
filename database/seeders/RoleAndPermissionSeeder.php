@@ -20,7 +20,7 @@ class RoleAndPermissionSeeder extends Seeder
             'pos.searchProduct', 'pos.searchCustomer', 'pos.checkout',
             'purchase.registerBulk', 'purchase.getAll', 'purchase.updateLine', 'purchase.deleteLine', 'purchase.get', 'purchase.update', 'purchase.cancel',
             'color.create', 'color.update', 'color.delete', 'color.getAll', 'color.getAllSelectedAttached', 'color.getAllSelected', 'color.getSizes', 'color.getAllAutocomplete', 'color.get',
-            'cashflow.getDaily', 'cashflow.getAdminMonthlyReport', 'cashflow.store', 'cashflow.update',
+            'cashflow.getDaily', 'cashflow.getAdminMonthlyReport', 'cashflow.getAccumulatedExpensesReport', 'cashflow.store', 'cashflow.update',
             'warehouse.create', 'warehouse.update', 'warehouse.delete', 'warehouse.getAll', 'warehouse.get',
             'tenant.create', 'tenant.update', 'tenant.delete', 'tenant.getAll', 'tenant.get',
             'team.create', 'team.update', 'team.delete', 'team.getAll', 'team.get',

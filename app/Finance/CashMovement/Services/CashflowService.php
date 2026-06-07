@@ -113,6 +113,27 @@ class CashflowService
         ];
     }
 
+    public function getMonthlyAccumulatedExpenses(string $month)
+    {
+        $date = Carbon::parse($month);
+        $startOfMonth = $date->copy()->startOfMonth()->startOfDay();
+        $endOfMonth = $date->copy()->endOfMonth()->endOfDay();
+
+        $expenses = CashMovement::query()
+            ->accumulatedExpenses()
+            ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->where('is_deleted', false)
+            ->with('vouchers')
+            ->orderBy('date', 'desc')
+            ->get();
+
+        return [
+            'month' => $date->format('F Y'),
+            'total_monthly_accumulated' => $expenses->sum('amount'),
+            'expenses' => $expenses,
+        ];
+    }
+
     /**
      * Registra un movimiento manual. Acepta uno o varios vouchers.
      *
@@ -166,6 +187,14 @@ class CashflowService
     {
         $data['type'] = CashMovement::TYPE_EXPENSE;
         $data['category'] = CashMovement::CATEGORY_ADMINISTRATIVE;
+
+        return $this->registerMovement($data, $images);
+    }
+
+    public function registerAccumulatedExpense(array $data, array|UploadedFile|null $images = null): CashMovement
+    {
+        $data['type'] = CashMovement::TYPE_EXPENSE;
+        $data['category'] = CashMovement::CATEGORY_ACCUMULATED;
 
         return $this->registerMovement($data, $images);
     }
@@ -279,6 +308,14 @@ class CashflowService
             $canViewPayrollVoucher = $linkedToTeamPayment && $user->can('team.getPaymentByMonth');
 
             if (! $canViewAdmin && ! $canViewPayrollVoucher) {
+                abort(403, 'Acceso denegado.');
+            }
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED) {
+            $user = auth()->user();
+
+            if ($user === null || ! $user->can('cashflow.getAccumulatedExpensesReport')) {
                 abort(403, 'Acceso denegado.');
             }
         }

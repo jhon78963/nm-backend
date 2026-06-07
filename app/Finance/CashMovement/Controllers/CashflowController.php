@@ -64,6 +64,22 @@ class CashflowController extends Controller
         ]);
     }
 
+    public function getAccumulatedMonthlyReport(Request $request): JsonResponse
+    {
+        $month = $request->query('month', now()->format('Y-m'));
+
+        $report = $this->cashflowService->getMonthlyAccumulatedExpenses($month);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'month' => $report['month'],
+                'total_monthly_accumulated' => $report['total_monthly_accumulated'],
+                'expenses' => CashMovementResource::collection($report['expenses']),
+            ],
+        ]);
+    }
+
     public function store(CashflowStoreRequest $request): JsonResponse
     {
         $data = $request->validated();

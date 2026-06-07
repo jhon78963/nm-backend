@@ -28,7 +28,7 @@ class CashflowStoreRequest extends FormRequest
     {
         return [
             'type' => 'required|in:INCOME,EXPENSE',
-            'category' => 'required|in:ADMINISTRATIVE,STORE',
+            'category' => 'required|in:ADMINISTRATIVE,STORE,ACCUMULATED',
             'amount' => 'required|numeric|min:0',
             'description' => 'required|string|min:1',
             'date' => 'required|date',

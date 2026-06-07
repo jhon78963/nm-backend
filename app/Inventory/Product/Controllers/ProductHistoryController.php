@@ -59,6 +59,7 @@ class ProductHistoryController extends Controller
             ])
             ->orderBy('occurred_at', 'desc')
             ->get()
+            ->filter(fn (InventoryMovement $movement) => $this->shouldShowMovementInProductHistory($movement))
             ->map(function (InventoryMovement $movement) {
                 $date = Carbon::parse($movement->occurred_at);
 
@@ -259,6 +260,20 @@ class ProductHistoryController extends Controller
             'color_id', 'color_name', 'product_size_id',
             'sale_code', 'exchange_note'
         ]);
+    }
+
+    /**
+     * El kardex registra la venta en color y luego sincroniza el balance maestro
+     * (color_id null) como Reconciliación sin referencia. Eso no es un evento de negocio:
+     * en historial de producto solo mostramos la venta u otros movimientos explícitos.
+     */
+    private function shouldShowMovementInProductHistory(InventoryMovement $movement): bool
+    {
+        if ($movement->movement_type !== InventoryMovementType::Reconciliation) {
+            return true;
+        }
+
+        return ! ($movement->color_id === null && $movement->reference_id === null);
     }
 
     private function getMovementActionTitle(InventoryMovement $movement): string

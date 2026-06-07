@@ -25,6 +25,12 @@ class CashMovement extends Model
      */
     public const CATEGORY_INVENTORY_PURCHASE = 'INVENTORY_PURCHASE';
 
+    /**
+     * Egresos desde la Cuenta Acumulada (fondo/ahorro).
+     * NO afectan reportes operativos del mes ni «Ventas Mensuales por Método de Pago».
+     */
+    public const CATEGORY_ACCUMULATED = 'ACCUMULATED';
+
     public $timestamps = false;
 
     protected $table = 'cash_movements';
@@ -84,6 +90,13 @@ class CashMovement extends Model
         return $query
             ->expenses()
             ->where('category', self::CATEGORY_INVENTORY_PURCHASE);
+    }
+
+    public function scopeAccumulatedExpenses(Builder $query): Builder
+    {
+        return $query
+            ->expenses()
+            ->where('category', self::CATEGORY_ACCUMULATED);
     }
 
     /**
