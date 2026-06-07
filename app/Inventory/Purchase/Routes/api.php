@@ -10,5 +10,6 @@ Route::controller(PurchaseController::class)->group(function (): void {
     Route::delete('/purchases/{purchase}/lines/{purchaseLine}', 'deleteLine')->middleware('permission:purchase.deleteLine');
     Route::get('/purchases/{purchase}', 'get')->middleware('permission:purchase.get');
     Route::patch('/purchases/{purchase}', 'update')->middleware('permission:purchase.update');
+    Route::post('/purchases/{purchase}/vouchers', 'addVouchers')->middleware('permission:purchase.update');
     Route::post('/purchases/{purchase}/cancel', 'cancel')->middleware('permission:purchase.cancel');
 });

@@ -2,6 +2,7 @@
 
 namespace App\Inventory\Purchase\Resources;
 
+use App\Finance\CashMovement\Models\CashMovement;
 use App\Inventory\Purchase\Models\Purchase;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -55,7 +56,7 @@ class PurchaseDetailResource extends JsonResource
         }
 
         $movement = $this->cashMovements
-            ->first(fn ($m) => $m->voucher_path !== null && $m->voucher_path !== '');
+            ->first(fn ($m) => $m->category === CashMovement::CATEGORY_INVENTORY_PURCHASE);
 
         if ($movement === null) {
             $movement = $this->cashMovements->first();
@@ -65,14 +66,38 @@ class PurchaseDetailResource extends JsonResource
             return null;
         }
 
+        $voucherPaths = $this->resolveVoucherPaths($movement);
+
         return [
             'cashMovementId' => $movement->id,
             'amount' => (float) $movement->amount,
             'paymentMethod' => $movement->payment_method,
             'description' => $movement->description,
             'date' => $movement->date?->format('Y-m-d H:i:s'),
-            'voucherPath' => $movement->voucher_path,
+            'voucherPath' => $voucherPaths[0] ?? $movement->voucher_path,
+            'voucherPaths' => $voucherPaths,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveVoucherPaths(CashMovement $movement): array
+    {
+        if ($movement->relationLoaded('vouchers') && $movement->vouchers->isNotEmpty()) {
+            return $movement->vouchers
+                ->sortBy('sort_order')
+                ->pluck('voucher_path')
+                ->filter(static fn ($path) => is_string($path) && $path !== '')
+                ->values()
+                ->all();
+        }
+
+        if ($movement->voucher_path !== null && $movement->voucher_path !== '') {
+            return [(string) $movement->voucher_path];
+        }
+
+        return [];
     }
 
     private function effectivePurchaseTotal(): float

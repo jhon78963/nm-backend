@@ -12,6 +12,7 @@ use App\Inventory\Purchase\Requests\PurchaseCancelRequest;
 use App\Inventory\Purchase\Requests\PurchaseIndexRequest;
 use App\Inventory\Purchase\Requests\PurchaseLineUpdateRequest;
 use App\Inventory\Purchase\Requests\PurchaseUpdateRequest;
+use App\Inventory\Purchase\Requests\PurchaseVoucherUpdateRequest;
 use App\Inventory\Purchase\Resources\PurchaseDetailResource;
 use App\Inventory\Purchase\Resources\PurchaseListResource;
 use App\Inventory\Purchase\Services\PurchaseBulkService;
@@ -136,10 +137,74 @@ class PurchaseController extends Controller
             'lines.size',
             'lines.colorDeltas.color',
             'warehouse',
-            'cashMovements',
+            'cashMovements.vouchers',
         ]);
 
         return response()->json(new PurchaseDetailResource($purchase));
+    }
+
+    public function addVouchers(PurchaseVoucherUpdateRequest $request, Purchase $purchase): JsonResponse
+    {
+        $this->ensurePurchaseVisible($purchase);
+
+        if ($purchase->status !== PurchaseStatus::Active) {
+            return response()->json(['message' => 'Solo se pueden agregar comprobantes a compras activas.'], 422);
+        }
+
+        $images = $request->file('images', []);
+        if ($images === null || $images === []) {
+            return response()->json(['message' => 'Selecciona al menos un comprobante.'], 422);
+        }
+
+        return DB::transaction(function () use ($purchase, $images): JsonResponse {
+            $movement = $purchase->cashMovements()
+                ->where('category', CashMovement::CATEGORY_INVENTORY_PURCHASE)
+                ->with('vouchers')
+                ->first();
+
+            if ($movement === null) {
+                $movement = $purchase->cashMovements()->with('vouchers')->first();
+            }
+
+            if ($movement === null) {
+                $total = (float) $purchase->total_subtotal;
+
+                if ($total <= 0) {
+                    return response()->json(['message' => 'La compra no tiene un monto válido para vincular el pago.'], 422);
+                }
+
+                $registeredAt = $purchase->registered_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
+
+                $this->cashflowService->registerMovement([
+                    'type'           => CashMovement::TYPE_EXPENSE,
+                    'category'       => CashMovement::CATEGORY_INVENTORY_PURCHASE,
+                    'amount'         => $total,
+                    'description'    => "Compra de mercadería - {$purchase->supplier_name}",
+                    'payment_method' => 'CASH',
+                    'date'           => $registeredAt,
+                    'purchase_id'    => $purchase->id,
+                ], $images);
+            } else {
+                $currentCount = $movement->vouchers->count();
+                if ($currentCount === 0 && $movement->voucher_path !== null && $movement->voucher_path !== '') {
+                    $currentCount = 1;
+                }
+
+                if ($currentCount + count($images) > 10) {
+                    return response()->json([
+                        'message' => 'Máximo 10 comprobantes por compra. Ya tienes '.$currentCount.'.',
+                    ], 422);
+                }
+
+                $this->cashflowService->updateMovement(
+                    (int) $movement->id,
+                    ['description' => $movement->description],
+                    $images,
+                );
+            }
+
+            return response()->json(['message' => 'Comprobantes agregados.'], 200);
+        });
     }
 
     public function update(PurchaseUpdateRequest $request, Purchase $purchase): JsonResponse
