@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Resources;
 
 use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
+use App\Inventory\WooCommerce\Support\ProductMediaUrlResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -54,6 +55,10 @@ class ProductEcommerceResource extends JsonResource
 
         $slug = Str::slug($this->name.'-'.$this->id);
 
+        /** @var ProductMediaUrlResolver $mediaUrlResolver */
+        $mediaUrlResolver = app(ProductMediaUrlResolver::class);
+        $gallery = $mediaUrlResolver->galleryUrlsForProduct($this->resource);
+
         return [
             'slug' => $slug,
             'name' => $this->name,
@@ -66,8 +71,8 @@ class ProductEcommerceResource extends JsonResource
             'available' => $this->status === 'AVAILABLE',
             'discount_percent' => $this->percentage_discount,
 
-            'thumbnail' => null,
-            'gallery' => [],
+            'thumbnail' => $gallery[0] ?? null,
+            'gallery' => $gallery,
 
             'colors' => collect($colorNames)->map(static fn (?string $hex, string $name) => [
                 'name' => $name,

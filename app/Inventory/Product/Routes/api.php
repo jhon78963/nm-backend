@@ -3,6 +3,7 @@
 use App\Inventory\Product\Controllers\InventoryReconciliationController;
 use App\Inventory\Product\Controllers\ProductController;
 use App\Inventory\Product\Controllers\ProductHistoryController;
+use App\Inventory\Product\Controllers\ProductMediaController;
 use App\Inventory\Product\Controllers\ProductSizeColorController;
 use App\Inventory\Product\Controllers\ProductSizeController;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,11 @@ Route::controller(ProductController::class)->group(function (): void {
     Route::delete('/products/{product}', 'delete')->middleware('permission:product.delete');
     Route::get('/products', 'getAll')->middleware('permission:product.getAll');
     Route::get('/products/{product}', 'get')->middleware('permission:product.get');
+});
+
+Route::controller(ProductMediaController::class)->group(function (): void {
+    Route::post('/products/{product}/media', 'store')->middleware('permission:product.update');
+    Route::delete('/products/{product}/media/{media}', 'destroy')->middleware('permission:product.update');
 });
 
 Route::controller(ProductSizeController::class)->group(function (): void {

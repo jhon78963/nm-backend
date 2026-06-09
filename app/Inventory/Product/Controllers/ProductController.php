@@ -74,6 +74,7 @@ class ProductController extends Controller
 
         $product->load([
             'productSizes' => static fn ($q) => $q->orderBy('id'),
+            'media',
         ]);
 
         if ($warehouseId > 0) {
@@ -112,6 +113,8 @@ class ProductController extends Controller
             columnSearch: ['id', 'name', 'barcode', 'gender.name', 'productSizes.barcode', $stockSubquery],
             filters:      $filters,
             extendQuery: function ($q) use ($warehouseId) {
+                $q = $q->with('media');
+
                 if ($warehouseId > 0) {
                     return $q->withSum([
                         'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel

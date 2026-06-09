@@ -73,10 +73,10 @@ final class WooCommerceCatalogBuilder
             return null;
         }
 
-        $status = $this->mapStatus($product);
         $slug = Str::slug($product->name.'-'.$product->id);
         $images = $this->mediaUrlResolver->wooCommerceImagesForProduct($product);
         $imagePaths = $this->mediaUrlResolver->galleryPathsForProduct($product);
+        $status = $this->mapStatus($product, $imagePaths);
 
         return [
             'product_id' => (int) $product->id,
@@ -151,13 +151,17 @@ final class WooCommerceCatalogBuilder
         return number_format(max(0, $price), 2, '.', '');
     }
 
-    private function mapStatus(Product $product): string
+    /**
+     * @param  list<string>  $imagePaths
+     */
+    private function mapStatus(Product $product, array $imagePaths): string
     {
         $status = $product->status?->value ?? (string) $product->status;
 
-        return match ($status) {
-            'DISCONTINUED' => 'draft',
-            default => 'publish',
-        };
+        if ($status === 'DISCONTINUED') {
+            return 'draft';
+        }
+
+        return $imagePaths !== [] ? 'publish' : 'draft';
     }
 }

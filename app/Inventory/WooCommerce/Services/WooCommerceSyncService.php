@@ -78,6 +78,16 @@ class WooCommerceSyncService
     }
 
     /**
+     * Sincroniza un único producto hacia WooCommerce (p. ej. tras subir imágenes).
+     *
+     * @return array{products: int, variations: int, errors: int}
+     */
+    public function syncProductById(int $productId): array
+    {
+        return $this->syncCatalog($productId, false);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{woo_product_id: int, variations: int}
      */
@@ -212,6 +222,9 @@ class WooCommerceSyncService
 
         if ($images !== []) {
             $body['images'] = $images;
+        } else {
+            // Vacía la galería en WooCommerce cuando no quedan imágenes en nm-backend.
+            $body['images'] = [];
         }
 
         return $body;

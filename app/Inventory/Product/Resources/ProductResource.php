@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Resources;
 
 use App\Inventory\Product\Support\PurchasePriceVisibility;
+use App\Inventory\WooCommerce\Support\ProductMediaUrlResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,6 +21,10 @@ class ProductResource extends JsonResource
         $primaryPs = ($this->relationLoaded('productSizes') && $this->productSizes->isNotEmpty())
             ? $this->productSizes->sortBy('id')->first()
             : null;
+
+        /** @var ProductMediaUrlResolver $mediaUrlResolver */
+        $mediaUrlResolver = app(ProductMediaUrlResolver::class);
+        $gallery = $mediaUrlResolver->galleryUrlsForProduct($this->resource);
 
         return [
             'id' => $this->id,
@@ -46,6 +51,29 @@ class ProductResource extends JsonResource
                 ->sort()
                 ->values()
                 ->all(),
+            'thumbnail' => $gallery[0] ?? null,
+            'gallery' => $gallery,
+            'media' => $this->mediaItems($mediaUrlResolver),
         ];
+    }
+
+    /**
+     * @return list<array{id: int, filePath: string, publicUrl: string|null, fileName: string|null}>
+     */
+    private function mediaItems(ProductMediaUrlResolver $mediaUrlResolver): array
+    {
+        if (! $this->relationLoaded('media')) {
+            $this->resource->load('media');
+        }
+
+        return $this->media
+            ->map(static fn ($item): array => [
+                'id' => (int) $item->id,
+                'filePath' => (string) $item->file_path,
+                'publicUrl' => $mediaUrlResolver->absoluteUrl((string) $item->file_path),
+                'fileName' => $item->file_name,
+            ])
+            ->values()
+            ->all();
     }
 }
