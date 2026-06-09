@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class WooCommerceSyncMap extends Model
 {
+    protected $table = 'woocommerce_sync_maps';
+
     protected $fillable = [
         'product_id',
         'product_size_id',
