@@ -219,12 +219,44 @@ class PurchaseController extends Controller
             if (array_key_exists('registered_at', $data) && $data['registered_at'] !== null) {
                 $purchase->registered_at = $data['registered_at'];
             }
+            if (array_key_exists('supplier_name', $data)) {
+                $purchase->supplier_name = trim((string) $data['supplier_name']);
+            }
+            if (array_key_exists('vendor_id', $data)) {
+                $vendorId = $data['vendor_id'];
+                $purchase->vendor_id = $vendorId !== null && (int) $vendorId > 0 ? (int) $vendorId : null;
+            }
             $purchase->last_modifier_user_id = Auth::id();
             $purchase->last_modification_time = now();
             $purchase->save();
 
+            $this->syncLinkedPaymentDescription($purchase);
+
             return response()->json(['message' => 'Compra actualizada.'], 200);
         });
+    }
+
+    private function syncLinkedPaymentDescription(Purchase $purchase): void
+    {
+        $movement = $purchase->cashMovements()
+            ->whereIn('category', [
+                CashMovement::CATEGORY_ACCUMULATED,
+                CashMovement::CATEGORY_INVENTORY_PURCHASE,
+            ])
+            ->first();
+
+        if ($movement === null) {
+            $movement = $purchase->cashMovements()->first();
+        }
+
+        if ($movement === null) {
+            return;
+        }
+
+        $movement->description = "Compra de mercadería autogenerada - Ref: Compra #{$purchase->id} - Proveedor: {$purchase->supplier_name}";
+        $movement->last_modifier_user_id = Auth::id();
+        $movement->last_modification_time = now();
+        $movement->save();
     }
 
     public function cancel(PurchaseCancelRequest $request, Purchase $purchase): JsonResponse

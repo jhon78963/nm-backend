@@ -19,6 +19,8 @@ class PurchaseUpdateRequest extends FormRequest
         return [
             'documentNote' => 'nullable|string|max:500',
             'registeredAt' => 'nullable|date',
+            'supplierName' => 'sometimes|required|string|max:255',
+            'vendorId' => 'nullable|integer|exists:vendors,id',
         ];
     }
 }
