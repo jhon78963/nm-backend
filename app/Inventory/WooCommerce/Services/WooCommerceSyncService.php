@@ -103,16 +103,25 @@ class WooCommerceSyncService
             ->first();
 
         $wooProductId = $existingMap?->woo_product_id;
+        $existingWooProductId = ($wooProductId !== null && $wooProductId > 0) ? $wooProductId : null;
 
-        if ($wooProductId) {
-            $response = $this->client()->put("products/{$wooProductId}", $this->productBody($payload, $images));
+        if ($existingWooProductId) {
+            $response = $this->client()->put("products/{$existingWooProductId}", $this->productBody($payload, $images));
+            $wooProductId = $existingWooProductId;
         } else {
             $response = $this->client()->post('products', $this->productBody($payload, $images));
-            $wooProductId = (int) $response->json('id');
-            $this->upsertMap($nmProductId, null, null, $wooProductId, null, "p:{$nmProductId}");
         }
 
         $this->throwIfFailed($response, "product {$nmProductId}");
+
+        if (! $existingWooProductId) {
+            $wooProductId = (int) $response->json('id');
+            if ($wooProductId < 1) {
+                throw new RuntimeException("WooCommerce no devolvió ID de producto válido (product {$nmProductId}). ¿Permalinks activos en WordPress?");
+            }
+
+            $this->upsertMap($nmProductId, null, null, $wooProductId, null, "p:{$nmProductId}");
+        }
 
         $syncedVariations = 0;
         foreach ($variations as $variationPayload) {
@@ -163,6 +172,10 @@ class WooCommerceSyncService
         }
 
         $this->throwIfFailed($response, "variation {$variantKey}");
+
+        if ($wooVariationId < 1) {
+            throw new RuntimeException("WooCommerce no devolvió ID de variación válido ({$variantKey}).");
+        }
 
         $this->upsertMap(
             (int) $variationPayload['product_id'],
