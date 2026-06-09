@@ -38,6 +38,8 @@ return [
     'uploader' => [
         'url' => env('UPLOADER_URL', env('ZG_URL')),
         'api_key' => env('UPLOADER_API_KEY', env('ZG_TOKEN')),
+        // URL pública para que WooCommerce descargue imágenes (nginx proxy sin auth).
+        'public_url' => env('UPLOADER_PUBLIC_URL', env('UPLOADER_URL', env('ZG_URL'))),
     ],
 
     'sunat' => [
