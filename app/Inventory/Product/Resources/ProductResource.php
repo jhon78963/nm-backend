@@ -24,7 +24,13 @@ class ProductResource extends JsonResource
 
         /** @var ProductMediaUrlResolver $mediaUrlResolver */
         $mediaUrlResolver = app(ProductMediaUrlResolver::class);
-        $gallery = $mediaUrlResolver->galleryUrlsForProduct($this->resource);
+        if (! $this->relationLoaded('media')) {
+            $this->resource->load('media');
+        }
+        $gallery = $this->media
+            ->map(fn ($item): string => $mediaUrlResolver->previewApiUrl((int) $this->id, (int) $item->id))
+            ->values()
+            ->all();
 
         return [
             'id' => $this->id,
@@ -67,10 +73,10 @@ class ProductResource extends JsonResource
         }
 
         return $this->media
-            ->map(static fn ($item): array => [
+            ->map(fn ($item): array => [
                 'id' => (int) $item->id,
                 'filePath' => (string) $item->file_path,
-                'publicUrl' => $mediaUrlResolver->absoluteUrl((string) $item->file_path),
+                'publicUrl' => $mediaUrlResolver->previewApiUrl((int) $this->id, (int) $item->id),
                 'fileName' => $item->file_name,
             ])
             ->values()

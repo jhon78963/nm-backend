@@ -55,6 +55,11 @@ final class ProductMediaUrlResolver
             ->all();
     }
 
+    public function previewApiUrl(int $productId, int $mediaId): string
+    {
+        return url("/api/products/{$productId}/media/{$mediaId}/preview");
+    }
+
     public function absoluteUrl(string $filePath): ?string
     {
         $filePath = trim($filePath);

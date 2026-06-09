@@ -9,6 +9,7 @@ use App\Inventory\Product\Services\ProductService;
 use App\Models\Media;
 use App\Shared\Foundation\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 class ProductMediaController extends Controller
@@ -33,6 +34,18 @@ class ProductMediaController extends Controller
                 $this->syncHttpStatus($result['wooCommerceSync'], 201),
             );
         });
+    }
+
+    public function preview(Product $product, Media $media): Response
+    {
+        $this->productService->validate($product, 'Product');
+
+        $file = $this->productMediaService->stream($product, $media);
+
+        return response($file['body'], 200, [
+            'Content-Type' => $file['content_type'],
+            'Content-Disposition' => 'inline; filename="'.$file['filename'].'"',
+        ]);
     }
 
     public function destroy(Product $product, Media $media): JsonResponse

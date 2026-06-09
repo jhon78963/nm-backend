@@ -4,6 +4,8 @@ namespace App\Shared\Foundation\Services;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class NodeUploaderService
@@ -135,13 +137,39 @@ class NodeUploaderService
             throw new RuntimeException('El servicio de almacenamiento no está configurado (ZG_URL).');
         }
 
-        $response = Http::withHeaders(['X-API-KEY' => $apiKey])
-            ->get(rtrim((string) $uploaderUrl, '/').$path);
+        $path = $this->normalizeStoragePath($path);
+        $url = rtrim((string) $uploaderUrl, '/').$path;
+
+        $response = Http::withHeaders(['X-API-KEY' => $apiKey])->get($url);
 
         if (! $response->successful()) {
-            throw new RuntimeException('No se pudo obtener el archivo del servicio de almacenamiento.');
+            Log::warning('Uploader fetch failed', [
+                'url' => $url,
+                'status' => $response->status(),
+                'path' => $path,
+            ]);
+
+            throw new RuntimeException(sprintf(
+                'No se pudo obtener el archivo del servicio de almacenamiento (HTTP %s).',
+                $response->status(),
+            ));
         }
 
         return $response;
+    }
+
+    public function normalizeStoragePath(string $path): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return $path;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            $parsed = parse_url($path, PHP_URL_PATH);
+            $path = is_string($parsed) ? $parsed : $path;
+        }
+
+        return Str::startsWith($path, '/') ? $path : '/'.$path;
     }
 }

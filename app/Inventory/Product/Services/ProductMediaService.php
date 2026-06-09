@@ -30,8 +30,30 @@ class ProductMediaService
         $media = $product->attachMedia($path, NodeUploaderService::sanitizeFilename($file));
 
         return [
-            'media' => $this->formatMedia($media),
+            'media' => $this->formatMedia($product, $media),
             'wooCommerceSync' => $this->syncProductToWooCommerce((int) $product->id),
+        ];
+    }
+
+    /**
+     * @return array{body: string, content_type: string, filename: string}
+     */
+    public function stream(Product $product, Media $media): array
+    {
+        $this->assertMediaBelongsToProduct($product, $media);
+
+        $path = (string) $media->file_path;
+
+        if (! preg_match('#^/uploads/products/[a-f0-9\\-]+\\.(jpe?g|png|webp)$#i', $path)) {
+            abort(403, 'Path de imagen no válido.');
+        }
+
+        $response = $this->nodeUploaderService->fetch($path);
+
+        return [
+            'body' => $response->body(),
+            'content_type' => $response->header('Content-Type') ?? 'image/jpeg',
+            'filename' => basename($path) ?: 'product-image.jpg',
         ];
     }
 
@@ -67,12 +89,12 @@ class ProductMediaService
     /**
      * @return array{id: int, filePath: string, publicUrl: string|null, fileName: string|null}
      */
-    private function formatMedia(Media $media): array
+    private function formatMedia(Product $product, Media $media): array
     {
         return [
             'id' => (int) $media->id,
             'filePath' => (string) $media->file_path,
-            'publicUrl' => $this->mediaUrlResolver->absoluteUrl((string) $media->file_path),
+            'publicUrl' => $this->mediaUrlResolver->previewApiUrl((int) $product->id, (int) $media->id),
             'fileName' => $media->file_name,
         ];
     }
