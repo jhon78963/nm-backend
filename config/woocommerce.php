@@ -22,7 +22,7 @@ return [
 
     'verify_ssl' => filter_var(env('WOO_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
 
-    'timeout' => (int) env('WOO_HTTP_TIMEOUT', 30),
+    'timeout' => (int) env('WOO_HTTP_TIMEOUT', 120),
 
     /*
     | Almacén fuente (warehouses.id). Debe coincidir con products.warehouse_id.

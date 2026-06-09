@@ -35,7 +35,7 @@ class WooCommerceSyncService
             throw new RuntimeException('WOO_SYNC_WAREHOUSE_ID no configurado o inválido.');
         }
 
-        $stats = ['products' => 0, 'variations' => 0, 'errors' => 0];
+        $stats = ['products' => 0, 'variations' => 0, 'errors' => 0, 'failed_product_ids' => []];
 
         $query = $this->ecommerceProductQuery($warehouseId)
             ->with($this->ecommerceWith($warehouseId))
@@ -66,6 +66,7 @@ class WooCommerceSyncService
                     $stats['variations'] += $result['variations'];
                 } catch (\Throwable $e) {
                     $stats['errors']++;
+                    $stats['failed_product_ids'][] = (int) $product->id;
                     Log::error('WooCommerce sync error', [
                         'product_id' => $product->id,
                         'message' => $e->getMessage(),
@@ -274,7 +275,11 @@ class WooCommerceSyncService
                 (string) config('woocommerce.consumer_secret'),
             )
             ->acceptJson()
-            ->timeout((int) config('woocommerce.timeout', 30))
+            ->timeout((int) config('woocommerce.timeout', 120))
+            ->retry(2, 3000, static function (\Throwable $e): bool {
+                return str_contains($e->getMessage(), 'timed out')
+                    || str_contains($e->getMessage(), 'cURL error 28');
+            })
             ->when(
                 ! config('woocommerce.verify_ssl', true),
                 static fn (PendingRequest $request) => $request->withoutVerifying(),

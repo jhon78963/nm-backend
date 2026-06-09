@@ -44,6 +44,10 @@ class SyncWooCommerceCatalogCommand extends Command
             $stats['errors'],
         ));
 
+        if (($stats['failed_product_ids'] ?? []) !== []) {
+            $this->warn('Productos con error: '.implode(', ', $stats['failed_product_ids']));
+        }
+
         return $stats['errors'] > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

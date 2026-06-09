@@ -86,7 +86,7 @@ final class WooCommerceCatalogBuilder
             'status' => $status,
             'description' => strip_tags((string) ($product->description ?? '')),
             'short_description' => Str::limit(strip_tags((string) ($product->description ?? '')), 100),
-            'sku' => $product->barcode ?: "NM-{$product->id}",
+            'sku' => $this->parentSku($product),
             'regular_price' => $this->formatPrice($minSalePrice ?? 0),
             'images' => $images,
             'image_paths' => $imagePaths,
@@ -139,11 +139,25 @@ final class WooCommerceCatalogBuilder
 
     private function variantSku(Product $product, $productSize, $color): string
     {
-        if (! empty($productSize->barcode)) {
-            return sprintf('%s-%d', $productSize->barcode, $color->id);
+        $barcode = trim((string) ($productSize->barcode ?? ''));
+
+        // Incluir product_size_id: el mismo barcode se repite en varias tallas.
+        if ($barcode !== '') {
+            return sprintf('%s-%d-%d', $barcode, $productSize->id, $color->id);
         }
 
         return sprintf('NM-%d-%d-%d', $product->id, $productSize->id, $color->id);
+    }
+
+    private function parentSku(Product $product): string
+    {
+        $barcode = trim((string) ($product->barcode ?? ''));
+
+        if ($barcode !== '') {
+            return sprintf('NM-P%d-%s', $product->id, $barcode);
+        }
+
+        return "NM-P{$product->id}";
     }
 
     private function formatPrice(float $price): string
