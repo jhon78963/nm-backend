@@ -3,7 +3,6 @@
 namespace App\Inventory\WooCommerce\Support;
 
 use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
-use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\WooCommerce\Support\ProductMediaUrlResolver;
 use App\Inventory\WooCommerce\Support\WooCommerceSyncMapKey;
@@ -97,7 +96,7 @@ final class WooCommerceCatalogBuilder
                 'gender_id' => (int) $product->gender_id,
                 'name' => $genderName,
             ] : null,
-            'tags' => $this->buildTagNames($product, $colorOptions),
+            'tags' => $this->resolveProductKeywords($product),
             'attributes' => [
                 [
                     'name' => config('woocommerce.attributes.color', 'Color'),
@@ -168,25 +167,22 @@ final class WooCommerceCatalogBuilder
     }
 
     /**
-     * Etiquetas: estado del producto + colores disponibles (filtros en tienda).
+     * Palabras clave editoriales (Tags). Colores/tallas/estado NO van aquí.
      *
-     * @param  list<string>  $colorOptions
      * @return list<string>
      */
-    private function buildTagNames(Product $product, array $colorOptions): array
+    private function resolveProductKeywords(Product $product): array
     {
-        $tags = [];
+        $keywords = config('woocommerce.product_keywords', []);
 
-        $productStatus = $product->status;
-        if ($productStatus instanceof ProductStatus) {
-            $tags[] = $productStatus->label();
+        if (! is_array($keywords)) {
+            return [];
         }
 
-        foreach ($colorOptions as $colorName) {
-            $tags[] = $colorName;
-        }
-
-        return array_values(array_unique(array_filter($tags, static fn (string $t): bool => $t !== '')));
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $tag): string => trim((string) $tag),
+            $keywords,
+        ), static fn (string $tag): bool => $tag !== '')));
     }
 
     private function formatPrice(float $price): string

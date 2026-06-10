@@ -8,7 +8,8 @@ use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * Resuelve categorías y etiquetas WooCommerce (crea términos si no existen).
+ * Resuelve categorías WooCommerce (crea términos si no existen).
+ * Tags: solo palabras clave editoriales; colores/tallas van en attributes.
  */
 class WooCommerceTaxonomyResolver
 {

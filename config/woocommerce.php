@@ -52,6 +52,16 @@ return [
     'variation_batch_size' => (int) env('WOO_VARIATION_BATCH_SIZE', 100),
 
     /*
+    | Palabras clave globales para WooCommerce Tags (ej. novedad, invierno).
+    | No usar colores, tallas ni estados de inventario aquí.
+    | Formato .env: WOO_PRODUCT_KEYWORDS=novedad,invierno
+    */
+    'product_keywords' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('WOO_PRODUCT_KEYWORDS', '')),
+    ))),
+
+    /*
     | Imágenes: sideload vía Application Password cuando el uploader exige API key.
     | Usuarios → Perfil → Contraseñas de aplicación (WordPress 6+).
     */

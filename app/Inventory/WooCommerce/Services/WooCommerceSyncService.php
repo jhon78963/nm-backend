@@ -388,7 +388,7 @@ class WooCommerceSyncService
             'description' => $payload['description'],
             'short_description' => $payload['short_description'],
             'sku' => $payload['sku'],
-            'attributes' => $payload['attributes'],
+            'attributes' => $this->variableProductAttributes($payload['attributes'] ?? []),
             'meta_data' => $payload['meta_data'],
             'categories' => $this->taxonomyResolver->resolveCategories($payload['category'] ?? null),
             'tags' => $this->taxonomyResolver->resolveTags($payload['tags'] ?? []),
@@ -402,6 +402,25 @@ class WooCommerceSyncService
         }
 
         return $body;
+    }
+
+    /**
+     * Atributos del producto padre: Color y Talla siempre como variación.
+     *
+     * @param  list<array<string, mixed>>  $attributes
+     * @return list<array<string, mixed>>
+     */
+    private function variableProductAttributes(array $attributes): array
+    {
+        return collect($attributes)
+            ->map(static function (array $attribute): array {
+                $attribute['visible'] = true;
+                $attribute['variation'] = true;
+
+                return $attribute;
+            })
+            ->values()
+            ->all();
     }
 
     private function reportProgress(?callable $onProgress, string $message): void
