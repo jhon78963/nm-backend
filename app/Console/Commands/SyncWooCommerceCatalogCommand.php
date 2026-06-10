@@ -9,7 +9,8 @@ class SyncWooCommerceCatalogCommand extends Command
 {
     protected $signature = 'woocommerce:sync-catalog
                             {--product-id= : Sincronizar un solo producto nm-backend}
-                            {--dry-run : Simular sin llamar a la API de WooCommerce}';
+                            {--dry-run : Simular sin llamar a la API de WooCommerce}
+                            {--force : Forzar sync aunque no haya cambios detectados}';
 
     protected $description = 'Sincroniza productos variables (talla × color) y stock hacia WooCommerce.';
 
@@ -23,24 +24,62 @@ class SyncWooCommerceCatalogCommand extends Command
     {
         $productId = $this->option('product-id');
         $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
         $productFilter = $productId !== null && $productId !== '' ? (int) $productId : null;
 
         if ($dryRun) {
             $this->warn('Modo dry-run: no se escribirá en WooCommerce.');
         }
 
+        if ($force) {
+            $this->comment('Modo force: se ignorará el checksum de productos ya sincronizados.');
+        }
+
         try {
-            $stats = $this->syncService->syncCatalog($productFilter, $dryRun);
+            $total = $this->syncService->countSyncableProducts($productFilter);
         } catch (\Throwable $e) {
             $this->error($e->getMessage());
 
             return self::FAILURE;
         }
 
+        if ($total < 1) {
+            $this->warn('No hay productos para sincronizar en el almacén configurado.');
+
+            return self::SUCCESS;
+        }
+
+        $bar = $this->output->createProgressBar($total);
+        $bar->setFormat(' %current%/%max% [%bar%] %percent:3s%% — %message%');
+        $bar->setMessage('iniciando…');
+        $bar->start();
+
+        try {
+            $stats = $this->syncService->syncCatalog(
+                $productFilter,
+                $dryRun,
+                $force,
+                function (string $message) use ($bar): void {
+                    $bar->setMessage($message);
+                    $bar->advance();
+                },
+            );
+        } catch (\Throwable $e) {
+            $bar->finish();
+            $this->newLine();
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $bar->finish();
+        $this->newLine(2);
+
         $this->info(sprintf(
-            'Sync OK — productos: %d, variaciones: %d, errores: %d',
+            'Sync OK — productos: %d, variaciones: %d, omitidos: %d, errores: %d',
             $stats['products'],
             $stats['variations'],
+            $stats['skipped'],
             $stats['errors'],
         ));
 

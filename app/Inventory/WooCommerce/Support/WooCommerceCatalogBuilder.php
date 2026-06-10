@@ -3,6 +3,7 @@
 namespace App\Inventory\WooCommerce\Support;
 
 use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
+use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\WooCommerce\Support\ProductMediaUrlResolver;
 use App\Inventory\WooCommerce\Support\WooCommerceSyncMapKey;
@@ -77,6 +78,7 @@ final class WooCommerceCatalogBuilder
         $images = $this->mediaUrlResolver->wooCommerceImagesForProduct($product);
         $imagePaths = $this->mediaUrlResolver->galleryPathsForProduct($product);
         $status = $this->mapStatus($product, $imagePaths);
+        $genderName = trim((string) ($product->gender?->name ?? ''));
 
         return [
             'product_id' => (int) $product->id,
@@ -91,6 +93,11 @@ final class WooCommerceCatalogBuilder
             'images' => $images,
             'image_paths' => $imagePaths,
             'gallery_urls' => array_column($images, 'src'),
+            'category' => $genderName !== '' ? [
+                'gender_id' => (int) $product->gender_id,
+                'name' => $genderName,
+            ] : null,
+            'tags' => $this->buildTagNames($product, $colorOptions),
             'attributes' => [
                 [
                     'name' => config('woocommerce.attributes.color', 'Color'),
@@ -158,6 +165,28 @@ final class WooCommerceCatalogBuilder
         }
 
         return "NM-P{$product->id}";
+    }
+
+    /**
+     * Etiquetas: estado del producto + colores disponibles (filtros en tienda).
+     *
+     * @param  list<string>  $colorOptions
+     * @return list<string>
+     */
+    private function buildTagNames(Product $product, array $colorOptions): array
+    {
+        $tags = [];
+
+        $productStatus = $product->status;
+        if ($productStatus instanceof ProductStatus) {
+            $tags[] = $productStatus->label();
+        }
+
+        foreach ($colorOptions as $colorName) {
+            $tags[] = $colorName;
+        }
+
+        return array_values(array_unique(array_filter($tags, static fn (string $t): bool => $t !== '')));
     }
 
     private function formatPrice(float $price): string

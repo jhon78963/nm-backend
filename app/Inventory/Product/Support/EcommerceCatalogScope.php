@@ -25,6 +25,7 @@ trait EcommerceCatalogScope
         return [
             'productSizes.size',
             'productSizes.colors',
+            'gender',
             'media',
             'inventoryBalances' => static fn ($query) => $query->where('warehouse_id', $warehouseId),
         ];

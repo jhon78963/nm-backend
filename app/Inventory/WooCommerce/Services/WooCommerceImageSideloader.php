@@ -97,7 +97,7 @@ class WooCommerceImageSideloader
             (string) config('woocommerce.wp_app_password'),
         )
             ->acceptJson()
-            ->timeout((int) config('woocommerce.timeout', 30))
+            ->timeout((int) config('woocommerce.timeout', 120))
             ->when(
                 ! config('woocommerce.verify_ssl', true),
                 static fn (PendingRequest $request) => $request->withoutVerifying(),

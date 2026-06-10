@@ -15,6 +15,8 @@ class WooCommerceSyncMap extends Model
         'woo_product_id',
         'woo_variation_id',
         'variant_key',
+        'payload_checksum',
+        'image_paths_checksum',
         'last_synced_at',
     ];
 

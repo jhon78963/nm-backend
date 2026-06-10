@@ -5,10 +5,11 @@ namespace App\Inventory\WooCommerce\Services;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Support\EcommerceCatalogScope;
 use App\Inventory\WooCommerce\Models\WooCommerceSyncMap;
-use App\Inventory\WooCommerce\Services\WooCommerceImageSideloader;
 use App\Inventory\WooCommerce\Support\WooCommerceCatalogBuilder;
+use App\Inventory\WooCommerce\Support\WooCommerceSyncChecksum;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -21,13 +22,32 @@ class WooCommerceSyncService
     public function __construct(
         private readonly WooCommerceCatalogBuilder $catalogBuilder,
         private readonly WooCommerceImageSideloader $imageSideloader,
+        private readonly WooCommerceTaxonomyResolver $taxonomyResolver,
     ) {}
 
-    /**
-     * @return array{products: int, variations: int, errors: int}
-     */
-    public function syncCatalog(?int $productId = null, bool $dryRun = false): array
+    public function countSyncableProducts(?int $productId = null): int
     {
+        $warehouseId = (int) config('woocommerce.warehouse_id');
+
+        $query = $this->ecommerceProductQuery($warehouseId);
+
+        if ($productId !== null) {
+            $query->whereKey($productId);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * @param  callable(string $message): void|null  $onProgress
+     * @return array{products: int, variations: int, errors: int, skipped: int, failed_product_ids: list<int>}
+     */
+    public function syncCatalog(
+        ?int $productId = null,
+        bool $dryRun = false,
+        bool $force = false,
+        ?callable $onProgress = null,
+    ): array {
         $this->assertConfigured();
 
         $warehouseId = (int) config('woocommerce.warehouse_id');
@@ -35,7 +55,13 @@ class WooCommerceSyncService
             throw new RuntimeException('WOO_SYNC_WAREHOUSE_ID no configurado o inválido.');
         }
 
-        $stats = ['products' => 0, 'variations' => 0, 'errors' => 0, 'failed_product_ids' => []];
+        $stats = [
+            'products' => 0,
+            'variations' => 0,
+            'errors' => 0,
+            'skipped' => 0,
+            'failed_product_ids' => [],
+        ];
 
         $query = $this->ecommerceProductQuery($warehouseId)
             ->with($this->ecommerceWith($warehouseId))
@@ -45,23 +71,47 @@ class WooCommerceSyncService
             $query->whereKey($productId);
         }
 
-        $query->chunkById(config('woocommerce.batch_size', 50), function ($products) use (&$stats, $warehouseId, $dryRun): void {
+        $query->chunkById(config('woocommerce.batch_size', 50), function ($products) use (
+            &$stats,
+            $warehouseId,
+            $dryRun,
+            $force,
+            $onProgress,
+        ): void {
+            $productIds = $products->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+            $mapsByVariantKey = $this->preloadMaps($productIds);
+
             /** @var Product $product */
             foreach ($products as $product) {
+                $label = "#{$product->id} ".Str::limit((string) $product->name, 40, '…');
+
                 try {
                     $payload = $this->catalogBuilder->buildProductPayload($product, $warehouseId);
                     if ($payload === null) {
+                        $this->reportProgress($onProgress, "Omitido {$label} (sin variantes)");
                         continue;
                     }
 
                     if ($dryRun) {
                         $stats['products']++;
                         $stats['variations'] += count($payload['variations']);
+                        $this->reportProgress($onProgress, "Simulado {$label}");
 
                         continue;
                     }
 
-                    $result = $this->syncProduct($payload);
+                    $checksum = WooCommerceSyncChecksum::fromPayload($payload);
+                    $parentMap = $mapsByVariantKey->get("p:{$product->id}");
+
+                    if (! $force && $this->shouldSkip($parentMap, $checksum)) {
+                        $stats['skipped']++;
+                        $this->reportProgress($onProgress, "Sin cambios {$label}");
+
+                        continue;
+                    }
+
+                    $this->reportProgress($onProgress, "Sincronizando {$label}");
+                    $result = $this->syncProduct($payload, $mapsByVariantKey, $checksum);
                     $stats['products']++;
                     $stats['variations'] += $result['variations'];
                 } catch (\Throwable $e) {
@@ -71,6 +121,7 @@ class WooCommerceSyncService
                         'product_id' => $product->id,
                         'message' => $e->getMessage(),
                     ]);
+                    $this->reportProgress($onProgress, "Error {$label}");
                 }
             }
         });
@@ -79,38 +130,44 @@ class WooCommerceSyncService
     }
 
     /**
-     * Sincroniza un único producto hacia WooCommerce (p. ej. tras subir imágenes).
-     *
-     * @return array{products: int, variations: int, errors: int}
+     * @return array{products: int, variations: int, errors: int, skipped: int, failed_product_ids: list<int>}
      */
-    public function syncProductById(int $productId): array
+    public function syncProductById(int $productId, bool $force = true): array
     {
-        return $this->syncCatalog($productId, false);
+        return $this->syncCatalog($productId, false, $force);
     }
 
     /**
      * @param  array<string, mixed>  $payload
      * @return array{woo_product_id: int, variations: int}
      */
-    private function syncProduct(array $payload): array
-    {
+    private function syncProduct(
+        array $payload,
+        Collection $mapsByVariantKey,
+        string $checksum,
+    ): array {
         $nmProductId = (int) $payload['product_id'];
         $variations = $payload['variations'];
-        $images = $this->resolveProductImages($payload);
+        $imagePaths = $payload['image_paths'] ?? [];
+        $imagePathsChecksum = hash('sha256', json_encode($imagePaths, JSON_THROW_ON_ERROR));
+        $images = $this->resolveProductImages(
+            $payload,
+            $mapsByVariantKey->get("p:{$nmProductId}"),
+            $imagePathsChecksum,
+        );
         unset($payload['variations'], $payload['product_id'], $payload['image_paths'], $payload['gallery_urls']);
 
-        $existingMap = WooCommerceSyncMap::query()
-            ->where('variant_key', "p:{$nmProductId}")
-            ->first();
-
-        $wooProductId = $existingMap?->woo_product_id;
-        $existingWooProductId = ($wooProductId !== null && $wooProductId > 0) ? $wooProductId : null;
+        $parentMap = $mapsByVariantKey->get("p:{$nmProductId}");
+        $existingWooProductId = ($parentMap?->woo_product_id ?? 0) > 0 ? (int) $parentMap->woo_product_id : null;
 
         if ($existingWooProductId) {
-            $response = $this->client()->put("products/{$existingWooProductId}", $this->productBody($payload, $images));
+            $response = $this->client()->put(
+                "products/{$existingWooProductId}",
+                $this->productBody($payload, $images, $parentMap, $checksum),
+            );
             $wooProductId = $existingWooProductId;
         } else {
-            $response = $this->client()->post('products', $this->productBody($payload, $images));
+            $response = $this->client()->post('products', $this->productBody($payload, $images, null, $checksum));
         }
 
         $this->throwIfFailed($response, "product {$nmProductId}");
@@ -121,27 +178,141 @@ class WooCommerceSyncService
                 throw new RuntimeException("WooCommerce no devolvió ID de producto válido (product {$nmProductId}). ¿Permalinks activos en WordPress?");
             }
 
-            $this->upsertMap($nmProductId, null, null, $wooProductId, null, "p:{$nmProductId}");
+            $this->upsertMap($nmProductId, null, null, $wooProductId, null, "p:{$nmProductId}", $checksum, $imagePathsChecksum);
+            $mapsByVariantKey->put("p:{$nmProductId}", WooCommerceSyncMap::query()->where('variant_key', "p:{$nmProductId}")->first());
+        } else {
+            $this->upsertMap($nmProductId, null, null, $wooProductId, null, "p:{$nmProductId}", $checksum, $imagePathsChecksum);
         }
 
-        $syncedVariations = 0;
-        foreach ($variations as $variationPayload) {
-            $this->syncVariation($wooProductId, $variationPayload);
-            $syncedVariations++;
-        }
+        $syncedVariations = $this->syncVariationsBatch($wooProductId, $variations, $mapsByVariantKey);
 
         return ['woo_product_id' => $wooProductId, 'variations' => $syncedVariations];
     }
 
     /**
-     * @param  array<string, mixed>  $variationPayload
+     * @param  list<array<string, mixed>>  $variations
      */
-    private function syncVariation(int $wooProductId, array $variationPayload): void
+    private function syncVariationsBatch(int $wooProductId, array $variations, Collection $mapsByVariantKey): int
+    {
+        if ($variations === []) {
+            return 0;
+        }
+
+        $create = [];
+        $update = [];
+        $createMeta = [];
+        $updateMeta = [];
+
+        foreach ($variations as $variationPayload) {
+            $variantKey = (string) $variationPayload['variant_key'];
+            $body = $this->variationBody($variationPayload);
+            $map = $mapsByVariantKey->get($variantKey);
+
+            if (($map?->woo_variation_id ?? 0) > 0) {
+                $body['id'] = (int) $map->woo_variation_id;
+                $update[] = $body;
+                $updateMeta[] = $variationPayload;
+            } else {
+                $create[] = $body;
+                $createMeta[] = $variationPayload;
+            }
+        }
+
+        $synced = 0;
+        $batchSize = (int) config('woocommerce.variation_batch_size', 100);
+
+        $createChunks = array_chunk($create, $batchSize);
+        $createMetaChunks = array_chunk($createMeta, $batchSize);
+        foreach ($createChunks as $i => $chunk) {
+            $synced += $this->dispatchVariationBatch(
+                $wooProductId,
+                'create',
+                $chunk,
+                $createMetaChunks[$i] ?? [],
+                $mapsByVariantKey,
+            );
+        }
+
+        $updateChunks = array_chunk($update, $batchSize);
+        $updateMetaChunks = array_chunk($updateMeta, $batchSize);
+        foreach ($updateChunks as $i => $chunk) {
+            $synced += $this->dispatchVariationBatch(
+                $wooProductId,
+                'update',
+                $chunk,
+                $updateMetaChunks[$i] ?? [],
+                $mapsByVariantKey,
+            );
+        }
+
+        return $synced;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $chunk
+     * @param  list<array<string, mixed>>  $metaChunk
+     */
+    private function dispatchVariationBatch(
+        int $wooProductId,
+        string $action,
+        array $chunk,
+        array $metaChunk,
+        Collection $mapsByVariantKey,
+    ): int {
+        if ($chunk === []) {
+            return 0;
+        }
+
+        $response = $this->client()->post("products/{$wooProductId}/variations/batch", [
+            $action => $chunk,
+        ]);
+
+        $this->throwIfFailed($response, "variations batch {$action} product {$wooProductId}");
+
+        $results = $response->json($action) ?? [];
+        if (! is_array($results)) {
+            throw new RuntimeException("Respuesta batch inválida para producto {$wooProductId}.");
+        }
+
+        foreach ($results as $i => $result) {
+            if (! is_array($result)) {
+                continue;
+            }
+
+            $meta = $metaChunk[$i] ?? null;
+            if ($meta === null) {
+                continue;
+            }
+
+            $wooVariationId = (int) ($result['id'] ?? 0);
+            if ($wooVariationId < 1) {
+                throw new RuntimeException("Variación batch sin ID válido ({$meta['variant_key']}).");
+            }
+
+            $variantKey = (string) $meta['variant_key'];
+            $this->upsertMap(
+                (int) $meta['product_id'],
+                (int) $meta['product_size_id'],
+                (int) $meta['color_id'],
+                $wooProductId,
+                $wooVariationId,
+                $variantKey,
+            );
+            $mapsByVariantKey->put($variantKey, WooCommerceSyncMap::query()->where('variant_key', $variantKey)->first());
+        }
+
+        return count($results);
+    }
+
+    /**
+     * @param  array<string, mixed>  $variationPayload
+     * @return array<string, mixed>
+     */
+    private function variationBody(array $variationPayload): array
     {
         $variantKey = (string) $variationPayload['variant_key'];
-        $map = WooCommerceSyncMap::query()->where('variant_key', $variantKey)->first();
 
-        $body = [
+        return [
             'sku' => $variationPayload['sku'],
             'regular_price' => $variationPayload['regular_price'],
             'manage_stock' => true,
@@ -160,50 +331,33 @@ class WooCommerceSyncService
                 ['key' => config('woocommerce.meta.color_id'), 'value' => (string) $variationPayload['color_id']],
             ],
         ];
-
-        if ($map?->woo_variation_id) {
-            $response = $this->client()->put(
-                "products/{$wooProductId}/variations/{$map->woo_variation_id}",
-                $body,
-            );
-            $wooVariationId = (int) $map->woo_variation_id;
-        } else {
-            $response = $this->client()->post("products/{$wooProductId}/variations", $body);
-            $wooVariationId = (int) $response->json('id');
-        }
-
-        $this->throwIfFailed($response, "variation {$variantKey}");
-
-        if ($wooVariationId < 1) {
-            throw new RuntimeException("WooCommerce no devolvió ID de variación válido ({$variantKey}).");
-        }
-
-        $this->upsertMap(
-            (int) $variationPayload['product_id'],
-            (int) $variationPayload['product_size_id'],
-            (int) $variationPayload['color_id'],
-            $wooProductId,
-            $wooVariationId,
-            $variantKey,
-        );
     }
 
     /**
      * @param  array<string, mixed>  $payload
      * @return list<array<string, mixed>>
      */
-    private function resolveProductImages(array $payload): array
-    {
+    private function resolveProductImages(
+        array $payload,
+        ?WooCommerceSyncMap $parentMap,
+        string $imagePathsChecksum,
+    ): array {
         $imagePaths = $payload['image_paths'] ?? [];
         $urlImages = $payload['images'] ?? [];
 
-        if ($imagePaths === [] && $urlImages === []) {
+        if ($imagePaths === []) {
+            return [];
+        }
+
+        if (
+            ($parentMap?->woo_product_id ?? 0) > 0
+            && hash_equals((string) ($parentMap->image_paths_checksum ?? ''), $imagePathsChecksum)
+        ) {
             return [];
         }
 
         if (
             config('woocommerce.image_sideload', true)
-            && $imagePaths !== []
             && $this->imageSideloader->isConfigured()
         ) {
             return $this->imageSideloader->sideloadGallery(
@@ -220,8 +374,12 @@ class WooCommerceSyncService
      * @param  list<array<string, mixed>>  $images
      * @return array<string, mixed>
      */
-    private function productBody(array $payload, array $images): array
-    {
+    private function productBody(
+        array $payload,
+        array $images,
+        ?WooCommerceSyncMap $parentMap,
+        string $checksum,
+    ): array {
         $body = [
             'name' => $payload['name'],
             'slug' => $payload['slug'],
@@ -232,16 +390,50 @@ class WooCommerceSyncService
             'sku' => $payload['sku'],
             'attributes' => $payload['attributes'],
             'meta_data' => $payload['meta_data'],
+            'categories' => $this->taxonomyResolver->resolveCategories($payload['category'] ?? null),
+            'tags' => $this->taxonomyResolver->resolveTags($payload['tags'] ?? []),
         ];
 
+        // Solo tocar imágenes si hay cambios o es producto nuevo.
         if ($images !== []) {
             $body['images'] = $images;
-        } else {
-            // Vacía la galería en WooCommerce cuando no quedan imágenes en nm-backend.
+        } elseif (($parentMap?->woo_product_id ?? 0) < 1) {
             $body['images'] = [];
         }
 
         return $body;
+    }
+
+    private function reportProgress(?callable $onProgress, string $message): void
+    {
+        if ($onProgress !== null) {
+            $onProgress($message);
+        }
+    }
+
+    private function shouldSkip(?WooCommerceSyncMap $parentMap, string $checksum): bool
+    {
+        if ($parentMap === null || ($parentMap->woo_product_id ?? 0) < 1) {
+            return false;
+        }
+
+        return hash_equals((string) $parentMap->payload_checksum, $checksum);
+    }
+
+    /**
+     * @param  list<int>  $productIds
+     * @return Collection<string, WooCommerceSyncMap>
+     */
+    private function preloadMaps(array $productIds): Collection
+    {
+        if ($productIds === []) {
+            return collect();
+        }
+
+        return WooCommerceSyncMap::query()
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->keyBy(static fn (WooCommerceSyncMap $map): string => (string) $map->variant_key);
     }
 
     private function upsertMap(
@@ -251,17 +443,29 @@ class WooCommerceSyncService
         int $wooProductId,
         ?int $wooVariationId,
         ?string $variantKey,
+        ?string $payloadChecksum = null,
+        ?string $imagePathsChecksum = null,
     ): void {
+        $data = [
+            'product_id' => $productId,
+            'product_size_id' => $productSizeId,
+            'color_id' => $colorId,
+            'woo_product_id' => $wooProductId,
+            'woo_variation_id' => $wooVariationId,
+            'last_synced_at' => now(),
+        ];
+
+        if ($payloadChecksum !== null) {
+            $data['payload_checksum'] = $payloadChecksum;
+        }
+
+        if ($imagePathsChecksum !== null) {
+            $data['image_paths_checksum'] = $imagePathsChecksum;
+        }
+
         WooCommerceSyncMap::query()->updateOrCreate(
             ['variant_key' => $variantKey ?? "p:{$productId}"],
-            [
-                'product_id' => $productId,
-                'product_size_id' => $productSizeId,
-                'color_id' => $colorId,
-                'woo_product_id' => $wooProductId,
-                'woo_variation_id' => $wooVariationId,
-                'last_synced_at' => now(),
-            ],
+            $data,
         );
     }
 

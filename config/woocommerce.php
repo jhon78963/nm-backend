@@ -49,6 +49,8 @@ return [
 
     'batch_size' => (int) env('WOO_SYNC_BATCH_SIZE', 50),
 
+    'variation_batch_size' => (int) env('WOO_VARIATION_BATCH_SIZE', 100),
+
     /*
     | Imágenes: sideload vía Application Password cuando el uploader exige API key.
     | Usuarios → Perfil → Contraseñas de aplicación (WordPress 6+).
