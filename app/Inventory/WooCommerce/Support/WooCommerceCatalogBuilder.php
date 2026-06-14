@@ -96,7 +96,7 @@ final class WooCommerceCatalogBuilder
                 'gender_id' => (int) $product->gender_id,
                 'name' => $genderName,
             ] : null,
-            'tags' => $this->resolveProductKeywords($product),
+            'tags' => $this->generateTags((string) $product->name, $genderName),
             'attributes' => [
                 [
                     'name' => config('woocommerce.attributes.color', 'Color'),
@@ -167,22 +167,111 @@ final class WooCommerceCatalogBuilder
     }
 
     /**
-     * Palabras clave editoriales (Tags). Colores/tallas/estado NO van aquí.
+     * Genera etiquetas editoriales inteligentes a partir del nombre del producto y la categoría.
+     * Tallas y colores NO van aquí; viajan como attributes con variation=true.
      *
      * @return list<string>
      */
-    private function resolveProductKeywords(Product $product): array
+    private function generateTags(string $productName, string $categoryName): array
     {
-        $keywords = config('woocommerce.product_keywords', []);
+        $name = mb_strtoupper($productName, 'UTF-8');
+        $tags = [];
 
-        if (! is_array($keywords)) {
-            return [];
+        // --- Tipo de manga ---
+        foreach ([
+            'M/C'         => ['Manga Corta'],
+            'MANGA CORTA' => ['Manga Corta'],
+            'M/L'         => ['Manga Larga'],
+            'MANGA LARGA' => ['Manga Larga'],
+            'M/3/4'       => ['Manga 3/4'],
+            'SIN MANGA'   => ['Sin Manga'],
+        ] as $keyword => $newTags) {
+            if (str_contains($name, $keyword)) {
+                array_push($tags, ...$newTags);
+            }
         }
 
-        return array_values(array_unique(array_filter(array_map(
-            static fn (mixed $tag): string => trim((string) $tag),
-            $keywords,
-        ), static fn (string $tag): bool => $tag !== '')));
+        // --- Temporada / material ---
+        foreach ([
+            'POLAR'       => ['Invierno', 'Abrigador'],
+            'PELUCHE'     => ['Invierno', 'Abrigador'],
+            'FORRO POLAR' => ['Invierno', 'Abrigador'],
+            'LANA'        => ['Invierno', 'Abrigador'],
+            'DENIM'       => ['Casual', 'Jean'],
+            'JEAN'        => ['Casual', 'Jean'],
+            'LINO'        => ['Verano', 'Fresco'],
+            'LICRA'       => ['Sport', 'Deportivo'],
+            'SPANDEX'     => ['Sport', 'Deportivo'],
+        ] as $keyword => $newTags) {
+            if (str_contains($name, $keyword)) {
+                array_push($tags, ...$newTags);
+            }
+        }
+
+        // --- Estilo ---
+        foreach ([
+            'DRILL'      => ['Elegante'],
+            'VESTIR'     => ['Elegante'],
+            'FORMAL'     => ['Elegante'],
+            'SPORT'      => ['Deportivo'],
+            'DEPORTIVO'  => ['Deportivo'],
+            'CASUAL'     => ['Casual'],
+            'PIJAMA'     => ['Pijama'],
+            'MATERNIDAD' => ['Maternidad'],
+            'PREMAMÁ'    => ['Maternidad'],
+        ] as $keyword => $newTags) {
+            if (str_contains($name, $keyword)) {
+                array_push($tags, ...$newTags);
+            }
+        }
+
+        // --- Tipo de prenda ---
+        foreach ([
+            'VESTIDO'  => ['Vestidos'],
+            'BLUSA'    => ['Blusas'],
+            'CAMISA'   => ['Camisas'],
+            'CAMISETA' => ['Camisetas'],
+            'PANTALÓN' => ['Pantalones'],
+            'PANTALON' => ['Pantalones'],
+            'FALDA'    => ['Faldas'],
+            'CHAQUETA' => ['Chaquetas'],
+            'BUZO'     => ['Buzos'],
+            'SUDADERA' => ['Sudaderas'],
+            'LEGGINS'  => ['Leggings'],
+            'LEGGINGS' => ['Leggings'],
+            'MAMELUCO' => ['Mamelucos'],
+            'BODY'     => ['Bodies'],
+            'CONJUNTO' => ['Conjuntos'],
+        ] as $keyword => $newTags) {
+            if (str_contains($name, $keyword)) {
+                array_push($tags, ...$newTags);
+            }
+        }
+
+        // --- Tags basadas en categoría (género) ---
+        $category = mb_strtoupper(trim($categoryName), 'UTF-8');
+
+        foreach ([
+            'NIÑOS'     => ['Moda Infantil', 'Ropa Niños'],
+            'NIÑAS'     => ['Moda Infantil', 'Ropa Niñas'],
+            'NIÑO'      => ['Moda Infantil', 'Ropa Niños'],
+            'NIÑA'      => ['Moda Infantil', 'Ropa Niñas'],
+            'BEBÉ'      => ['Moda Bebé', 'Ropa Bebé'],
+            'BEBE'      => ['Moda Bebé', 'Ropa Bebé'],
+            'MUJERES'   => ['Moda Femenina'],
+            'MUJER'     => ['Moda Femenina'],
+            'DAMA'      => ['Moda Femenina'],
+            'DAMAS'     => ['Moda Femenina'],
+            'HOMBRES'   => ['Moda Masculina'],
+            'HOMBRE'    => ['Moda Masculina'],
+            'CABALLERO' => ['Moda Masculina'],
+        ] as $keyword => $newTags) {
+            if (str_contains($category, $keyword)) {
+                array_push($tags, ...$newTags);
+            }
+        }
+
+        return array_values(array_unique($tags));
     }
 
     private function formatPrice(float $price): string
