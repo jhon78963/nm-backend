@@ -318,7 +318,7 @@ class WooCommerceSyncService
     {
         $variantKey = (string) $variationPayload['variant_key'];
 
-        return [
+        $body = [
             'sku' => $variationPayload['sku'],
             'regular_price' => $variationPayload['regular_price'],
             'manage_stock' => true,
@@ -337,6 +337,13 @@ class WooCommerceSyncService
                 ['key' => config('woocommerce.meta.color_id'), 'value' => (string) $variationPayload['color_id']],
             ],
         ];
+
+        $salePrice = $variationPayload['sale_price'] ?? null;
+        if (is_string($salePrice) && $salePrice !== '') {
+            $body['sale_price'] = $salePrice;
+        }
+
+        return $body;
     }
 
     /**
@@ -392,6 +399,7 @@ class WooCommerceSyncService
             'slug' => $payload['slug'],
             'type' => 'variable',
             'status' => $payload['status'],
+            'featured' => (bool) ($payload['featured'] ?? false),
             'description' => $payload['description'],
             'short_description' => $payload['short_description'],
             'sku' => $payload['sku'],

@@ -6,6 +6,7 @@ use App\Inventory\Product\Controllers\ProductHistoryController;
 use App\Inventory\Product\Controllers\ProductMediaController;
 use App\Inventory\Product\Controllers\ProductSizeColorController;
 use App\Inventory\Product\Controllers\ProductSizeController;
+use App\Inventory\WooCommerce\Controllers\ProductWooCommerceController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(InventoryReconciliationController::class)->group(function (): void {
@@ -33,6 +34,9 @@ Route::controller(ProductMediaController::class)->group(function (): void {
     Route::post('/products/{product}/media', 'store')->middleware('permission:product.update');
     Route::delete('/products/{product}/media/{media}', 'destroy')->middleware('permission:product.update');
 });
+
+Route::post('/products/{product}/woocommerce/sync', [ProductWooCommerceController::class, 'sync'])
+    ->middleware('permission:product.update');
 
 Route::controller(ProductSizeController::class)->group(function (): void {
     Route::post('/products/{product}/size/{sizeId}', 'add')->middleware('permission:productSize.add');

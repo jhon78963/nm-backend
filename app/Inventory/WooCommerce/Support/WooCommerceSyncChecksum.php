@@ -16,6 +16,7 @@ final class WooCommerceSyncChecksum
             'name' => $payload['name'] ?? '',
             'slug' => $payload['slug'] ?? '',
             'status' => $payload['status'] ?? '',
+            'featured' => (bool) ($payload['featured'] ?? false),
             'description' => $payload['description'] ?? '',
             'short_description' => $payload['short_description'] ?? '',
             'sku' => $payload['sku'] ?? '',
@@ -28,6 +29,7 @@ final class WooCommerceSyncChecksum
                     'variant_key' => $v['variant_key'] ?? '',
                     'sku' => $v['sku'] ?? '',
                     'regular_price' => $v['regular_price'] ?? '',
+                    'sale_price' => $v['sale_price'] ?? '',
                     'stock_quantity' => $v['stock_quantity'] ?? 0,
                     'attributes' => $v['attributes'] ?? [],
                 ])

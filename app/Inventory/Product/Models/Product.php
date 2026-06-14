@@ -30,6 +30,9 @@ class Product extends Model
         'barcode',
         'percentage_discount',
         'cash_discount',
+        'is_featured',
+        'is_on_sale',
+        'woo_status',
         'status',
         'gender_id',
         'vendor_id',
@@ -65,6 +68,8 @@ class Product extends Model
     {
         return [
             'status' => ProductStatus::class,
+            'is_featured' => 'boolean',
+            'is_on_sale' => 'boolean',
             'purchase_price' => 'float',
             'sale_price' => 'float',
             'min_sale_price' => 'float',

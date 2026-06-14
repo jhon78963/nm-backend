@@ -34,12 +34,15 @@ final class WooCommerceCatalogBuilder
                 $sizeOptions[] = $sizeLabel;
             }
 
-            $variantSalePrice = (float) ($productSize->sale_price ?? 0);
-            if ($variantSalePrice > 0 && ($minSalePrice === null || $variantSalePrice < $minSalePrice)) {
-                $minSalePrice = $variantSalePrice;
-            }
+                $variantSalePrice = (float) ($productSize->sale_price ?? 0);
+                $variantMinPrice = (float) ($productSize->min_sale_price ?? 0);
+                if ($variantSalePrice > 0 && ($minSalePrice === null || $variantSalePrice < $minSalePrice)) {
+                    $minSalePrice = $variantSalePrice;
+                }
 
-            foreach ($productSize->colors as $color) {
+                $pricing = $this->variationPricing($product, $variantSalePrice, $variantMinPrice);
+
+                foreach ($productSize->colors as $color) {
                 $colorLabel = trim((string) ($color->description ?? ''));
                 if ($colorLabel === '' || $sizeLabel === '') {
                     continue;
@@ -58,7 +61,8 @@ final class WooCommerceCatalogBuilder
                     'product_size_id' => (int) $productSize->id,
                     'color_id' => (int) $color->id,
                     'sku' => $sku,
-                    'regular_price' => $this->formatPrice($variantSalePrice),
+                    'regular_price' => $pricing['regular_price'],
+                    'sale_price' => $pricing['sale_price'],
                     'stock_quantity' => max(0, $stock),
                     'manage_stock' => true,
                     'attributes' => [
@@ -85,6 +89,7 @@ final class WooCommerceCatalogBuilder
             'slug' => $slug,
             'type' => 'variable',
             'status' => $status,
+            'featured' => (bool) $product->is_featured,
             'description' => strip_tags((string) ($product->description ?? '')),
             'short_description' => Str::limit(strip_tags((string) ($product->description ?? '')), 100),
             'sku' => $this->parentSku($product),
@@ -290,6 +295,56 @@ final class WooCommerceCatalogBuilder
             return 'draft';
         }
 
+        $wooStatus = strtolower(trim((string) ($product->woo_status ?? '')));
+        if (in_array($wooStatus, ['draft', 'publish'], true)) {
+            return $wooStatus;
+        }
+
         return $imagePaths !== [] ? 'publish' : 'draft';
+    }
+
+    /**
+     * @return array{regular_price: string, sale_price: string|null}
+     */
+    private function variationPricing(Product $product, float $regularPrice, float $minSalePrice): array
+    {
+        $regular = max(0, $regularPrice);
+        $salePrice = $this->computeOfferPrice($product, $regular, $minSalePrice);
+
+        return [
+            'regular_price' => $this->formatPrice($regular),
+            'sale_price' => $salePrice,
+        ];
+    }
+
+    private function computeOfferPrice(Product $product, float $regularPrice, float $minSalePrice): ?string
+    {
+        if (! $product->is_on_sale || $regularPrice <= 0) {
+            return null;
+        }
+
+        $offer = $regularPrice;
+        $percentage = is_numeric($product->percentage_discount)
+            ? (float) $product->percentage_discount
+            : 0.0;
+
+        if ($percentage > 0) {
+            $offer = $offer * (1 - ($percentage / 100));
+        }
+
+        $cashDiscount = (float) ($product->cash_discount ?? 0);
+        if ($cashDiscount > 0) {
+            $offer = max(0, $offer - $cashDiscount);
+        }
+
+        if ($minSalePrice > 0 && $minSalePrice < $regularPrice) {
+            $offer = min($offer, $minSalePrice);
+        }
+
+        if ($offer <= 0 || $offer >= $regularPrice) {
+            return null;
+        }
+
+        return $this->formatPrice($offer);
     }
 }

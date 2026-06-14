@@ -3,6 +3,7 @@
 namespace App\Inventory\Product\Resources;
 
 use App\Inventory\Product\Support\PurchasePriceVisibility;
+use App\Inventory\WooCommerce\Models\WooCommerceSyncMap;
 use App\Inventory\WooCommerce\Support\ProductMediaUrlResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -45,6 +46,10 @@ class ProductResource extends JsonResource
             'minSalePrice' => $primaryPs !== null ? (float) ($primaryPs->min_sale_price ?? 0) : 0,
             'cashDiscount' => $this->cash_discount,
             'percentageDiscount' => $this->percentage_discount,
+            'isFeatured' => (bool) $this->is_featured,
+            'isOnSale' => (bool) $this->is_on_sale,
+            'wooStatus' => $this->woo_status,
+            'wooCommerce' => $this->wooCommerceMeta(),
             'description' => $this->description,
             'status' => $this->status,
             'genderId' => $this->gender_id,
@@ -81,5 +86,20 @@ class ProductResource extends JsonResource
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array{productId: int|null, lastSyncedAt: string|null}
+     */
+    private function wooCommerceMeta(): array
+    {
+        $map = WooCommerceSyncMap::query()
+            ->where('variant_key', "p:{$this->id}")
+            ->first();
+
+        return [
+            'productId' => ($map?->woo_product_id ?? 0) > 0 ? (int) $map->woo_product_id : null,
+            'lastSyncedAt' => $map?->last_synced_at?->toIso8601String(),
+        ];
     }
 }
