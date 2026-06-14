@@ -86,6 +86,14 @@ class ProductMediaController extends Controller
      */
     private function syncHttpStatus(array $sync, int $successStatus): int
     {
-        return $sync['attempted'] && $sync['errors'] > 0 ? 207 : $successStatus;
+        if (! $sync['attempted']) {
+            return 207;
+        }
+
+        if (($sync['errors'] ?? 0) > 0 || ($sync['products'] ?? 0) < 1) {
+            return 207;
+        }
+
+        return $successStatus;
     }
 }

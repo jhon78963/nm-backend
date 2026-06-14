@@ -150,24 +150,30 @@ class WooCommerceSyncService
         $variations = $payload['variations'];
         $imagePaths = $payload['image_paths'] ?? [];
         $imagePathsChecksum = hash('sha256', json_encode($imagePaths, JSON_THROW_ON_ERROR));
+        $parentMap = $mapsByVariantKey->get("p:{$nmProductId}");
+        $galleryChanged = $parentMap === null
+            || ($parentMap->woo_product_id ?? 0) < 1
+            || ! hash_equals((string) ($parentMap->image_paths_checksum ?? ''), $imagePathsChecksum);
         $images = $this->resolveProductImages(
             $payload,
-            $mapsByVariantKey->get("p:{$nmProductId}"),
+            $parentMap,
             $imagePathsChecksum,
         );
         unset($payload['variations'], $payload['product_id'], $payload['image_paths'], $payload['gallery_urls']);
 
-        $parentMap = $mapsByVariantKey->get("p:{$nmProductId}");
         $existingWooProductId = ($parentMap?->woo_product_id ?? 0) > 0 ? (int) $parentMap->woo_product_id : null;
 
         if ($existingWooProductId) {
             $response = $this->client()->put(
                 "products/{$existingWooProductId}",
-                $this->productBody($payload, $images, $parentMap, $checksum),
+                $this->productBody($payload, $images, $parentMap, $checksum, $galleryChanged),
             );
             $wooProductId = $existingWooProductId;
         } else {
-            $response = $this->client()->post('products', $this->productBody($payload, $images, null, $checksum));
+            $response = $this->client()->post(
+                'products',
+                $this->productBody($payload, $images, null, $checksum, true),
+            );
         }
 
         $this->throwIfFailed($response, "product {$nmProductId}");
@@ -379,6 +385,7 @@ class WooCommerceSyncService
         array $images,
         ?WooCommerceSyncMap $parentMap,
         string $checksum,
+        bool $galleryChanged = true,
     ): array {
         $body = [
             'name' => $payload['name'],
@@ -394,10 +401,9 @@ class WooCommerceSyncService
             'tags' => $this->taxonomyResolver->resolveTags($payload['tags'] ?? []),
         ];
 
-        // Solo tocar imágenes si hay cambios o es producto nuevo.
         if ($images !== []) {
             $body['images'] = $images;
-        } elseif (($parentMap?->woo_product_id ?? 0) < 1) {
+        } elseif ($galleryChanged) {
             $body['images'] = [];
         }
 

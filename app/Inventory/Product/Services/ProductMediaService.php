@@ -110,7 +110,7 @@ class ProductMediaService
                 'products' => 0,
                 'variations' => 0,
                 'errors' => 0,
-                'error' => null,
+                'error' => 'WooCommerce sync desactivado (WOO_SYNC_ENABLED=false).',
             ];
         }
 
@@ -122,7 +122,7 @@ class ProductMediaService
                 'products' => $stats['products'],
                 'variations' => $stats['variations'],
                 'errors' => $stats['errors'],
-                'error' => $stats['errors'] > 0 ? 'WooCommerce sync finished with errors. Check logs.' : null,
+                'error' => $this->resolveSyncErrorMessage($stats),
             ];
         } catch (\Throwable $e) {
             Log::warning('WooCommerce sync after product media change failed', [
@@ -138,5 +138,21 @@ class ProductMediaService
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * @param  array{products: int, variations: int, errors: int, skipped?: int, failed_product_ids?: list<int>}  $stats
+     */
+    private function resolveSyncErrorMessage(array $stats): ?string
+    {
+        if (($stats['errors'] ?? 0) > 0) {
+            return 'WooCommerce sync finished with errors. Check logs.';
+        }
+
+        if (($stats['products'] ?? 0) < 1) {
+            return 'Producto no sincronizado: verifica WOO_SYNC_WAREHOUSE_ID, variantes talla×color y configuración WooCommerce.';
+        }
+
+        return null;
     }
 }
