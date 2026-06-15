@@ -136,6 +136,10 @@ class RoleAndPermissionSeeder extends Seeder
         $vendedora->save();
         $vendedora->syncRoles([$roleVendedora]);
 
+        $roleSuper->syncPermissions(
+            Permission::query()->where('guard_name', $guard)->get()
+        );
+
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
     }
 }
