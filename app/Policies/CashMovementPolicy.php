@@ -61,4 +61,21 @@ class CashMovementPolicy
 
         return true;
     }
+
+    public function delete(User $user, CashMovement $movement): bool
+    {
+        if (! $user->can('cashflow.update')) {
+            return false;
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ADMINISTRATIVE) {
+            return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
+        }
+
+        return true;
+    }
 }

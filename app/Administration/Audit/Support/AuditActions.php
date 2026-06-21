@@ -32,4 +32,6 @@ final class AuditActions
     public const CASHFLOW_CREATED = 'cashflow.created';
 
     public const CASHFLOW_UPDATED = 'cashflow.updated';
+
+    public const CASHFLOW_DELETED = 'cashflow.deleted';
 }

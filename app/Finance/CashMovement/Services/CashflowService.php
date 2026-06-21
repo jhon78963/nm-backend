@@ -267,6 +267,39 @@ class CashflowService
         return $movement;
     }
 
+    public function deleteMovement(int $id): void
+    {
+        $movement = CashMovement::with('vouchers')->findOrFail($id);
+
+        if ($movement->is_deleted) {
+            throw new \Exception('Movimiento no encontrado.');
+        }
+
+        if ($movement->purchase_id !== null
+            || $movement->category === CashMovement::CATEGORY_INVENTORY_PURCHASE) {
+            throw new \Exception('No se puede eliminar un movimiento vinculado a una compra.');
+        }
+
+        if (TeamPayment::query()
+            ->where('cash_movement_id', $movement->id)
+            ->where('is_deleted', false)
+            ->exists()) {
+            throw new \Exception('No se puede eliminar: está vinculado a un pago de nómina.');
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED
+            && $movement->accumulated_balance_applied) {
+            $this->accumulatedAccountService->reverseExpenseFromBalance($movement);
+            $movement->refresh();
+        }
+
+        $movement->forceFill([
+            'is_deleted' => true,
+            'deleter_user_id' => $this->resolveAuthenticatedUserId(),
+            'deletion_time' => now(),
+        ])->save();
+    }
+
     public function streamVoucher(string $path): array
     {
         if (str_contains($path, '..')) {

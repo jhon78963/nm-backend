@@ -11,4 +11,5 @@ Route::controller(CashflowController::class)->group(function (): void {
     Route::get('/cash-flow/accumulated/monthly', 'getAccumulatedMonthlyReport')->middleware('permission:cashflow.getAccumulatedExpensesReport');
     Route::post('/cash-flow', 'store')->middleware('permission:cashflow.store');
     Route::put('/cash-flow/{cashMovement}', 'update')->middleware('permission:cashflow.update');
+    Route::delete('/cash-flow/{cashMovement}', 'destroy')->middleware('permission:cashflow.update');
 });

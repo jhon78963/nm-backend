@@ -123,6 +123,29 @@ class CashflowController extends Controller
         ]);
     }
 
+    public function destroy(CashMovement $cashMovement): JsonResponse
+    {
+        if ($cashMovement->is_deleted) {
+            abort(404, 'Movimiento no encontrado');
+        }
+
+        $this->authorize('delete', $cashMovement);
+
+        $cashMovementId = $cashMovement->id;
+
+        $this->cashflowService->deleteMovement($cashMovementId);
+
+        UserActionLogService::log(
+            AuditActions::CASHFLOW_DELETED,
+            metadata: ['cash_movement_id' => $cashMovementId],
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Movimiento eliminado correctamente.',
+        ]);
+    }
+
     public function streamVoucher(Request $request): Response
     {
         $path = $request->query('path');
