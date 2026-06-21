@@ -23,6 +23,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use DateTimeInterface;
 use Illuminate\Validation\ValidationException;
 use stdClass;
 
@@ -71,6 +72,7 @@ class SaleService extends ModelService
         int $quantity,
         int $saleId,
         ?int $saleDetailId = null,
+        ?DateTimeInterface $occurredAt = null,
     ): void {
         if ($quantity < 1) {
             return;
@@ -89,6 +91,7 @@ class SaleService extends ModelService
             InventoryMovementDirection::Out,
             $quantity,
             $saleId,
+            $occurredAt,
         );
     }
 
@@ -100,6 +103,7 @@ class SaleService extends ModelService
         InventoryMovementDirection $direction,
         int $quantity,
         int $saleId,
+        ?DateTimeInterface $occurredAt = null,
     ): void {
         if ($quantity < 1) {
             return;
@@ -115,8 +119,16 @@ class SaleService extends ModelService
             movementType: InventoryMovementType::Sale,
             referenceType: Sale::class,
             referenceId: $saleId,
+            occurredAt: $occurredAt ?? now(),
             createdByUserId: Auth::id(),
         ));
+    }
+
+    private function saleMovementOccurredAt(Sale $sale): DateTimeInterface
+    {
+        $creationTime = $sale->creation_time;
+
+        return $creationTime instanceof DateTimeInterface ? $creationTime : now();
     }
 
     /**
@@ -190,11 +202,21 @@ class SaleService extends ModelService
             $model->fill($data);
             $model->save();
 
+            $saleOccurredAt = $model instanceof Sale
+                ? $this->saleMovementOccurredAt($model)
+                : now();
+
             if (!empty($data['items']) && is_array($data['items'])) {
                 $items = $this->sortSaleUpdateItemsByNaturalInventoryKey($model, $data['items']);
                 $this->validateSaleUpdateItemsMargin($model, $items);
 
                 foreach ($items as $itemData) {
+                    if (empty($itemData['id'])) {
+                        $this->addNewItemToSale($model, $itemData, $warehouseId, $tenantId, $saleOccurredAt);
+
+                        continue;
+                    }
+
                     $detail = $model->details()->where('id', $itemData['id'])->first();
                     if (!$detail)
                         continue;
@@ -234,6 +256,7 @@ class SaleService extends ModelService
                                 (int) $detail->id,
                                 $warehouseId,
                                 $tenantId,
+                                $saleOccurredAt,
                             );
                         }
                         if ($newPsId) {
@@ -247,6 +270,7 @@ class SaleService extends ModelService
                                 (int) $detail->id,
                                 $warehouseId,
                                 $tenantId,
+                                $saleOccurredAt,
                             );
                         }
 
@@ -269,6 +293,7 @@ class SaleService extends ModelService
                                     (int) $detail->id,
                                     $warehouseId,
                                     $tenantId,
+                                    $saleOccurredAt,
                                 );
                             } else {
                                 $this->applyStockDeltaLocked(
@@ -281,6 +306,7 @@ class SaleService extends ModelService
                                     (int) $detail->id,
                                     $warehouseId,
                                     $tenantId,
+                                    $saleOccurredAt,
                                 );
                             }
                         }
@@ -334,6 +360,19 @@ class SaleService extends ModelService
             $items,
             function (array $a, array $b) use ($model): int {
                 $key = function (array $item) use ($model): string {
+                    if (! empty($item['product_size_id'])) {
+                        $row = DB::table('product_size')
+                            ->where('id', (int) $item['product_size_id'])
+                            ->first(['product_id', 'size_id']);
+
+                        if ($row !== null) {
+                            return $this->getInventoryLockSortKey(
+                                (int) $row->product_id,
+                                (int) $row->size_id,
+                            );
+                        }
+                    }
+
                     $detail = $model->details()->where('id', $item['id'] ?? 0)->first();
                     if (! $detail) {
                         return $this->getInventoryLockSortKey(\PHP_INT_MAX, \PHP_INT_MAX);
@@ -383,6 +422,7 @@ class SaleService extends ModelService
         int $saleDetailId,
         int $warehouseId,
         int $tenantId,
+        ?DateTimeInterface $occurredAt = null,
     ): void {
         if ($qty === 0 || $psId <= 0) {
             return;
@@ -401,12 +441,90 @@ class SaleService extends ModelService
                 InventoryMovementDirection::In,
                 $qty,
                 $saleId,
+                $occurredAt,
             );
 
             return;
         }
 
-        $this->recordSaleStockOut($warehouseId, $tenantId, $psId, $colorId ? (int) $colorId : null, $qty, $saleId, $saleDetailId);
+        $this->recordSaleStockOut(
+            $warehouseId,
+            $tenantId,
+            $psId,
+            $colorId ? (int) $colorId : null,
+            $qty,
+            $saleId,
+            $saleDetailId,
+            $occurredAt,
+        );
+    }
+
+    /**
+     * Agrega un ítem nuevo a una venta existente y descuenta stock.
+     *
+     * @param  array<string, mixed>  $itemData
+     */
+    private function addNewItemToSale(
+        Model $model,
+        array $itemData,
+        int $warehouseId,
+        int $tenantId,
+        DateTimeInterface $occurredAt,
+    ): void {
+        $productSizeId = (int) ($itemData['product_size_id'] ?? 0);
+        if ($productSizeId < 1) {
+            throw new Exception('Debe seleccionar un producto para los ítems nuevos.');
+        }
+
+        $qty = (int) $itemData['quantity'];
+        $unitPrice = (float) $itemData['unit_price'];
+        $colorId = array_key_exists('color_id', $itemData)
+            ? ($itemData['color_id'] > 0 ? (int) $itemData['color_id'] : null)
+            : null;
+
+        $sizeInfo = DB::table('product_size')
+            ->join('sizes', 'product_size.size_id', '=', 'sizes.id')
+            ->join('products', 'product_size.product_id', '=', 'products.id')
+            ->where('product_size.id', $productSizeId)
+            ->where('products.warehouse_id', $warehouseId)
+            ->select(
+                'products.id as pid',
+                'products.name as pname',
+                'sizes.description as sname',
+                'sizes.id as sid',
+            )
+            ->first();
+
+        if ($sizeInfo === null) {
+            throw new Exception('No se pudo resolver el producto para el ítem.');
+        }
+
+        $colorName = $colorId !== null
+            ? (DB::table('colors')->where('id', $colorId)->value('description') ?? 'Desconocido')
+            : 'Único';
+
+        $detail = $model->details()->create([
+            'product_id' => $sizeInfo->pid,
+            'size_id' => $sizeInfo->sid,
+            'color_id' => $colorId,
+            'product_name_snapshot' => $sizeInfo->pname,
+            'size_name_snapshot' => $sizeInfo->sname,
+            'color_name_snapshot' => $colorName,
+            'quantity' => $qty,
+            'unit_price' => $unitPrice,
+            'subtotal' => round($qty * $unitPrice, 2),
+        ]);
+
+        $this->recordSaleStockOut(
+            $warehouseId,
+            $tenantId,
+            $productSizeId,
+            $colorId,
+            $qty,
+            (int) $model->id,
+            (int) $detail->id,
+            $occurredAt,
+        );
     }
 
     /**
@@ -448,6 +566,7 @@ class SaleService extends ModelService
 
             $warehouseId = $this->resolveWarehouseId($model);
             $tenantId = $this->resolveTenantId($warehouseId);
+            $cancelOccurredAt = now();
 
             $model->load('details');
 
@@ -489,6 +608,7 @@ class SaleService extends ModelService
                     (int) $detail->id,
                     $warehouseId,
                     $tenantId,
+                    $cancelOccurredAt,
                 );
             }
 
@@ -591,6 +711,8 @@ class SaleService extends ModelService
                     <=> $this->resolvePosLineInventoryLockSortKey($b, $pairByProductSizeId),
             );
 
+            $saleOccurredAt = $this->saleMovementOccurredAt($sale);
+
             // E. Procesar Ítems e Inventario (bloqueo de filas para evitar sobreventa concurrente)
             foreach ($lines as $item) {
                 $productSizeId = $item['product_size_id'];
@@ -634,6 +756,7 @@ class SaleService extends ModelService
                     $qty,
                     (int) $sale->id,
                     (int) $detail->id,
+                    $saleOccurredAt,
                 );
             }
 
@@ -801,6 +924,7 @@ class SaleService extends ModelService
             $originalSale = $this->resolveOriginalSaleForExchange($returnedDetail);
             $warehouseId = $this->resolveWarehouseId($originalSale);
             $tenantId = $this->resolveTenantId($warehouseId);
+            $saleOccurredAt = $this->saleMovementOccurredAt($originalSale);
 
             $newItemData = $data['new_item'];
             $newPsId = (int) $newItemData['product_size_id'];
@@ -854,6 +978,7 @@ class SaleService extends ModelService
                 $qty,
                 (int) $originalSale->id,
                 (int) $newDetail->id,
+                $saleOccurredAt,
             );
 
             // 4. Eliminar Detalle Antiguo
