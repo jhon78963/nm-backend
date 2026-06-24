@@ -91,6 +91,8 @@ class ProductService extends ModelService
         // ---------------------------------------------------------
         // FASE 1: BÚSQUEDA OPTIMIZADA (Para evitar colgar la BD)
         // ---------------------------------------------------------
+        $matchedProductSizeId = null;
+
         $product = $this->model
             ->with([
                 'productSizes.size',
@@ -103,12 +105,13 @@ class ProductService extends ModelService
         if (!$product) {
             $sizeMatch = ProductSize::where('barcode', $barcode)->first();
             if ($sizeMatch) {
+                $matchedProductSizeId = (int) $sizeMatch->id;
                 $product = $this->model
                     ->with([
                         'productSizes.size',
                         'productSizes.productSizeColors'
                     ])
-                    ->where('id', $sizeMatch->product_id) // Asumiendo que la FK es product_id
+                    ->where('id', $sizeMatch->product_id)
                     ->where('is_deleted', false)
                     ->first();
             }
@@ -159,6 +162,10 @@ class ProductService extends ModelService
         $basePrice = null;
 
         foreach ($product->productSizes as $pSize) {
+            if ($matchedProductSizeId !== null && (int) $pSize->id !== $matchedProductSizeId) {
+                continue;
+            }
+
             if (! $pSize->size) {
                 continue;
             }
@@ -224,7 +231,7 @@ class ProductService extends ModelService
 
         return [
             'id'        => $product->id,
-            'sku'       => $product->barcode ?? $barcode,
+            'sku'       => $barcode,
             'name'      => $product->name,
             'basePrice' => (float) ($basePrice ?? 0),
             'variants'  => $variantsMap
