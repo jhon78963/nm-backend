@@ -91,7 +91,7 @@ class ProductService extends ModelService
         // ---------------------------------------------------------
         // FASE 1: BÚSQUEDA OPTIMIZADA (Para evitar colgar la BD)
         // ---------------------------------------------------------
-        $matchedProductSizeId = null;
+        $matchedProductSizeIds = null;
 
         $product = $this->model
             ->with([
@@ -103,15 +103,18 @@ class ProductService extends ModelService
             ->first();
 
         if (!$product) {
-            $sizeMatch = ProductSize::where('barcode', $barcode)->first();
-            if ($sizeMatch) {
-                $matchedProductSizeId = (int) $sizeMatch->id;
+            $sizeMatches = ProductSize::where('barcode', $barcode)->get();
+            if ($sizeMatches->isNotEmpty()) {
+                $matchedProductSizeIds = $sizeMatches
+                    ->pluck('id')
+                    ->map(static fn ($id) => (int) $id)
+                    ->all();
                 $product = $this->model
                     ->with([
                         'productSizes.size',
                         'productSizes.productSizeColors'
                     ])
-                    ->where('id', $sizeMatch->product_id)
+                    ->where('id', $sizeMatches->first()->product_id)
                     ->where('is_deleted', false)
                     ->first();
             }
@@ -162,7 +165,10 @@ class ProductService extends ModelService
         $basePrice = null;
 
         foreach ($product->productSizes as $pSize) {
-            if ($matchedProductSizeId !== null && (int) $pSize->id !== $matchedProductSizeId) {
+            if (
+                $matchedProductSizeIds !== null
+                && ! in_array((int) $pSize->id, $matchedProductSizeIds, true)
+            ) {
                 continue;
             }
 
