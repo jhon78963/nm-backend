@@ -210,6 +210,21 @@ class SaleService extends ModelService
                 $items = $this->sortSaleUpdateItemsByNaturalInventoryKey($model, $data['items']);
                 $this->validateSaleUpdateItemsMargin($model, $items);
 
+                $submittedDetailIds = collect($items)
+                    ->pluck('id')
+                    ->filter()
+                    ->map(static fn ($id) => (int) $id)
+                    ->values()
+                    ->all();
+
+                $this->removeSaleDetailsNotInPayload(
+                    $model,
+                    $submittedDetailIds,
+                    $warehouseId,
+                    $tenantId,
+                    $saleOccurredAt,
+                );
+
                 foreach ($items as $itemData) {
                     if (empty($itemData['id'])) {
                         $this->addNewItemToSale($model, $itemData, $warehouseId, $tenantId, $saleOccurredAt);
@@ -410,6 +425,67 @@ class SaleService extends ModelService
         $fromSid = isset($line['size_id']) ? (int) $line['size_id'] : 0;
 
         return $this->getInventoryLockSortKey($fromPid, $fromSid);
+    }
+
+    /**
+     * Elimina líneas que ya no vienen en el payload y devuelve stock al inventario.
+     *
+     * @param  array<int, int>  $submittedDetailIds
+     */
+    private function removeSaleDetailsNotInPayload(
+        Model $model,
+        array $submittedDetailIds,
+        int $warehouseId,
+        int $tenantId,
+        DateTimeInterface $occurredAt,
+    ): void {
+        $detailsToRemove = $model->details()
+            ->when(
+                $submittedDetailIds !== [],
+                fn ($query) => $query->whereNotIn('id', $submittedDetailIds),
+            )
+            ->get()
+            ->sort(
+                fn (SaleDetail $a, SaleDetail $b): int => $this->getInventoryLockSortKey(
+                    (int) $a->product_id,
+                    (int) $a->size_id,
+                ) <=> $this->getInventoryLockSortKey(
+                    (int) $b->product_id,
+                    (int) $b->size_id,
+                ),
+            )
+            ->values();
+
+        foreach ($detailsToRemove as $detail) {
+            $qty = (int) $detail->quantity;
+            if ($qty < 1) {
+                $detail->delete();
+
+                continue;
+            }
+
+            $productSizeId = DB::table('product_size')
+                ->where('product_id', $detail->product_id)
+                ->where('size_id', $detail->size_id)
+                ->value('id');
+
+            if ($productSizeId) {
+                $this->applyStockDeltaLocked(
+                    (int) $productSizeId,
+                    $detail->color_id ? (int) $detail->color_id : null,
+                    $qty,
+                    true,
+                    (int) $model->id,
+                    (string) ($model->code ?? ''),
+                    (int) $detail->id,
+                    $warehouseId,
+                    $tenantId,
+                    $occurredAt,
+                );
+            }
+
+            $detail->delete();
+        }
     }
 
     private function applyStockDeltaLocked(
