@@ -202,9 +202,8 @@ class SaleService extends ModelService
             $model->fill($data);
             $model->save();
 
-            $saleOccurredAt = $model instanceof Sale
-                ? $this->saleMovementOccurredAt($model)
-                : now();
+            // Movimientos de edición usan la fecha actual, no la de la venta original.
+            $inventoryOccurredAt = now();
 
             if (!empty($data['items']) && is_array($data['items'])) {
                 $items = $this->sortSaleUpdateItemsByNaturalInventoryKey($model, $data['items']);
@@ -222,12 +221,12 @@ class SaleService extends ModelService
                     $submittedDetailIds,
                     $warehouseId,
                     $tenantId,
-                    $saleOccurredAt,
+                    $inventoryOccurredAt,
                 );
 
                 foreach ($items as $itemData) {
                     if (empty($itemData['id'])) {
-                        $this->addNewItemToSale($model, $itemData, $warehouseId, $tenantId, $saleOccurredAt);
+                        $this->addNewItemToSale($model, $itemData, $warehouseId, $tenantId, $inventoryOccurredAt);
 
                         continue;
                     }
@@ -271,7 +270,7 @@ class SaleService extends ModelService
                                 (int) $detail->id,
                                 $warehouseId,
                                 $tenantId,
-                                $saleOccurredAt,
+                                $inventoryOccurredAt,
                             );
                         }
                         if ($newPsId) {
@@ -285,7 +284,7 @@ class SaleService extends ModelService
                                 (int) $detail->id,
                                 $warehouseId,
                                 $tenantId,
-                                $saleOccurredAt,
+                                $inventoryOccurredAt,
                             );
                         }
 
@@ -308,7 +307,7 @@ class SaleService extends ModelService
                                     (int) $detail->id,
                                     $warehouseId,
                                     $tenantId,
-                                    $saleOccurredAt,
+                                    $inventoryOccurredAt,
                                 );
                             } else {
                                 $this->applyStockDeltaLocked(
@@ -321,7 +320,7 @@ class SaleService extends ModelService
                                     (int) $detail->id,
                                     $warehouseId,
                                     $tenantId,
-                                    $saleOccurredAt,
+                                    $inventoryOccurredAt,
                                 );
                             }
                         }

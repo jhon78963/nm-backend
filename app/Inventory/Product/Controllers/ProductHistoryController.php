@@ -280,9 +280,22 @@ class ProductHistoryController extends Controller
     {
         $reference = $this->resolveMovementReference($movement);
         $code = $reference !== null && isset($reference->code) ? (string) $reference->code : null;
+        $codeSuffix = $code ? " ($code)" : '';
 
         if ($movement->movement_type === InventoryMovementType::Sale) {
-            return $code ? "Venta Registrada ($code)" : 'Venta Registrada';
+            if ($movement->direction === InventoryMovementDirection::Out) {
+                if ($reference instanceof Sale && $this->isOriginalSaleMovement($movement, $reference)) {
+                    return $code ? "Venta Registrada ($code)" : 'Venta Registrada';
+                }
+
+                return "Salida por edición de venta{$codeSuffix}";
+            }
+
+            if ($reference instanceof Sale && $reference->status === 'CANCELED') {
+                return "Stock devuelto — venta anulada{$codeSuffix}";
+            }
+
+            return "Ítem eliminado o devuelto — edición de venta{$codeSuffix}";
         }
 
         $action = $movement->direction === InventoryMovementDirection::In ? 'Ingreso' : 'Salida';
@@ -299,6 +312,19 @@ class ProductHistoryController extends Controller
         return "{$action} de {$type}";
     }
 
+    private function isOriginalSaleMovement(InventoryMovement $movement, Sale $sale): bool
+    {
+        if ($sale->creation_time === null) {
+            return false;
+        }
+
+        $movementAt = Carbon::parse($movement->occurred_at);
+        $saleAt = Carbon::parse($sale->creation_time);
+
+        return $movementAt->equalTo($saleAt)
+            || abs($movementAt->diffInSeconds($saleAt, false)) <= 120;
+    }
+
     private function formatMovementChanges(InventoryMovement $movement): array
     {
         $size = $movement->productSize?->size?->description ?? '-';
@@ -309,6 +335,20 @@ class ProductHistoryController extends Controller
             ? $balanceAfter - $quantity
             : $balanceAfter + $quantity;
 
+        $quantityLabel = $movement->direction === InventoryMovementDirection::In
+            ? "+{$quantity} devuelto al stock"
+            : "-{$quantity} vendido";
+
+        $detailSuffix = match (true) {
+            $movement->movement_type === InventoryMovementType::Sale
+                && $movement->direction === InventoryMovementDirection::In =>
+                ' · devuelto por edición de venta',
+            $movement->movement_type === InventoryMovementType::Sale
+                && $movement->direction === InventoryMovementDirection::Out =>
+                ' · salida por venta',
+            default => '',
+        };
+
         return [
             [
                 'field' => 'Stock',
@@ -318,24 +358,32 @@ class ProductHistoryController extends Controller
             [
                 'field' => 'Cantidad',
                 'from' => '-',
-                'to' => $quantity,
+                'to' => $quantityLabel,
             ],
             [
                 'field' => 'Detalle',
                 'from' => '-',
-                'to' => "{$size} / {$color}",
+                'to' => "{$size} / {$color}{$detailSuffix}",
             ],
         ];
     }
 
     private function getMovementSeverity(InventoryMovement $movement): string
     {
+        if ($movement->movement_type === InventoryMovementType::Sale) {
+            return $movement->direction === InventoryMovementDirection::In ? 'info' : 'success';
+        }
+
         return $movement->direction === InventoryMovementDirection::In ? 'success' : 'warning';
     }
 
     private function getMovementIcon(InventoryMovement $movement): string
     {
         if ($movement->movement_type === InventoryMovementType::Sale) {
+            if ($movement->direction === InventoryMovementDirection::In) {
+                return 'pi pi-undo';
+            }
+
             return 'pi pi-shopping-cart';
         }
 
