@@ -7,21 +7,27 @@ use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Requests\ProductCreateRequest;
 use App\Inventory\Product\Requests\ProductUpdateRequest;
 use App\Inventory\Product\Resources\ProductResource;
+use App\Inventory\Product\Services\ProductExportService;
+use App\Inventory\Product\Services\ProductImportService;
 use App\Inventory\Product\Services\ProductService;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
 use App\Shared\Foundation\Services\SharedService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
     public function __construct(
         protected ProductService $productService,
         protected SharedService $sharedService,
+        protected ProductExportService $productExportService,
+        protected ProductImportService $productImportService,
     ) {}
 
     public function create(ProductCreateRequest $request): JsonResponse
@@ -134,6 +140,39 @@ class ProductController extends Controller
             $queryResult['total'],
             $queryResult['pages'],
         ));
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $warehouseId = WarehouseIdForInventoryResolver::resolve($request, null);
+
+        if ($warehouseId < 1) {
+            abort(400, 'No se pudo determinar el almacén.');
+        }
+
+        return $this->productExportService->export($warehouseId);
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,ods|max:10240',
+        ]);
+
+        $warehouseId = WarehouseIdForInventoryResolver::resolve($request, null);
+
+        if ($warehouseId < 1) {
+            abort(400, 'No se pudo determinar el almacén.');
+        }
+
+        $result = $this->productImportService->import($request->file('file'), $warehouseId);
+
+        return response()->json([
+            'message' => "Importación completada: {$result['updated']} filas actualizadas, {$result['skipped']} omitidas.",
+            'updated' => $result['updated'],
+            'skipped' => $result['skipped'],
+            'errors'  => $result['errors'],
+        ]);
     }
 
     /**

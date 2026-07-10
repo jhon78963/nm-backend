@@ -25,6 +25,8 @@ Route::controller(ProductController::class)->group(function (): void {
     Route::patch('/products/{product}', 'update')->middleware('permission:product.update');
     Route::delete('/products/{product}', 'delete')->middleware('permission:product.delete');
     Route::get('/products', 'getAll')->middleware('permission:product.getAll');
+    Route::get('/products/export/excel', 'export')->middleware('permission:product.getAll');
+    Route::post('/products/import/excel', 'import')->middleware('permission:product.update');
     Route::get('/products/{product}', 'get')->middleware('permission:product.get');
 });
 
