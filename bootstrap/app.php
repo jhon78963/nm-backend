@@ -18,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
         JsonResource::withoutWrapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
+        // API JSON/SPA: sin ruta web `login`; evita 500 (Route [login] not defined) en 401.
+        $middleware->redirectGuestsTo(fn () => null);
+
         // SPA Sanctum (cookies): sesión + CSRF en peticiones stateful desde dominios en config/sanctum.php.
         // Debe ir primero en el grupo `api` (EnsureFrontendRequestsAreStateful).
         $middleware->statefulApi();

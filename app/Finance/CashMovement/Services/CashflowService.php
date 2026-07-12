@@ -338,9 +338,24 @@ class CashflowService
 
         return [
             'body' => $response->body(),
-            'content_type' => $response->header('Content-Type') ?? 'application/octet-stream',
+            'content_type' => $this->resolveVoucherContentType($path, $response->header('Content-Type')),
             'filename' => basename($path),
         ];
+    }
+
+    private function resolveVoucherContentType(string $path, ?string $header): string
+    {
+        if (is_string($header) && $header !== '' && ! str_contains(strtolower($header), 'octet-stream')) {
+            return trim(explode(';', $header)[0]);
+        }
+
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            default => 'application/octet-stream',
+        };
     }
 
     private function authorizeVoucherAccess(CashMovement $movement): void
