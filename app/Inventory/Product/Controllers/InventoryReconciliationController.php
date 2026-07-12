@@ -125,12 +125,15 @@ class InventoryReconciliationController extends Controller
                             static fn ($c) => (int) ($c['colorId'] ?? 0),
                         );
                         foreach ($colorRows as $colorPayload) {
-                            $this->recordReconciliationMovement(
-                                $warehouseId,
-                                (int) $product->id,
-                                (int) $productSize->id,
-                                (int) $colorPayload['colorId'],
-                                (int) $colorPayload['stock'],
+                            $colorId = (int) $colorPayload['colorId'];
+                            $stock = (int) $colorPayload['stock'];
+
+                            $this->productSizeColorService->set(
+                                $productSize,
+                                $colorId,
+                                ['stock' => $stock],
+                                true,
+                                self::AUDIT_REASON_PHYSICAL_COUNT,
                             );
                         }
 
