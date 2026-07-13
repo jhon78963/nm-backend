@@ -24,6 +24,7 @@ class InventoryReconciliationProductResource extends JsonResource
             'name' => $this->name,
             'barcode' => $this->barcode,
             'genderId' => $this->gender_id,
+            'gender' => $this->gender?->name,
             'warehouseId' => $this->warehouse_id,
             'status' => $this->status,
             'sizes' => $this->productSizes->map(function ($productSize) use ($inventoryMovementService, $warehouseId): array {

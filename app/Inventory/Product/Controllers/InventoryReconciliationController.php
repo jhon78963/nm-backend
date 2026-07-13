@@ -63,6 +63,7 @@ class InventoryReconciliationController extends Controller
                 }
             })
             ->with([
+                'gender',
                 'productSizes' => static fn ($rel) => $rel
                     ->orderBy('size_id'),
                 'productSizes.size',
