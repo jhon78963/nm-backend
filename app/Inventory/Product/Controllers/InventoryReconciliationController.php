@@ -13,6 +13,7 @@ use App\Inventory\Product\Requests\InventoryReconciliationReplaceColorRequest;
 use App\Inventory\Product\Requests\InventoryReconciliationSearchRequest;
 use App\Inventory\Product\Requests\InventoryReconciliationUpdateRequest;
 use App\Inventory\Product\Resources\InventoryReconciliationProductResource;
+use App\Inventory\Product\Services\InventoryReconciliationPosSalesService;
 use App\Inventory\Product\Services\ProductService;
 use App\Inventory\Product\Services\ProductSizeColorService;
 use App\Inventory\Product\Services\ProductSizeService;
@@ -41,6 +42,7 @@ class InventoryReconciliationController extends Controller
         protected ProductSizeService $productSizeService,
         protected ProductSizeColorService $productSizeColorService,
         protected InventoryMovementService $inventoryMovementService,
+        protected InventoryReconciliationPosSalesService $posSalesService,
     ) {}
 
     public function search(InventoryReconciliationSearchRequest $request): JsonResponse
@@ -76,6 +78,15 @@ class InventoryReconciliationController extends Controller
         return response()->json([
             'products' => InventoryReconciliationProductResource::collection($products),
         ]);
+    }
+
+    public function posSalesSince(Product $product): JsonResponse
+    {
+        $this->productService->validate($product, 'Product');
+
+        return response()->json(
+            $this->posSalesService->summarizeForProduct($product),
+        );
     }
 
     public function update(
