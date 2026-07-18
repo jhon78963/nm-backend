@@ -88,39 +88,35 @@ class ProductService extends ModelService
 
     public function findBySkuForPos(string $barcode): ?array
     {
-        // ---------------------------------------------------------
-        // FASE 1: BÚSQUEDA OPTIMIZADA (Para evitar colgar la BD)
-        // ---------------------------------------------------------
-        $matchedProductSizeIds = null;
-
         $product = $this->model
             ->with([
+                'productSizes' => static fn ($query) => $query->orderBy('size_id'),
                 'productSizes.size',
-                'productSizes.productSizeColors'
+                'productSizes.productSizeColors',
             ])
             ->where('barcode', $barcode)
             ->where('is_deleted', false)
             ->first();
 
-        if (!$product) {
-            $sizeMatches = ProductSize::where('barcode', $barcode)->get();
-            if ($sizeMatches->isNotEmpty()) {
-                $matchedProductSizeIds = $sizeMatches
-                    ->pluck('id')
-                    ->map(static fn ($id) => (int) $id)
-                    ->all();
+        if (! $product) {
+            $sizeMatch = ProductSize::query()
+                ->where('barcode', $barcode)
+                ->first();
+
+            if ($sizeMatch !== null) {
                 $product = $this->model
                     ->with([
+                        'productSizes' => static fn ($query) => $query->orderBy('size_id'),
                         'productSizes.size',
-                        'productSizes.productSizeColors'
+                        'productSizes.productSizeColors',
                     ])
-                    ->where('id', $sizeMatches->first()->product_id)
+                    ->where('id', $sizeMatch->product_id)
                     ->where('is_deleted', false)
                     ->first();
             }
         }
 
-        if (!$product) {
+        if (! $product) {
             return null;
         }
 
@@ -165,13 +161,6 @@ class ProductService extends ModelService
         $basePrice = null;
 
         foreach ($product->productSizes as $pSize) {
-            if (
-                $matchedProductSizeIds !== null
-                && ! in_array((int) $pSize->id, $matchedProductSizeIds, true)
-            ) {
-                continue;
-            }
-
             if (! $pSize->size) {
                 continue;
             }
