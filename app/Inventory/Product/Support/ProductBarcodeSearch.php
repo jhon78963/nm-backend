@@ -7,7 +7,8 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 
 /**
  * Búsqueda de productos por código de barras:
- * - 4–7 dígitos: coincidencia por sufijo (últimos dígitos del código).
+ * - 4 dígitos: sufijo de 4 + dígito verificador opcional (xxxx + y).
+ * - 5–7 dígitos: coincidencia por sufijo exacto.
  * - 8+ dígitos: escaneo completo (exacto + parcial).
  * - Texto: búsqueda parcial estándar.
  */
@@ -18,6 +19,8 @@ final class ProductBarcodeSearch
     private const SUFFIX_MIN_LENGTH = 4;
 
     private const SUFFIX_MAX_LENGTH = 7;
+
+    private const BODY_SUFFIX_LENGTH = 4;
 
     public static function normalize(?string $search): string
     {
@@ -70,15 +73,48 @@ final class ProductBarcodeSearch
         $nonBarcodeColumns = self::nonBarcodeColumns($columnSearch);
 
         return $query->where(function ($q) use ($search, $nonBarcodeColumns, $sharedService) {
-            $q->where('barcode', 'ILIKE', '%'.$search)
-                ->orWhereHas('productSizes', function ($sizeQuery) use ($search) {
-                    $sizeQuery->where('barcode', 'ILIKE', '%'.$search);
-                });
+            $q->where(function ($barcodeQuery) use ($search) {
+                self::applyBarcodeSuffixOnColumn($barcodeQuery, 'barcode', $search);
+            })->orWhereHas('productSizes', function ($sizeQuery) use ($search) {
+                self::applyBarcodeSuffixOnColumn($sizeQuery, 'barcode', $search);
+            });
 
             if ($nonBarcodeColumns !== []) {
                 $q->orWhere(function ($inner) use ($search, $nonBarcodeColumns, $sharedService) {
                     $sharedService->searchFilter($inner, $search, $nonBarcodeColumns);
                 });
+            }
+        });
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function suffixPatterns(string $search): array
+    {
+        if (strlen($search) === self::BODY_SUFFIX_LENGTH && ctype_digit($search)) {
+            return ['%'.$search, '%'.$search.'_'];
+        }
+
+        return ['%'.$search];
+    }
+
+    private static function applyBarcodeSuffixOnColumn(
+        Builder $query,
+        string $column,
+        string $search,
+    ): void {
+        $patterns = self::suffixPatterns($search);
+
+        if (count($patterns) === 1) {
+            $query->where($column, 'ILIKE', $patterns[0]);
+
+            return;
+        }
+
+        $query->where(function ($q) use ($column, $patterns) {
+            foreach ($patterns as $pattern) {
+                $q->orWhere($column, 'ILIKE', $pattern);
             }
         });
     }
