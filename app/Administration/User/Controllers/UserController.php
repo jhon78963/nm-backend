@@ -7,6 +7,7 @@ use App\Administration\Audit\Support\AuditActions;
 use App\Administration\User\Support\SuperAdminRole;
 use App\Administration\User\Models\User;
 use App\Administration\User\Requests\UserCreateRequest;
+use App\Administration\User\Requests\UserResetPasswordRequest;
 use App\Administration\User\Requests\UserUpdateRequest;
 use App\Administration\User\Resources\UserResource;
 use App\Administration\User\Services\UserService;
@@ -62,7 +63,7 @@ class UserController extends Controller
             $roleNames = Arr::pull($data, 'role_names');
             $tenantId = Arr::pull($data, 'tenant_id');
             $warehouseId = Arr::pull($data, 'warehouse_id');
-            $data = Arr::except($data, ['password', 'username']);
+            $data = Arr::except($data, ['password']);
             $user->fill($data);
             if ($tenantId !== null) {
                 $user->tenant_id = $tenantId;
@@ -81,6 +82,26 @@ class UserController extends Controller
             );
 
             return response()->json(['message' => 'User updated successfully.']);
+        });
+    }
+
+    public function resetPassword(UserResetPasswordRequest $request, User $user): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $user): JsonResponse {
+            $this->assertActorCanAccessUser($user);
+            $this->userService->validate($user, 'User');
+
+            $user->password = $request->validated('password');
+            $user->must_change_password = true;
+            $user->save();
+            $user->tokens()->delete();
+
+            UserActionLogService::log(
+                AuditActions::USER_PASSWORD_RESET,
+                metadata: ['target_user_id' => $user->id],
+            );
+
+            return response()->json(['message' => 'Password reset successfully.']);
         });
     }
 

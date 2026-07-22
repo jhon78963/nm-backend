@@ -35,7 +35,10 @@ class UserUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $userId = $this->route('user')?->id;
+
         return [
+            'username' => ['sometimes', 'string', 'max:25', Rule::unique('users', 'username')->ignore($userId)],
             'name' => 'sometimes|max:25',
             'surname' => 'sometimes|max:25',
             'file' => ['sometimes', 'file', 'mimes:jpeg,png,jpg,webp', 'max:2048', new ValidMagicBytes(['jpeg', 'png', 'webp'])],

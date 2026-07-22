@@ -35,6 +35,12 @@ class UserPolicy
             && $this->actorCanAccessUser($actor, $target);
     }
 
+    public function resetPassword(User $actor, User $target): bool
+    {
+        return $actor->can('user.update')
+            && $this->actorCanAccessUser($actor, $target);
+    }
+
     private function actorCanAccessUser(User $actor, User $target): bool
     {
         if (

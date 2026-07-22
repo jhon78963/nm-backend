@@ -21,6 +21,8 @@ final class AuditActions
 
     public const USER_DELETED = 'user.deleted';
 
+    public const USER_PASSWORD_RESET = 'user.password_reset';
+
     public const TEAM_PAYMENT_CREATED = 'team_payment.created';
 
     public const TEAM_PAYMENT_UPDATED = 'team_payment.updated';
