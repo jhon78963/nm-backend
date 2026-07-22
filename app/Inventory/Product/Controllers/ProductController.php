@@ -9,6 +9,7 @@ use App\Inventory\Product\Requests\ProductUpdateRequest;
 use App\Inventory\Product\Resources\ProductResource;
 use App\Inventory\Product\Services\ProductExportService;
 use App\Inventory\Product\Services\ProductImportService;
+use App\Inventory\Product\Services\ProductService;
 use App\Inventory\Product\Support\ProductBarcodeSearch;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
