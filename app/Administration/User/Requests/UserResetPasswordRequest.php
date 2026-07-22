@@ -33,7 +33,7 @@ class UserResetPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'password' => PasswordPolicy::rules(),
+            'password' => PasswordPolicy::mediumRules(),
         ];
     }
 
@@ -42,6 +42,6 @@ class UserResetPasswordRequest extends FormRequest
      */
     public function messages(): array
     {
-        return PasswordPolicy::messages('nueva contraseña');
+        return PasswordPolicy::mediumMessages('nueva contraseña');
     }
 }

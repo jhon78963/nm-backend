@@ -15,6 +15,23 @@ class PasswordPolicy
     }
 
     /**
+     * Política media (alineada con PrimeNG mediumRegex): mínimo 6 caracteres y
+     * al menos dos tipos entre mayúsculas, minúsculas y números.
+     *
+     * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
+     */
+    public static function mediumRules(): array
+    {
+        return [
+            'required',
+            'string',
+            'confirmed',
+            'min:6',
+            'regex:/^(((?=.*[a-z])(?=.*[A-Z]))|((?=.*[a-z])(?=.*[0-9]))|((?=.*[A-Z])(?=.*[0-9]))).+$/',
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function messages(string $label = 'contraseña'): array
@@ -27,6 +44,19 @@ class PasswordPolicy
             'password.numbers' => "La {$label} debe incluir al menos un número.",
             'password.symbols' => "La {$label} debe incluir al menos un símbolo.",
             'password.uncompromised' => 'Esta contraseña apareció en filtraciones de datos. Elige otra.',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function mediumMessages(string $label = 'contraseña'): array
+    {
+        return [
+            'password.required' => "La {$label} es obligatoria.",
+            'password.confirmed' => "La confirmación de la {$label} no coincide.",
+            'password.min' => "La {$label} debe tener al menos 6 caracteres.",
+            'password.regex' => "La {$label} debe incluir mayúsculas y minúsculas, o letras y números.",
         ];
     }
 }
