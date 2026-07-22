@@ -48,7 +48,8 @@ class SharedService
         array $filters = [],
         callable|null $extendQuery = null,
         string $orderBy = 'id',
-        string $orderDir = 'asc'
+        string $orderDir = 'asc',
+        callable|null $searchFilter = null,
     ): array {
         $limit = $request->query('limit', $this->limit);
         $page = $request->query('page', $this->page);
@@ -99,7 +100,11 @@ class SharedService
         }
 
         if ($search) {
-            $query = $this->searchFilter($query, $search, $columnSearch);
+            if ($searchFilter !== null) {
+                $query = $searchFilter($query, $search, $columnSearch);
+            } else {
+                $query = $this->searchFilter($query, $search, $columnSearch);
+            }
         }
 
         $total = $query->count();

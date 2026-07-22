@@ -9,7 +9,7 @@ use App\Inventory\Product\Requests\ProductUpdateRequest;
 use App\Inventory\Product\Resources\ProductResource;
 use App\Inventory\Product\Services\ProductExportService;
 use App\Inventory\Product\Services\ProductImportService;
-use App\Inventory\Product\Services\ProductService;
+use App\Inventory\Product\Support\ProductBarcodeSearch;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
@@ -112,11 +112,13 @@ class ProductController extends Controller
             : '';
         $stockSubquery .= ')';
 
+        $columnSearch = ['id', 'name', 'barcode', 'gender.name', 'productSizes.barcode', $stockSubquery];
+
         $queryResult = $this->sharedService->query(
             request:      $request,
             entityName:   'Inventory\\Product',
             modelName:    'Product',
-            columnSearch: ['id', 'name', 'barcode', 'gender.name', 'productSizes.barcode', $stockSubquery],
+            columnSearch: $columnSearch,
             filters:      $filters,
             extendQuery: function ($q) use ($warehouseId) {
                 $q = $q->with('media');
@@ -133,6 +135,12 @@ class ProductController extends Controller
                     'inventoryBalances as inventory_sum_qty' => static fn ($rel) => $rel->whereNull('inventory_balances.color_id'),
                 ], 'quantity');
             },
+            searchFilter: fn ($query, $search, $columns) => ProductBarcodeSearch::apply(
+                $query,
+                $search,
+                is_array($columns) ? $columns : [$columns],
+                $this->sharedService,
+            ),
         );
 
         return response()->json(new GetAllCollection(
