@@ -10,6 +10,7 @@ use App\Inventory\Purchase\Models\PurchaseLine;
 use App\Inventory\Purchase\Requests\PurchaseBulkRequest;
 use App\Inventory\Purchase\Requests\PurchaseCancelRequest;
 use App\Inventory\Purchase\Requests\PurchaseIndexRequest;
+use App\Inventory\Purchase\Requests\PurchaseLineCreateRequest;
 use App\Inventory\Purchase\Requests\PurchaseLineUpdateRequest;
 use App\Inventory\Purchase\Requests\PurchaseUpdateRequest;
 use App\Inventory\Purchase\Requests\PurchaseVoucherUpdateRequest;
@@ -269,6 +270,18 @@ class PurchaseController extends Controller
 
             return response()->json(['message' => 'Compra anulada y stock revertido.'], 200);
         });
+    }
+
+    public function addLine(PurchaseLineCreateRequest $request, Purchase $purchase): JsonResponse
+    {
+        $this->ensurePurchaseVisible($purchase);
+        if ($purchase->status !== PurchaseStatus::Active) {
+            return response()->json(['message' => 'Solo se pueden agregar líneas a compras activas.'], 422);
+        }
+
+        $this->purchaseLineMutationService->addLine($purchase, $request->validated());
+
+        return response()->json(['message' => 'Línea agregada.'], 201);
     }
 
     public function deleteLine(Purchase $purchase, PurchaseLine $purchaseLine): JsonResponse
