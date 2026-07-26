@@ -26,6 +26,7 @@ class PurchaseLineResource extends JsonResource
             'productName' => $this->whenLoaded('product', fn () => $this->product->name),
             'sizeId' => $this->size_id,
             'sizeDescription' => $this->whenLoaded('size', fn () => $this->size->description),
+            'sizeTypeId' => $this->whenLoaded('size', fn () => (int) $this->size->size_type_id),
             'productSizeId' => $this->product_size_id,
             'barcode' => $this->barcode,
             'purchasePrice' => $this->purchase_price,
