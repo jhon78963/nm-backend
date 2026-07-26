@@ -28,7 +28,7 @@ class ForgotPasswordNotification extends ResetPassword
             $frontendUrl = rtrim((string) config('app.url'), '/');
         }
 
-        return $frontendUrl.'/#/auth/reset-password?token='.$this->token
+        return $frontendUrl.'/auth/reset-password?token='.$this->token
             .'&email='.urlencode($notifiable->getEmailForPasswordReset());
     }
 }
