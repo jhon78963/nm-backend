@@ -76,7 +76,41 @@ final class ProductBarcodeSearch
             return self::applyFullBarcodeSearch($query, $barcodeSearch, $columnSearch, $sharedService);
         }
 
-        return $sharedService->searchFilter($query, $textSearch, $columnSearch);
+        return self::applyTextSearch($query, $textSearch, $columnSearch, $sharedService);
+    }
+
+    /**
+     * Búsqueda por texto: coincidencia parcial con unaccent (tildes) y, si aplica,
+     * coincidencia compacta ignorando espacios (ej. "PantalónDeVestir" → "Pantalón De Vestir").
+     *
+     * @param  array<int, string>  $columnSearch
+     */
+    private static function applyTextSearch(
+        Builder $query,
+        string $textSearch,
+        array $columnSearch,
+        SharedService $sharedService,
+    ): Builder {
+        return $query->where(function ($q) use ($textSearch, $columnSearch, $sharedService) {
+            $sharedService->searchFilter($q, $textSearch, $columnSearch);
+
+            $compact = preg_replace('/\s+/u', '', $textSearch);
+            if (! is_string($compact) || $compact === '' || $compact === $textSearch) {
+                return;
+            }
+
+            $q->orWhere(function ($inner) use ($compact) {
+                $inner->whereRaw(
+                    "regexp_replace(unaccent(CAST(name AS TEXT)), '\\s', '', 'g') ILIKE unaccent(?)",
+                    ['%'.$compact.'%'],
+                )->orWhereHas('gender', function ($genderQuery) use ($compact) {
+                    $genderQuery->whereRaw(
+                        "regexp_replace(unaccent(CAST(name AS TEXT)), '\\s', '', 'g') ILIKE unaccent(?)",
+                        ['%'.$compact.'%'],
+                    );
+                });
+            });
+        });
     }
 
     /**

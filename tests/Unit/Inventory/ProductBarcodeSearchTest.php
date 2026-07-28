@@ -24,3 +24,7 @@ it('adds verifier wildcard for 4-digit suffix search', function () {
 it('uses exact suffix for 5-digit search', function () {
     expect(ProductBarcodeSearch::suffixPatterns('12345'))->toBe(['%12345']);
 });
+
+it('builds compact search token without spaces', function () {
+    expect(preg_replace('/\s+/u', '', ProductBarcodeSearch::normalize('Pantalón De Vestir')))->toBe('PantalónDeVestir');
+});
