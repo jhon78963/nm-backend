@@ -95,19 +95,21 @@ final class ProductBarcodeSearch
             $sharedService->searchFilter($q, $textSearch, $columnSearch);
 
             $compact = preg_replace('/\s+/u', '', $textSearch);
-            if (! is_string($compact) || $compact === '' || $compact === $textSearch) {
+            if (! is_string($compact) || $compact === '') {
                 return;
             }
 
             $q->orWhere(function ($inner) use ($compact) {
-                $inner->whereRaw(
-                    "regexp_replace(unaccent(CAST(name AS TEXT)), '\\s', '', 'g') ILIKE unaccent(?)",
-                    ['%'.$compact.'%'],
-                )->orWhereHas('gender', function ($genderQuery) use ($compact) {
-                    $genderQuery->whereRaw(
+                $inner->where(function ($compactQ) use ($compact) {
+                    $compactQ->whereRaw(
                         "regexp_replace(unaccent(CAST(name AS TEXT)), '\\s', '', 'g') ILIKE unaccent(?)",
                         ['%'.$compact.'%'],
-                    );
+                    )->orWhereHas('gender', function ($genderQuery) use ($compact) {
+                        $genderQuery->whereRaw(
+                            "regexp_replace(unaccent(CAST(name AS TEXT)), '\\s', '', 'g') ILIKE unaccent(?)",
+                            ['%'.$compact.'%'],
+                        );
+                    });
                 });
             });
         });
