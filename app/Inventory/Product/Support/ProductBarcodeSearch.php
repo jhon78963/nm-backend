@@ -22,7 +22,24 @@ final class ProductBarcodeSearch
 
     private const BODY_SUFFIX_LENGTH = 4;
 
+    /**
+     * Normaliza texto: trim + colapsa espacios (conserva espacios para nombres).
+     */
     public static function normalize(?string $search): string
+    {
+        if ($search === null || $search === '') {
+            return '';
+        }
+
+        $normalized = preg_replace('/[\s\r\n\t]+/', ' ', trim($search));
+
+        return is_string($normalized) ? $normalized : '';
+    }
+
+    /**
+     * Normaliza escaneo de código de barras: elimina todos los espacios.
+     */
+    public static function normalizeBarcode(?string $search): string
     {
         if ($search === null || $search === '') {
             return '';
@@ -42,23 +59,24 @@ final class ProductBarcodeSearch
         array $columnSearch,
         SharedService $sharedService,
     ): Builder {
-        $search = self::normalize($search);
+        $textSearch = self::normalize($search);
+        $barcodeSearch = self::normalizeBarcode($search);
 
-        if ($search === '') {
+        if ($textSearch === '') {
             return $query;
         }
 
-        $length = strlen($search);
+        $length = strlen($barcodeSearch);
 
-        if (ctype_digit($search) && $length >= self::SUFFIX_MIN_LENGTH && $length <= self::SUFFIX_MAX_LENGTH) {
-            return self::applySuffixSearch($query, $search, $columnSearch, $sharedService);
+        if (ctype_digit($barcodeSearch) && $length >= self::SUFFIX_MIN_LENGTH && $length <= self::SUFFIX_MAX_LENGTH) {
+            return self::applySuffixSearch($query, $barcodeSearch, $columnSearch, $sharedService);
         }
 
-        if (ctype_digit($search) && $length >= self::FULL_BARCODE_MIN_LENGTH) {
-            return self::applyFullBarcodeSearch($query, $search, $columnSearch, $sharedService);
+        if (ctype_digit($barcodeSearch) && $length >= self::FULL_BARCODE_MIN_LENGTH) {
+            return self::applyFullBarcodeSearch($query, $barcodeSearch, $columnSearch, $sharedService);
         }
 
-        return $sharedService->searchFilter($query, $search, $columnSearch);
+        return $sharedService->searchFilter($query, $textSearch, $columnSearch);
     }
 
     /**
