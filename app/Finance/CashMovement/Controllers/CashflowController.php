@@ -34,6 +34,12 @@ class CashflowController extends Controller
 
         $report = $this->cashflowService->getDailyReport($date, $filters);
 
+        UserActionLogService::log(
+            AuditActions::CASHFLOW_DAILY_VIEWED,
+            description: 'Consulta caja del día '.$date,
+            metadata: ['date' => $date, 'filters' => array_values($filters)],
+        );
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -89,6 +95,7 @@ class CashflowController extends Controller
 
         UserActionLogService::log(
             AuditActions::CASHFLOW_CREATED,
+            description: 'Movimiento de caja creado',
             metadata: ['cash_movement_id' => $movement->id],
         );
 
@@ -114,6 +121,7 @@ class CashflowController extends Controller
 
         UserActionLogService::log(
             AuditActions::CASHFLOW_UPDATED,
+            description: 'Movimiento de caja actualizado',
             metadata: ['cash_movement_id' => $movement->id],
         );
 
@@ -137,6 +145,7 @@ class CashflowController extends Controller
 
         UserActionLogService::log(
             AuditActions::CASHFLOW_DELETED,
+            description: 'Movimiento de caja eliminado',
             metadata: ['cash_movement_id' => $cashMovementId],
         );
 

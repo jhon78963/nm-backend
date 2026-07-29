@@ -58,6 +58,15 @@ class SaleController extends Controller
         SaleAccessScope::assertSaleInAccessibleRange($sale);
         $sale->load(['details', 'payments', 'customer']);
 
+        UserActionLogService::log(
+            AuditActions::SALE_VIEWED,
+            description: sprintf(
+                'Consulta venta %s',
+                $sale->full_invoice_number ?? '#'.$sale->id,
+            ),
+            metadata: ['sale_id' => $sale->id],
+        );
+
         return response()->json(new SaleDetailResource($sale));
     }
 
@@ -94,6 +103,15 @@ class SaleController extends Controller
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $this->saleService->update($sale, $data);
 
+            UserActionLogService::log(
+                AuditActions::SALE_UPDATED,
+                description: sprintf(
+                    'Venta %s actualizada',
+                    $sale->full_invoice_number ?? '#'.$sale->id,
+                ),
+                metadata: ['sale_id' => $sale->id],
+            );
+
             return response()->json(['message' => 'Sale updated.'], 200);
         });
     }
@@ -126,7 +144,17 @@ class SaleController extends Controller
     public function exchange(ExchangeSaleRequest $request): JsonResponse
     {
         try {
-            $this->saleService->processExchange($request->validated());
+            $payload = $request->validated();
+            $this->saleService->processExchange($payload);
+
+            UserActionLogService::log(
+                AuditActions::SALE_EXCHANGED,
+                description: 'Cambio de mercadería registrado',
+                metadata: [
+                    'returned_detail_id' => $payload['returned_detail_id'] ?? null,
+                    'new_product_size_id' => data_get($payload, 'new_item.product_size_id'),
+                ],
+            );
 
             return response()->json([
                 'success' => true,

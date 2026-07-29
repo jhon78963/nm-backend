@@ -2,6 +2,8 @@
 
 namespace App\Finance\Sale\Controllers;
 
+use App\Administration\Audit\Services\UserActionLogService;
+use App\Administration\Audit\Support\AuditActions;
 use App\Directory\Customer\Services\CustomerService;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Requests\CheckoutPosRequest;
@@ -43,6 +45,12 @@ class PosController extends Controller
             abort(404, 'Producto no encontrado');
         }
 
+        UserActionLogService::log(
+            AuditActions::POS_PRODUCT_SEARCHED,
+            description: 'Consulta producto POS: '.$sku,
+            metadata: ['sku' => $sku],
+        );
+
         return response()->json($product);
     }
 
@@ -60,6 +68,12 @@ class PosController extends Controller
                     'message' => 'No se encontró un cliente registrado con ese documento.',
                 ], 404);
             }
+
+            UserActionLogService::log(
+                AuditActions::POS_CUSTOMER_SEARCHED,
+                description: 'Consulta cliente POS: '.$dni,
+                metadata: ['document' => $dni],
+            );
 
             return response()->json($customer);
         } catch (Exception $e) {
@@ -104,6 +118,21 @@ class PosController extends Controller
             ];
 
             $sale = $this->saleService->processPosSale($serviceData);
+
+            UserActionLogService::log(
+                AuditActions::POS_CHECKOUT,
+                description: sprintf(
+                    'Venta POS %s — S/ %s',
+                    $sale->full_invoice_number ?? '#'.$sale->id,
+                    number_format((float) $sale->total_amount, 2),
+                ),
+                metadata: [
+                    'sale_id' => $sale->id,
+                    'total_amount' => (float) $sale->total_amount,
+                    'payment_method' => $sale->payment_method,
+                    'document_type' => $data['document_type'] ?? null,
+                ],
+            );
 
             // sendDocument() corre FUERA de la TX de la venta: SOAP no participa
             // en el commit. Si SUNAT falla la venta queda PENDING y se reintenta.

@@ -21,6 +21,7 @@ class UserActionLogController extends Controller
         'role',
         'user',
         'team_payment',
+        'pos',
         'sale',
         'cashflow',
     ];
@@ -108,10 +109,17 @@ class UserActionLogController extends Controller
             AuditActions::TEAM_PAYMENT_CREATED,
             AuditActions::TEAM_PAYMENT_UPDATED,
             AuditActions::TEAM_PAYMENT_DELETED,
+            AuditActions::POS_CHECKOUT,
+            AuditActions::POS_PRODUCT_SEARCHED,
+            AuditActions::POS_CUSTOMER_SEARCHED,
             AuditActions::SALE_DELETED,
+            AuditActions::SALE_UPDATED,
+            AuditActions::SALE_VIEWED,
+            AuditActions::SALE_EXCHANGED,
             AuditActions::CASHFLOW_CREATED,
             AuditActions::CASHFLOW_UPDATED,
             AuditActions::CASHFLOW_DELETED,
+            AuditActions::CASHFLOW_DAILY_VIEWED,
         ], true);
     }
 

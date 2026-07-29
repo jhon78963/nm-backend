@@ -31,9 +31,23 @@ final class AuditActions
 
     public const SALE_DELETED = 'sale.deleted';
 
+    public const SALE_UPDATED = 'sale.updated';
+
+    public const SALE_VIEWED = 'sale.viewed';
+
+    public const SALE_EXCHANGED = 'sale.exchanged';
+
+    public const POS_CHECKOUT = 'pos.checkout';
+
+    public const POS_PRODUCT_SEARCHED = 'pos.product_searched';
+
+    public const POS_CUSTOMER_SEARCHED = 'pos.customer_searched';
+
     public const CASHFLOW_CREATED = 'cashflow.created';
 
     public const CASHFLOW_UPDATED = 'cashflow.updated';
 
     public const CASHFLOW_DELETED = 'cashflow.deleted';
+
+    public const CASHFLOW_DAILY_VIEWED = 'cashflow.daily_viewed';
 }
