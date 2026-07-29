@@ -4,10 +4,13 @@ namespace App\Administration\Audit\Controllers;
 
 use App\Administration\Audit\Models\UserActionLog;
 use App\Administration\Audit\Resources\UserActionLogResource;
+use App\Administration\Audit\Support\ActionLogVisibility;
 use App\Administration\Audit\Support\AuditActions;
+use App\Administration\User\Models\User;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
 use App\Shared\Foundation\Resources\GetAllCollection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 
@@ -31,19 +34,35 @@ class UserActionLogController extends Controller
         $actionGroup = (string) $request->query('action_group', '');
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
+        $userId = (int) $request->query('user_id', 0);
+
+        /** @var User $actor */
+        $actor = auth()->user();
 
         $query = UserActionLog::query()
-            ->with(['user', 'team'])
+            ->with(ActionLogVisibility::eagerLoads())
             ->orderByDesc('creation_time');
 
-        if (! auth()->user()->hasRole('Super Admin')) {
-            $query->where('warehouse_id', auth()->user()->warehouse_id);
+        ActionLogVisibility::apply($query, $actor);
+
+        if ($userId > 0 && ActionLogVisibility::actorIsSuperAdmin($actor)) {
+            $query->where('user_id', $userId);
         }
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('action', 'ilike', '%'.$search.'%')
-                    ->orWhere('description', 'ilike', '%'.$search.'%');
+            $like = '%'.$search.'%';
+            $query->where(function (Builder $q) use ($like): void {
+                $q->where('action', 'ilike', $like)
+                    ->orWhere('description', 'ilike', $like)
+                    ->orWhereHas('user', function (Builder $userQuery) use ($like): void {
+                        $userQuery->withoutGlobalScopes()
+                            ->where(function (Builder $nameQuery) use ($like): void {
+                                $nameQuery->where('name', 'ilike', $like)
+                                    ->orWhere('surname', 'ilike', $like)
+                                    ->orWhere('email', 'ilike', $like)
+                                    ->orWhere('username', 'ilike', $like);
+                            });
+                    });
             });
         }
 
