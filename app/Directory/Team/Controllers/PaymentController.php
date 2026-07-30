@@ -2,8 +2,6 @@
 
 namespace App\Directory\Team\Controllers;
 
-use App\Administration\Audit\Services\UserActionLogService;
-use App\Administration\Audit\Support\AuditActions;
 use App\Directory\Team\Models\Attendance;
 use App\Directory\Team\Models\Team;
 use App\Directory\Team\Models\TeamPayment;
@@ -308,14 +306,6 @@ class PaymentController extends Controller
             return $teamPayment->fresh(['cashMovement']);
         });
 
-        UserActionLogService::log(
-            AuditActions::TEAM_PAYMENT_CREATED,
-            metadata: [
-                'team_payment_id' => $movement->id,
-                'team_id' => (int) $validated['team_id'],
-            ],
-        );
-
         return response()->json([
             'message' => 'Movimiento registrado correctamente',
             'data' => $this->formatPaymentItem($movement),
@@ -362,14 +352,6 @@ class PaymentController extends Controller
             }
         });
 
-        UserActionLogService::log(
-            AuditActions::TEAM_PAYMENT_UPDATED,
-            metadata: [
-                'team_payment_id' => $teamPayment->id,
-                'team_id' => $teamPayment->team_id,
-            ],
-        );
-
         $teamPayment->load(['cashMovement' => static function ($query): void {
             $query->where('is_deleted', false)->with('vouchers');
         }]);
@@ -415,14 +397,6 @@ class PaymentController extends Controller
             $teamPayment->deletion_time = now();
             $teamPayment->save();
         });
-
-        UserActionLogService::log(
-            AuditActions::TEAM_PAYMENT_DELETED,
-            metadata: [
-                'team_payment_id' => $teamPaymentId,
-                'team_id' => $teamId,
-            ],
-        );
 
         return response()->json([
             'success' => true,

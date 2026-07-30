@@ -2,8 +2,6 @@
 
 namespace App\Finance\Sale\Controllers;
 
-use App\Administration\Audit\Services\UserActionLogService;
-use App\Administration\Audit\Support\AuditActions;
 use App\Finance\Sale\Models\Sale;
 use App\Finance\Sale\Requests\ExchangeSaleRequest;
 use App\Finance\Sale\Requests\SaleUpdateRequest;
@@ -40,13 +38,7 @@ class SaleController extends Controller
     {
         return DB::transaction(function () use ($sale): JsonResponse {
             $this->saleService->validate($sale, 'Sale');
-            $saleId = $sale->id;
             $this->saleService->delete($sale);
-
-            UserActionLogService::log(
-                AuditActions::SALE_DELETED,
-                metadata: ['sale_id' => $saleId],
-            );
 
             return response()->json(['message' => 'Sale deleted successfully.']);
         });
@@ -57,15 +49,6 @@ class SaleController extends Controller
         $this->saleService->validate($sale, 'Sale');
         SaleAccessScope::assertSaleInAccessibleRange($sale);
         $sale->load(['details', 'payments', 'customer']);
-
-        UserActionLogService::log(
-            AuditActions::SALE_VIEWED,
-            description: sprintf(
-                'Consulta venta %s',
-                $sale->full_invoice_number ?? '#'.$sale->id,
-            ),
-            metadata: ['sale_id' => $sale->id],
-        );
 
         return response()->json(new SaleDetailResource($sale));
     }
@@ -103,27 +86,12 @@ class SaleController extends Controller
             $data = $this->sharedService->convertCamelToSnake($request->validated());
             $this->saleService->update($sale, $data);
 
-            UserActionLogService::log(
-                AuditActions::SALE_UPDATED,
-                description: sprintf(
-                    'Venta %s actualizada',
-                    $sale->full_invoice_number ?? '#'.$sale->id,
-                ),
-                metadata: ['sale_id' => $sale->id],
-            );
-
             return response()->json(['message' => 'Sale updated.'], 200);
         });
     }
 
     /**
      * Genera y descarga la Representación Impresa del comprobante electrónico en PDF.
-     *
-     * El modelo `Sale` ya está resuelto por Route Model Binding con WarehouseScope,
-     * por lo que un usuario solo puede acceder a ventas de su propio almacén.
-     *
-     * Devuelve una respuesta binaria con Content-Type: application/pdf.
-     * El navegador fuerza la descarga gracias a Content-Disposition: attachment.
      */
     public function downloadPdf(Sale $sale): Response
     {
@@ -132,7 +100,7 @@ class SaleController extends Controller
         $sale->load(['details', 'customer']);
 
         $filename = $sale->full_invoice_number
-            ? str_replace('-', '_', $sale->full_invoice_number) . '.pdf'
+            ? str_replace('-', '_', $sale->full_invoice_number).'.pdf'
             : "TICKET_{$sale->code}.pdf";
 
         $pdf = Pdf::loadView('sale.invoice-pdf', compact('sale'))
@@ -144,17 +112,7 @@ class SaleController extends Controller
     public function exchange(ExchangeSaleRequest $request): JsonResponse
     {
         try {
-            $payload = $request->validated();
-            $this->saleService->processExchange($payload);
-
-            UserActionLogService::log(
-                AuditActions::SALE_EXCHANGED,
-                description: 'Cambio de mercadería registrado',
-                metadata: [
-                    'returned_detail_id' => $payload['returned_detail_id'] ?? null,
-                    'new_product_size_id' => data_get($payload, 'new_item.product_size_id'),
-                ],
-            );
+            $this->saleService->processExchange($request->validated());
 
             return response()->json([
                 'success' => true,

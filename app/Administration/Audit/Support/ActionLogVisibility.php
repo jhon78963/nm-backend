@@ -33,9 +33,11 @@ final class ActionLogVisibility
         if (self::actorIsSuperAdmin($actor)) {
             $tenantId = (int) ($actor->tenant_id ?? 0);
             if ($tenantId > 0) {
-                $query->whereHas('user', function (Builder $userQuery) use ($tenantId): void {
-                    $userQuery->withoutGlobalScopes()
-                        ->where('tenant_id', $tenantId);
+                $query->where(function (Builder $scoped) use ($tenantId): void {
+                    $scoped->whereHas('user', function (Builder $userQuery) use ($tenantId): void {
+                        $userQuery->withoutGlobalScopes()
+                            ->where('tenant_id', $tenantId);
+                    })->orWhereNull('user_id');
                 });
             }
 

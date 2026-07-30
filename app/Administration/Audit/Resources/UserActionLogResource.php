@@ -19,12 +19,15 @@ class UserActionLogResource extends JsonResource
             'description' => $this->description,
             'metadata' => $this->metadata,
             'ipAddress' => $this->ip_address,
-            'userName' => $this->whenLoaded('user', fn () => trim(($this->user->name ?? '').' '.($this->user->surname ?? ''))),
-            'user' => $this->whenLoaded('user', fn () => [
+            'userName' => $this->whenLoaded('user', fn () => $this->user
+                ? trim(($this->user->name ?? '').' '.($this->user->surname ?? ''))
+                : (is_array($this->metadata) ? (string) ($this->metadata['username'] ?? '') : '')
+            ) ?: null,
+            'user' => $this->whenLoaded('user', fn () => $this->user ? [
                 'id' => $this->user->id,
                 'name' => trim(($this->user->name ?? '').' '.($this->user->surname ?? '')),
                 'email' => $this->user->email,
-            ]),
+            ] : null),
             'team' => $this->whenLoaded('team', fn () => $this->team ? [
                 'id' => $this->team->id,
                 'name' => trim(($this->team->name ?? '').' '.($this->team->surname ?? '')),

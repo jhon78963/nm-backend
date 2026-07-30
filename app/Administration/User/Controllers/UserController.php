@@ -2,8 +2,6 @@
 
 namespace App\Administration\User\Controllers;
 
-use App\Administration\Audit\Services\UserActionLogService;
-use App\Administration\Audit\Support\AuditActions;
 use App\Administration\User\Support\SuperAdminRole;
 use App\Administration\User\Models\User;
 use App\Administration\User\Requests\UserCreateRequest;
@@ -45,11 +43,6 @@ class UserController extends Controller
             $user->save();
             $user->syncRoles(is_array($roleNames) ? $roleNames : []);
 
-            UserActionLogService::log(
-                AuditActions::USER_CREATED,
-                metadata: ['target_user_id' => $user->id],
-            );
-
             return response()->json(['message' => 'User created successfully.'], 201);
         });
     }
@@ -76,11 +69,6 @@ class UserController extends Controller
                 $user->syncRoles(is_array($roleNames) ? $roleNames : []);
             }
 
-            UserActionLogService::log(
-                AuditActions::USER_UPDATED,
-                metadata: ['target_user_id' => $user->id],
-            );
-
             return response()->json(['message' => 'User updated successfully.']);
         });
     }
@@ -96,11 +84,6 @@ class UserController extends Controller
             $user->save();
             $user->tokens()->delete();
 
-            UserActionLogService::log(
-                AuditActions::USER_PASSWORD_RESET,
-                metadata: ['target_user_id' => $user->id],
-            );
-
             return response()->json(['message' => 'Password reset successfully.']);
         });
     }
@@ -110,13 +93,7 @@ class UserController extends Controller
         return DB::transaction(function () use ($user): JsonResponse {
             $this->assertActorCanAccessUser($user);
             $this->userService->validate($user, 'User');
-            $targetUserId = $user->id;
             $this->userService->delete($user);
-
-            UserActionLogService::log(
-                AuditActions::USER_DELETED,
-                metadata: ['target_user_id' => $targetUserId],
-            );
 
             return response()->json(['message' => 'User deleted successfully.']);
         });

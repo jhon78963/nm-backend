@@ -5,7 +5,6 @@ namespace App\Administration\Audit\Controllers;
 use App\Administration\Audit\Models\UserActionLog;
 use App\Administration\Audit\Resources\UserActionLogResource;
 use App\Administration\Audit\Support\ActionLogVisibility;
-use App\Administration\Audit\Support\AuditActions;
 use App\Administration\User\Models\User;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
@@ -18,6 +17,8 @@ class UserActionLogController extends Controller
 {
     /** @var list<string> */
     private const ACTION_GROUPS = [
+        'auth',
+        'http',
         'role',
         'user',
         'team_payment',
@@ -55,6 +56,7 @@ class UserActionLogController extends Controller
             $query->where(function (Builder $q) use ($like): void {
                 $q->where('action', 'ilike', $like)
                     ->orWhere('description', 'ilike', $like)
+                    ->orWhere('metadata->username', 'ilike', $like)
                     ->orWhereHas('user', function (Builder $userQuery) use ($like): void {
                         $userQuery->withoutGlobalScopes()
                             ->where(function (Builder $nameQuery) use ($like): void {
@@ -95,32 +97,14 @@ class UserActionLogController extends Controller
         ));
     }
 
+    /**
+     * Valida que el código de acción sea un identificador semántico seguro
+     * del formato "grupo.accion" o "grupo.subgrupo.accion".
+     * Cubre tanto los AuditActions conocidos como los genéricos http.*.
+     */
     private function isAllowedAction(string $action): bool
     {
-        return in_array($action, [
-            AuditActions::ROLE_CREATED,
-            AuditActions::ROLE_UPDATED,
-            AuditActions::ROLE_DELETED,
-            AuditActions::ROLE_PERMISSIONS_SYNCED,
-            AuditActions::USER_CREATED,
-            AuditActions::USER_UPDATED,
-            AuditActions::USER_DELETED,
-            AuditActions::USER_PASSWORD_RESET,
-            AuditActions::TEAM_PAYMENT_CREATED,
-            AuditActions::TEAM_PAYMENT_UPDATED,
-            AuditActions::TEAM_PAYMENT_DELETED,
-            AuditActions::POS_CHECKOUT,
-            AuditActions::POS_PRODUCT_SEARCHED,
-            AuditActions::POS_CUSTOMER_SEARCHED,
-            AuditActions::SALE_DELETED,
-            AuditActions::SALE_UPDATED,
-            AuditActions::SALE_VIEWED,
-            AuditActions::SALE_EXCHANGED,
-            AuditActions::CASHFLOW_CREATED,
-            AuditActions::CASHFLOW_UPDATED,
-            AuditActions::CASHFLOW_DELETED,
-            AuditActions::CASHFLOW_DAILY_VIEWED,
-        ], true);
+        return preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/', $action) === 1;
     }
 
     private function isValidDate(string $value): bool

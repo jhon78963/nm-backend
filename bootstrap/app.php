@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // SEC-004: headers HTTP en todas las rutas api/* (nginx puede duplicar/reforzar).
         $middleware->appendToGroup('api', \App\Shared\Foundation\Middleware\SecurityHeaders::class);
+        $middleware->appendToGroup('api', \App\Administration\Audit\Middleware\LogUserActivity::class);
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,

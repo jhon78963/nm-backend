@@ -3,11 +3,14 @@
 namespace App\Auth\Controllers;
 
 use App\Auth\Exceptions\InvalidTokenException;
+use App\Auth\Exceptions\InvalidUserCredentialsException;
 use App\Auth\Requests\ChangePasswordRequest;
 use App\Auth\Requests\ForgotPasswordRequest;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\ResetPasswordRequest;
 use App\Auth\Requests\UpdateMeRequest;
+use App\Administration\Audit\Services\UserActionLogService;
+use App\Administration\Audit\Support\AuditActions;
 use App\Administration\User\Models\User;
 use App\Auth\Resources\MeResource;
 use App\Auth\Services\AuthService;
@@ -28,14 +31,31 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $tokens = $this->authService->login(
-            $request->validated('username'),
-            $request->validated('password'),
-        );
+        $username = $request->validated('username');
+        $password = $request->validated('password');
+        $attemptedUser = User::query()->where('username', $username)->first();
 
-        $user = User::query()
-            ->where('username', $request->validated('username'))
-            ->firstOrFail();
+        try {
+            $tokens = $this->authService->login($username, $password);
+        } catch (InvalidUserCredentialsException $exception) {
+            UserActionLogService::logSafely(
+                AuditActions::AUTH_LOGIN_FAILED,
+                description: 'Intento de inicio de sesión fallido: '.$username,
+                metadata: ['username' => $username],
+                user: $attemptedUser,
+            );
+
+            throw $exception;
+        }
+
+        $user = $attemptedUser ?? User::query()->where('username', $username)->firstOrFail();
+
+        UserActionLogService::logSafely(
+            AuditActions::AUTH_LOGIN,
+            description: 'Inicio de sesión',
+            metadata: ['username' => $user->username],
+            user: $user,
+        );
 
         return $this->withAuthCookies(
             response()->json(new MeResource($user)),
@@ -72,12 +92,15 @@ class AuthController extends Controller
         );
     }
 
-    public function getMe(): JsonResponse {
+    public function getMe(): JsonResponse
+    {
         return response()->json(new MeResource(Auth::user()));
     }
 
-    public function updateMe(UpdateMeRequest $request): JsonResponse {
+    public function updateMe(UpdateMeRequest $request): JsonResponse
+    {
         $this->authService->updateMe($request);
+
         return response()->json(['message' => 'User updated successfully']);
     }
 
@@ -132,6 +155,7 @@ class AuthController extends Controller
             $this->authService->revokeAllTokens($user);
         }
 
+        // El log auth.logout lo registra LogUserActivity middleware (user cacheado en el request).
         return response()
             ->json(['message' => 'Logout successfully'])
             ->withoutCookie($this->clearAuthCookie('access_token'))
