@@ -50,6 +50,7 @@ class SharedService
         string $orderBy = 'id',
         string $orderDir = 'asc',
         callable|null $searchFilter = null,
+        bool $includeDeleted = false,
     ): array {
         $limit = $request->query('limit', $this->limit);
         $page = $request->query('page', $this->page);
@@ -63,7 +64,9 @@ class SharedService
             $extendQuery($query);
         }
 
-        $query->where('is_deleted', false);
+        if (! $includeDeleted) {
+            $query->where('is_deleted', false);
+        }
 
         // ... lógica de filtros existente ...
         if (!empty($filters)) {

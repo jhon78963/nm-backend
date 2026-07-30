@@ -23,6 +23,7 @@ class UserResource extends JsonResource
             'role' => $this->getRoleNames()->first(),
             'tenantId' => $this->tenant_id,
             'warehouseId' => $this->warehouse_id,
+            'isEnabled' => ! (bool) $this->is_deleted,
         ];
     }
 }

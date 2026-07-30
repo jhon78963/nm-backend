@@ -255,7 +255,7 @@ final class AuditHttpActionResolver
             AuditActions::USER_VIEWED                        => 'Detalle de usuario consultado',
             AuditActions::USER_CREATED                       => 'Usuario creado',
             AuditActions::USER_UPDATED                       => 'Usuario actualizado',
-            AuditActions::USER_DELETED                       => 'Usuario eliminado',
+            AuditActions::USER_DELETED                       => 'Usuario deshabilitado',
             AuditActions::USER_PASSWORD_RESET                => 'Contraseña de usuario restablecida',
             AuditActions::TEAM_PAYMENT_LIST_VIEWED           => 'Lista de pagos de colaboradores consultada',
             AuditActions::TEAM_PAYMENT_PAYROLL_VIEWED        => 'Nómina de colaboradores consultada',

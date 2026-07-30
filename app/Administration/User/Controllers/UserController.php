@@ -92,10 +92,19 @@ class UserController extends Controller
     {
         return DB::transaction(function () use ($user): JsonResponse {
             $this->assertActorCanAccessUser($user);
-            $this->userService->validate($user, 'User');
+
+            if ($user->is_deleted) {
+                return response()->json(['message' => 'El usuario ya está deshabilitado.'], 422);
+            }
+
+            if ((int) auth()->id() === (int) $user->id) {
+                abort(422, 'No puedes deshabilitar tu propia cuenta.');
+            }
+
+            $user->tokens()->delete();
             $this->userService->delete($user);
 
-            return response()->json(['message' => 'User deleted successfully.']);
+            return response()->json(['message' => 'Usuario deshabilitado correctamente.']);
         });
     }
 
@@ -122,6 +131,9 @@ class UserController extends Controller
             modelName: 'User',
             columnSearch: ['username', 'email', 'name', 'surname'],
             extendQuery: $extendQuery,
+            orderBy: 'is_deleted',
+            orderDir: 'asc',
+            includeDeleted: true,
         );
 
         return response()->json(new GetAllCollection(

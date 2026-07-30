@@ -19,7 +19,7 @@ class AuthService
     public const PASSWORD_RESET_FAILURE_MESSAGE = 'No se pudo restablecer la contraseña. Verifica el enlace o solicita uno nuevo.';
     public function validateUser(string $password, ?User $user): User
     {
-        if ($user === null || ! Hash::check($password, $user->password)) {
+        if ($user === null || $user->is_deleted || ! Hash::check($password, $user->password)) {
             throw new InvalidUserCredentialsException();
         }
 
@@ -113,7 +113,7 @@ class AuthService
 
         $user = User::find($refreshToken->tokenable_id);
 
-        if ($user === null) {
+        if ($user === null || $user->is_deleted) {
             throw new InvalidTokenException();
         }
 
