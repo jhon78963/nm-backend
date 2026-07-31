@@ -2,10 +2,10 @@
 
 namespace App\Shared\Foundation\Support;
 
-use App\Administration\User\Models\User;
-use App\Finance\Sale\Models\Sale;
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Users\Models\User;
+use App\Finances\Sales\Models\Sale;
+use App\Inventories\Kardex\Support\WarehouseIdForInventoryResolver;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

@@ -1,0 +1,56 @@
+<?php
+
+namespace App\Administrations\ActionLogs\Support;
+
+use App\Administrations\Users\Models\User;
+use App\Administrations\Users\Support\SuperAdminRole;
+use Illuminate\Database\Eloquent\Builder;
+
+final class ActionLogVisibility
+{
+    public static function actorIsSuperAdmin(User $user): bool
+    {
+        return method_exists($user, 'hasRole')
+            && $user->hasRole(SuperAdminRole::NAME);
+    }
+
+    /**
+     * @return array<string, callable(\Illuminate\Database\Eloquent\Relations\Relation): void>
+     */
+    public static function eagerLoads(): array
+    {
+        return [
+            'user' => fn ($query) => $query->withoutGlobalScopes(),
+            'team' => fn ($query) => $query->withoutGlobalScopes(),
+        ];
+    }
+
+    /**
+     * @param  Builder<\App\Administrations\ActionLogs\Models\UserActionLog>  $query
+     */
+    public static function apply(Builder $query, User $actor): void
+    {
+        if (self::actorIsSuperAdmin($actor)) {
+            $tenantId = (int) ($actor->tenant_id ?? 0);
+            if ($tenantId > 0) {
+                $query->where(function (Builder $scoped) use ($tenantId): void {
+                    $scoped->whereHas('user', function (Builder $userQuery) use ($tenantId): void {
+                        $userQuery->withoutGlobalScopes()
+                            ->where('tenant_id', $tenantId);
+                    })->orWhereNull('user_id');
+                });
+            }
+
+            return;
+        }
+
+        $warehouseId = (int) ($actor->warehouse_id ?? 0);
+        if ($warehouseId > 0) {
+            $query->where('warehouse_id', $warehouseId);
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
+    }
+}

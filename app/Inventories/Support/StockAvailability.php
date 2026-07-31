@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Inventories\Support;
+
+final class StockAvailability
+{
+    /**
+     * Tras `lockForUpdate()`: evita decrements que dejarían stock negativo.
+     *
+     * @throws \Exception
+     */
+    public static function assertCanDecrement(int $availableStock, int $quantityToRemove): void
+    {
+        if ($quantityToRemove > $availableStock) {
+            throw new \Exception(
+                "Stock insuficiente para la cantidad solicitada. Verifique el inventario físico."
+            );
+        }
+    }
+}

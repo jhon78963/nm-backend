@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Administration\User\Models\User;
+use App\Administrations\Users\Models\User;
 use Database\Seeders\Support\SeederDefaultPassword;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
@@ -105,8 +105,8 @@ class RoleAndPermissionSeeder extends Seeder
 
         $seedPassword = SeederDefaultPassword::hashed($this);
 
-        $defaultWarehouseId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
-        $defaultTenantId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
+        $defaultWarehouseId = (int) (\App\Administrations\Warehouses\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
+        $defaultTenantId = (int) (\App\Administrations\Warehouses\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
 
         $super = User::query()->updateOrCreate(
             ['email' => 'superadmin@test.com'],

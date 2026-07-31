@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Administration\Tenant\Models\Tenant;
+use App\Administrations\Tenants\Models\Tenant;
 use Illuminate\Database\Seeder;
 
 class TenantSeeder extends Seeder

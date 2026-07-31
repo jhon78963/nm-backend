@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Finance\Sale\Models\DocumentSeries;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Finances\Sales\Models\DocumentSeries;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Database\Seeder;
 
 class DocumentSeriesSeeder extends Seeder

@@ -2,7 +2,7 @@
 
 namespace App\Shared\Foundation\Support;
 
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
+use App\Inventories\Kardex\Support\WarehouseIdForInventoryResolver;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;

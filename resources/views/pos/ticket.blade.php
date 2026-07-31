@@ -179,7 +179,7 @@
         $instagram    = $ts?->social('instagram');
         $tiktok       = $ts?->social('tiktok');
         $logoUrl      = $ts?->logo_url;
-        $logoSrc      = \App\Finance\Sale\Support\TicketLogoEmbed::embedSrc($logoUrl);
+        $logoSrc      = \App\Finances\Sales\Support\TicketLogoEmbed::embedSrc($logoUrl);
         $footerNote   = $ts?->ticket_footer_note ?: 'NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES';
 
         // ── Totales ──────────────────────────────────────────────────────────

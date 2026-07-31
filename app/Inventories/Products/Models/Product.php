@@ -1,0 +1,131 @@
+<?php
+
+namespace App\Inventories\Products\Models;
+
+use App\Directories\Vendors\Models\Vendor;
+use App\Inventories\Genders\Models\Gender;
+use App\Inventories\Kardex\Models\InventoryBalance;
+use App\Inventories\Products\Enums\ProductStatus;
+use App\Inventories\Sizes\Models\Size;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
+use App\Ecommerce\Multimedia\Traits\HasMedia;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Product extends Model
+{
+    use BelongsToWarehouse, HasFactory, HasMedia;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'name',
+        'description',
+        'barcode',
+        'percentage_discount',
+        'cash_discount',
+        'is_featured',
+        'is_on_sale',
+        'woo_status',
+        'status',
+        'gender_id',
+        'vendor_id',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'creator_user_id',
+        'last_modification_time',
+        'last_modifier_user_id',
+        'is_deleted',
+        'deleter_user_id',
+        'deletion_time',
+    ];
+
+    /**
+     * Indicates if the model should be timestamped.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'status' => ProductStatus::class,
+            'is_featured' => 'boolean',
+            'is_on_sale' => 'boolean',
+            'purchase_price' => 'float',
+            'sale_price' => 'float',
+            'min_sale_price' => 'float',
+        ];
+    }
+
+    /**
+     * Get the gender associated with the product.
+     *
+     * @return BelongsTo
+     */
+    public function gender(): BelongsTo
+    {
+        return $this->belongsTo(Gender::class);
+    }
+
+    /**
+     * Proveedor habitual (asignado desde compras u otro flujo).
+     *
+     * @return BelongsTo<Vendor, Product>
+     */
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class);
+    }
+
+    /**
+     * Get the sizes associated with the product.
+     *
+     * @return BelongsToMany
+     */
+    public function sizes(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Size::class,
+            'product_size',
+        )->withPivot([
+                    'purchase_price',
+                    'sale_price',
+                    'min_sale_price',
+                    'barcode'
+                ]);
+    }
+
+    /**
+     * Get the productSizes associated with the product.
+     *
+     * @return HasMany
+     */
+    public function productSizes(): HasMany
+    {
+        return $this->hasMany(ProductSize::class, 'product_id');
+    }
+
+    public function inventoryBalances(): HasMany
+    {
+        return $this->hasMany(InventoryBalance::class, 'product_id');
+    }
+}

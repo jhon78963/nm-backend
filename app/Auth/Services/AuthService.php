@@ -2,7 +2,7 @@
 
 namespace App\Auth\Services;
 
-use App\Administration\User\Models\User;
+use App\Administrations\Users\Models\User;
 use App\Auth\Enums\TokenAbility;
 use App\Auth\Exceptions\InvalidTokenException;
 use App\Auth\Exceptions\InvalidUserCredentialsException;

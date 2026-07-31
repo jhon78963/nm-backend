@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Inventory\InventoryLedger\Models\InventoryBalance;
-use App\Inventory\Product\Models\ProductSize;
+use App\Inventories\Kardex\Models\InventoryBalance;
+use App\Inventories\Products\Models\ProductSize;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

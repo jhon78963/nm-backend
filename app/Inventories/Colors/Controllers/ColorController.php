@@ -1,0 +1,285 @@
+<?php
+
+namespace App\Inventories\Colors\Controllers;
+
+use App\Inventories\Colors\Models\Color;
+use App\Inventories\Colors\Requests\ColorCreateRequest;
+use App\Inventories\Colors\Requests\ColorUpdateRequest;
+use App\Inventories\Colors\Resources\AutocompleteColorResource;
+use App\Inventories\Colors\Resources\ColorResource;
+use App\Inventories\Colors\Resources\ColorSelectedResource;
+use App\Inventories\Colors\Resources\SizeResource;
+use App\Inventories\Colors\Services\ColorService;
+use App\Inventories\Products\Models\ProductSize;
+use App\Inventories\Sizes\Requests\GetAllSelectedRequest;
+use App\Shared\Foundation\Controllers\Controller;
+use App\Shared\Foundation\Requests\GetAllRequest;
+use App\Shared\Foundation\Resources\GetAllCollection;
+use App\Shared\Foundation\Services\SharedService;
+use App\Shared\Foundation\Support\WarehouseQueryFilter;
+use DB;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
+
+class ColorController extends Controller
+{
+    protected ColorService $colorService;
+    protected SharedService $sharedService;
+
+    public function __construct(ColorService $colorService, SharedService $sharedService)
+    {
+        $this->colorService = $colorService;
+        $this->sharedService = $sharedService;
+    }
+
+    public function create(ColorCreateRequest $request): JsonResponse
+    {
+        DB::beginTransaction();
+        try {
+            $newColor = $this->sharedService->convertCamelToSnake($request->validated());
+            $this->colorService->create($newColor);
+            DB::commit();
+            return response()->json(['message' => 'Color created.'], 201);
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return $this->apiErrorResponse($e, 500);
+        }
+    }
+
+    public function delete(Color $color): JsonResponse
+    {
+        DB::beginTransaction();
+        try {
+            $colorValidated = $this->colorService->validate($color, 'Color');
+            $this->colorService->delete($colorValidated);
+            DB::commit();
+            return response()->json(['message' => 'Color deleted.']);
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return $this->apiErrorResponse($e, 500);
+        }
+    }
+
+    public function get(Color $color): JsonResponse
+    {
+        $colorValidated = $this->colorService->validate($color, 'Color');
+        return response()->json(new ColorResource($colorValidated));
+    }
+
+    public function getSizes(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productId = $request->input('productId');
+        $size = $request->input('size');
+
+        $sizesQuery = ProductSize::query()
+            ->join('sizes as s', 'product_size.size_id', '=', 's.id')
+            ->join('products as p', 'p.id', '=', 'product_size.product_id')
+            ->where('product_size.product_id', $productId);
+
+        WarehouseQueryFilter::apply($sizesQuery, 'p.warehouse_id');
+
+        $sizes = $sizesQuery
+            ->when(
+                $size,
+                fn (Builder $query): Builder =>
+                $query->whereRaw('LOWER(s.description) LIKE ?', ['%' . strtolower($size) . '%'])
+            )
+            ->select([
+                's.id',
+                'product_size.id as productSizeId',
+                's.description',
+                DB::raw('CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM product_size_color psc
+                        WHERE psc.product_size_id = product_size.id
+                    ) THEN COALESCE((
+                        SELECT SUM(ib2.quantity)
+                        FROM inventory_balances ib2
+                        INNER JOIN product_size_color psc
+                            ON psc.product_size_id = ib2.product_size_id
+                           AND psc.color_id = ib2.color_id
+                        WHERE ib2.product_size_id = product_size.id
+                          AND ib2.warehouse_id = p.warehouse_id
+                    ), 0)
+                    ELSE COALESCE((
+                        SELECT ib3.quantity
+                        FROM inventory_balances ib3
+                        WHERE ib3.product_size_id = product_size.id
+                          AND ib3.warehouse_id = p.warehouse_id
+                          AND ib3.color_id IS NULL
+                    ), 0)
+                END as stock'),
+                'product_size.barcode',
+                'product_size.purchase_price',
+                'product_size.sale_price',
+                'product_size.min_sale_price',
+            ])
+            ->orderByRaw("CASE WHEN s.description ~ '^[0-9]+$' THEN s.description::integer ELSE NULL END ASC")
+            ->orderBy('s.id', 'asc')
+            ->get();
+
+        return response()->json(SizeResource::collection($sizes));
+    }
+
+    /**
+     * Catálogo completo de colores con bandera `isExists` / `stock` según `product_size_color`.
+     */
+    public function getAllSelected(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productSizeId = $this->resolveProductSizeId(
+            $request->integer('productId'),
+            $request->integer('sizeId'),
+        );
+
+        $colors = $this->buildCatalogColorsForProductSize($productSizeId);
+
+        return response()->json(ColorSelectedResource::collection($colors));
+    }
+
+    /**
+     * Solo colores que ya tienen fila en `product_size_color` (stock no nulo en inventario por talla).
+     * Útil en compras para elegir variantes ya existentes sin listar todo el catálogo.
+     */
+    public function getAllSelectedAttached(GetAllSelectedRequest $request): JsonResponse
+    {
+        $productSizeId = $this->resolveProductSizeId(
+            $request->integer('productId'),
+            $request->integer('sizeId'),
+        );
+
+        $colors = $this->buildCatalogColorsForProductSize($productSizeId)
+            ->filter(fn (Color $color): bool => $color->isExists === true)
+            ->values();
+
+        return response()->json(ColorSelectedResource::collection($colors));
+    }
+
+    private function resolveProductSizeId(int $productId, int $sizeId): ?int
+    {
+        if ($productId < 1 || $sizeId < 1) {
+            return null;
+        }
+
+        $id = DB::table('product_size')
+            ->where('product_id', $productId)
+            ->where('size_id', $sizeId)
+            ->value('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * @return Collection<int, Color>
+     */
+    private function buildCatalogColorsForProductSize(?int $productSizeId): Collection
+    {
+        $productSizeColors = collect();
+
+        if ($productSizeId) {
+            $warehouseId = (int) (DB::table('product_size as ps')
+                ->join('products as p', 'p.id', '=', 'ps.product_id')
+                ->where('ps.id', $productSizeId)
+                ->value('p.warehouse_id') ?? 0);
+
+            $pivotColorIds = DB::table('product_size_color')
+                ->where('product_size_id', '=', $productSizeId)
+                ->pluck('color_id');
+
+            if ($warehouseId > 0) {
+                $qtyByColor = DB::table('inventory_balances')
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('product_size_id', $productSizeId)
+                    ->whereNotNull('color_id')
+                    ->select('color_id', DB::raw('SUM(quantity) as quantity'))
+                    ->groupBy('color_id')
+                    ->pluck('quantity', 'color_id')
+                    ->map(static fn ($q): int => (int) $q)
+                    ->all();
+            } else {
+                $qtyByColor = [];
+            }
+
+            $attachedColorIds = $pivotColorIds
+                ->map(static fn ($colorId): int => (int) $colorId)
+                ->unique()
+                ->values();
+
+            $productSizeColors = $attachedColorIds->mapWithKeys(function (int $colorId) use ($qtyByColor): array {
+                return [$colorId => (object) ['stock' => $qtyByColor[$colorId] ?? 0]];
+            });
+        }
+
+        return Color::where('is_deleted', '=', false)
+            ->orderBy('description', 'asc')
+            ->get()
+            ->map(function (Color $color) use ($productSizeColors, $productSizeId): Color {
+                if ($productSizeColors->has($color->id)) {
+                    $productSizeColor = $productSizeColors->get($color->id);
+                    $color->setAttribute('isExists', true);
+                    $color->setAttribute('stock', (int) ($productSizeColor->stock ?? 0));
+                } else {
+                    $color->setAttribute('isExists', false);
+                    $color->setAttribute('stock', null);
+                }
+
+                $color->setAttribute('productSizeId', $productSizeId);
+
+                return $color;
+            })
+            ->sortBy(function (Color $color): array {
+                $isExists = (bool) $color->getAttribute('isExists');
+                $stock = (int) ($color->getAttribute('stock') ?? 0);
+                $priority = $isExists ? (($stock > 0) ? 0 : 1) : 2;
+
+                return [$priority, strtolower($color->description)];
+            })
+            ->values();
+    }
+
+    public function getAll(GetAllRequest $request): JsonResponse
+    {
+        $query = $this->sharedService->query(
+            $request,
+            'Inventory\\Color',
+            'Color',
+            ['id', 'description', 'hash']
+        );
+        return response()->json(new GetAllCollection(
+            ColorResource::collection($query['collection']),
+            $query['total'],
+            $query['pages'],
+        ));
+    }
+
+    public function getAllAutocomplete(GetAllRequest $request): JsonResponse
+    {
+        $query = $this->sharedService->query(
+            $request,
+            'Inventory\\Color',
+            'Color',
+            'description'
+        );
+        return response()->json(
+            AutocompleteColorResource::collection($query['collection'])
+        );
+    }
+
+    public function update(ColorUpdateRequest $request, Color $color): JsonResponse
+    {
+        DB::beginTransaction();
+        try {
+            $editColor = $this->sharedService->convertCamelToSnake($request->validated());
+            $colorValidated = $this->colorService->validate($color, 'Color');
+            $this->colorService->update($colorValidated, $editColor);
+            DB::commit();
+            return response()->json(['message' => 'Color updated.']);
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return $this->apiErrorResponse($e, 500);
+        }
+    }
+}

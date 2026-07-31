@@ -1,6 +1,6 @@
 <?php
 
-use App\Finance\Sale\Support\SunatLogRedactor;
+use App\Finances\Sales\Support\SunatLogRedactor;
 
 it('enmascara document_number y nombres en payloads', function () {
     $redacted = SunatLogRedactor::redactPayload([

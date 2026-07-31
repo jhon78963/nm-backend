@@ -2,15 +2,15 @@
 
 namespace App\Auth\Providers;
 
-use App\Administration\User\Models\User;
-use App\Directory\Team\Models\TeamPayment;
-use App\Finance\CashMovement\Models\CashMovement;
-use App\Finance\Sale\Models\Sale;
-use App\Policies\CashMovementPolicy;
-use App\Policies\RolePolicy;
-use App\Policies\SalePolicy;
-use App\Policies\TeamPaymentPolicy;
-use App\Policies\UserPolicy;
+use App\Administrations\Users\Models\User;
+use App\Directories\Teams\Models\TeamPayment;
+use App\Finances\CashMovements\Models\CashMovement;
+use App\Finances\Sales\Models\Sale;
+use App\Finances\CashMovements\Policies\CashMovementPolicy;
+use App\Administrations\Roles\Policies\RolePolicy;
+use App\Finances\Sales\Policies\SalePolicy;
+use App\Directories\Teams\Policies\TeamPaymentPolicy;
+use App\Administrations\Users\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;

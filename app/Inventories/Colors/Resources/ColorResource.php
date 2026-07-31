@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Inventories\Colors\Resources;
+
+use App\Inventories\Kardex\Support\InventoryBalanceLookup;
+use App\Inventories\Kardex\Support\WarehouseIdForInventoryResolver;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * Resource de API autenticada (admin/POS). No usar en rutas públicas del ecommerce:
+ * para catálogo público ver {@see \App\Ecommerce\Products\Resources\ProductEcommerceResource}.
+ */
+class ColorResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return array_filter([
+            'id' => $this->id,
+            'description' => $this->description,
+            'hash' => $this->hash,
+            'stock' => $this->resolveStock($request),
+        ], fn ($value) => $value !== null);
+    }
+
+    private function resolveStock(Request $request): ?int
+    {
+        if ($this->resource->offsetExists('stock') && $this->resource->getAttribute('stock') !== null) {
+            return (int) $this->resource->getAttribute('stock');
+        }
+
+        $pivot = $this->pivot ?? null;
+        if ($pivot === null || ! isset($pivot->product_size_id)) {
+            return null;
+        }
+
+        $productWarehouseId = $this->resource->getAttribute('product_warehouse_id') !== null
+            ? (int) $this->resource->getAttribute('product_warehouse_id')
+            : null;
+
+        $warehouseId = WarehouseIdForInventoryResolver::resolve($request, $productWarehouseId);
+        if ($warehouseId < 1) {
+            return null;
+        }
+
+        return InventoryBalanceLookup::quantityFor(
+            $warehouseId,
+            (int) $pivot->product_size_id,
+            (int) $this->id,
+        );
+    }
+}

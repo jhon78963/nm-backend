@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Administration\User\Models\User;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Users\Models\User;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Database\Seeder;
 
 class AssignUserWarehousesSeeder extends Seeder

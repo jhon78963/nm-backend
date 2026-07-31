@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Finances\CashMovements\Policies;
+
+use App\Administrations\Users\Models\User;
+use App\Finances\CashMovements\Models\CashMovement;
+
+class CashMovementPolicy
+{
+    public function viewDaily(User $user): bool
+    {
+        return $user->can('cashflow.getDaily');
+    }
+
+    public function viewAdminMonthly(User $user): bool
+    {
+        return $user->can('cashflow.getAdminMonthlyReport');
+    }
+
+    /**
+     * @param string $category The category of the movement being created ('ADMINISTRATIVE'|'STORE'|'ACCUMULATED'|…).
+     */
+    public function create(User $user, string $category = CashMovement::CATEGORY_STORE): bool
+    {
+        if (! $user->can('cashflow.store')) {
+            return false;
+        }
+
+        if ($category === CashMovement::CATEGORY_ADMINISTRATIVE) {
+            return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($category === CashMovement::CATEGORY_ACCUMULATED) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
+        }
+
+        return true;
+    }
+
+    /**
+     * @param string|null $newCategory The category being changed to in the request (if any).
+     */
+    public function update(User $user, CashMovement $movement, ?string $newCategory = null): bool
+    {
+        if (! $user->can('cashflow.update')) {
+            return false;
+        }
+
+        $isAdministrativeInDb = $movement->category === CashMovement::CATEGORY_ADMINISTRATIVE;
+        $changingToAdministrative = $newCategory === CashMovement::CATEGORY_ADMINISTRATIVE;
+        $isAccumulatedInDb = $movement->category === CashMovement::CATEGORY_ACCUMULATED;
+        $changingToAccumulated = $newCategory === CashMovement::CATEGORY_ACCUMULATED;
+
+        if ($isAdministrativeInDb || $changingToAdministrative) {
+            return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($isAccumulatedInDb || $changingToAccumulated) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
+        }
+
+        return true;
+    }
+
+    public function delete(User $user, CashMovement $movement): bool
+    {
+        if (! $user->can('cashflow.update')) {
+            return false;
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ADMINISTRATIVE) {
+            return $user->can('cashflow.getAdminMonthlyReport');
+        }
+
+        if ($movement->category === CashMovement::CATEGORY_ACCUMULATED) {
+            return $user->can('cashflow.getAccumulatedExpensesReport');
+        }
+
+        return true;
+    }
+}

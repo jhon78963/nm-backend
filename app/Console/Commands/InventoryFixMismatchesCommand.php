@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Inventory\InventoryLedger\Services\InventoryMovementService;
+use App\Inventories\Kardex\Services\InventoryMovementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

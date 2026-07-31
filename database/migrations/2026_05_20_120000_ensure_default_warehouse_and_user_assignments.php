@@ -1,7 +1,7 @@
 <?php
 
-use App\Administration\Tenant\Models\Tenant;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Tenants\Models\Tenant;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

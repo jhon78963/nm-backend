@@ -5,8 +5,8 @@
  * modificarse ni eliminarse vía API (incluso por Super Admin).
  */
 
-use App\Administration\Tenant\Models\Tenant;
-use App\Administration\User\Models\User;
+use App\Administrations\Tenants\Models\Tenant;
+use App\Administrations\Users\Models\User;
 use App\Auth\Enums\TokenAbility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;

@@ -28,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // SEC-004: headers HTTP en todas las rutas api/* (nginx puede duplicar/reforzar).
         $middleware->appendToGroup('api', \App\Shared\Foundation\Middleware\SecurityHeaders::class);
         $middleware->appendToGroup('api', \App\Auth\Middleware\EnsureUserIsEnabled::class);
-        $middleware->appendToGroup('api', \App\Administration\Audit\Middleware\LogUserActivity::class);
+        $middleware->appendToGroup('api', \App\Administrations\ActionLogs\Middleware\LogUserActivity::class);
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
@@ -48,9 +48,9 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Console\Commands\ConfigCheckSecurityCommand::class,
         \App\Console\Commands\InventoryCheckMismatchesCommand::class,
         \App\Console\Commands\InventoryFixMismatchesCommand::class,
-        \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
-        \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
-        \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,
-        \App\Inventory\InventoryLedger\Command\SeedInitialInventoryMovementsCommand::class,
+        \App\Inventories\Kardex\Console\MigrateLegacyStockCommand::class,
+        \App\Inventories\Kardex\Command\InventoryAuditMissingBalancesCommand::class,
+        \App\Inventories\Kardex\Command\InventoryBackfillMissingBalancesCommand::class,
+        \App\Inventories\Kardex\Command\SeedInitialInventoryMovementsCommand::class,
     ])
     ->create();

@@ -1,6 +1,6 @@
 <?php
 
-use App\Inventory\Product\Support\ProductBarcodeSearch;
+use App\Inventories\Products\Support\ProductBarcodeSearch;
 
 it('normalizes text search preserving spaces', function () {
     expect(ProductBarcodeSearch::normalize("  polo   algodon \r\n"))->toBe('polo algodon');

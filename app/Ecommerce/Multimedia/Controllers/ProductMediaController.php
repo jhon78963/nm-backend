@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Ecommerce\Multimedia\Controllers;
+
+use App\Inventories\Products\Models\Product;
+use App\Ecommerce\Multimedia\Requests\ProductMediaStoreRequest;
+use App\Ecommerce\Multimedia\Services\ProductMediaService;
+use App\Inventories\Products\Services\ProductService;
+use App\Ecommerce\Multimedia\Models\Media;
+use App\Shared\Foundation\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+
+class ProductMediaController extends Controller
+{
+    public function __construct(
+        private readonly ProductService $productService,
+        private readonly ProductMediaService $productMediaService,
+    ) {}
+
+    public function store(ProductMediaStoreRequest $request, Product $product): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $product): JsonResponse {
+            $this->productService->validate($product, 'Product');
+
+            $result = $this->productMediaService->uploadAndSync(
+                $product,
+                $request->file('image'),
+            );
+
+            return response()->json(
+                $this->storeResponsePayload($product, $result),
+                $this->syncHttpStatus($result['wooCommerceSync'], 201),
+            );
+        });
+    }
+
+    public function preview(Product $product, Media $media): Response
+    {
+        $this->productService->validate($product, 'Product');
+
+        $file = $this->productMediaService->stream($product, $media);
+
+        return response($file['body'], 200, [
+            'Content-Type' => $file['content_type'],
+            'Content-Disposition' => 'inline; filename="'.$file['filename'].'"',
+        ]);
+    }
+
+    public function destroy(Product $product, Media $media): JsonResponse
+    {
+        return DB::transaction(function () use ($product, $media): JsonResponse {
+            $this->productService->validate($product, 'Product');
+
+            $result = $this->productMediaService->deleteAndSync($product, $media);
+
+            return response()->json([
+                'message' => 'Imagen eliminada correctamente.',
+                'productId' => $product->id,
+                'deletedMediaId' => $result['deletedMediaId'],
+                'wooCommerceSync' => $result['wooCommerceSync'],
+            ], $this->syncHttpStatus($result['wooCommerceSync'], 200));
+        });
+    }
+
+    /**
+     * @param  array{
+     *     media: array{id: int, filePath: string, publicUrl: string|null, fileName: string|null},
+     *     wooCommerceSync: array{attempted: bool, products: int, variations: int, errors: int, error: string|null}
+     * }  $result
+     * @return array<string, mixed>
+     */
+    private function storeResponsePayload(Product $product, array $result): array
+    {
+        return [
+            'message' => 'Imagen subida correctamente.',
+            'productId' => $product->id,
+            'media' => $result['media'],
+            'wooCommerceSync' => $result['wooCommerceSync'],
+        ];
+    }
+
+    /**
+     * @param  array{attempted: bool, errors: int}  $sync
+     */
+    private function syncHttpStatus(array $sync, int $successStatus): int
+    {
+        if (! $sync['attempted']) {
+            return 207;
+        }
+
+        if (($sync['errors'] ?? 0) > 0 || ($sync['products'] ?? 0) < 1) {
+            return 207;
+        }
+
+        return $successStatus;
+    }
+}

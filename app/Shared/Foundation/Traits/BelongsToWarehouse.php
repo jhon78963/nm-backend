@@ -2,7 +2,7 @@
 
 namespace App\Shared\Foundation\Traits;
 
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Warehouses\Models\Warehouse;
 use App\Shared\Foundation\Scopes\WarehouseScope;
 use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Administrations\Warehouses\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class WarehouseUpdateRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => 'sometimes|string|max:25',
+            'tenantId' => ['sometimes', 'exists:tenants,id'],
+        ];
+    }
+}

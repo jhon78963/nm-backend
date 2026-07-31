@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Inventory\WooCommerce\Services\WooCommerceSyncService;
+use App\Ecommerce\Products\WooCommerce\Services\WooCommerceSyncService;
 use Illuminate\Console\Command;
 
 class SyncWooCommerceCatalogCommand extends Command

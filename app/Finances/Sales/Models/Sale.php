@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Finances\Sales\Models;
+
+use App\Administrations\Users\Models\User;
+use App\Directories\Customers\Models\Customer;
+use App\Shared\Foundation\Traits\BelongsToWarehouse;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Sale extends Model
+{
+    use BelongsToWarehouse;
+
+    public $timestamps = false;
+
+    protected $table = 'sales';
+
+    protected $fillable = [
+        'code',
+        'customer_id',
+        'total_amount',
+        'tax_amount',
+        'payment_method',
+        'status',
+        'notes',
+        'creation_time',
+        'warehouse_id',
+        // Campos de facturación electrónica (SUNAT)
+        'document_type',
+        'serie',
+        'correlativo',
+        'full_invoice_number',
+        'taxable_base',
+        'igv_amount',
+        'sunat_status',
+        'xml_path',
+        'cdr_path',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'creator_user_id',
+        'last_modification_time',
+        'last_modifier_user_id',
+        'is_deleted',
+        'deleter_user_id',
+        'deletion_time',
+    ];
+
+    protected $casts = [
+        'creation_time' => 'datetime',
+        'last_modification_time' => 'datetime',
+        'deletion_time' => 'datetime',
+        'total_amount' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'taxable_base' => 'decimal:2',
+        'igv_amount' => 'decimal:2',
+        'correlativo' => 'integer',
+        'is_deleted' => 'boolean'
+    ];
+
+    // --- RELACIONES ---
+
+    public function details(): HasMany
+    {
+        return $this->hasMany(SaleDetail::class, 'sale_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(SalePayment::class, 'sale_id');
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class)->withDefault([
+            'name' => 'Público General',
+        ]);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creator_user_id');
+    }
+}

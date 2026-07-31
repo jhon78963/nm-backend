@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

@@ -17,10 +17,10 @@
  *  8. HTTP feature: cross-tenant via query param en ruta kardex → 403
  */
 
-use App\Administration\Tenant\Models\Tenant;
-use App\Administration\User\Models\User;
-use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Tenants\Models\Tenant;
+use App\Administrations\Users\Models\User;
+use App\Inventories\Kardex\Support\WarehouseIdForInventoryResolver;
+use App\Administrations\Warehouses\Models\Warehouse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;

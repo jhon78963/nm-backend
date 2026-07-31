@@ -14,10 +14,10 @@
  *  8. Refresh token no usable como Bearer en rutas API → 403
  */
 
-use App\Administration\Tenant\Models\Tenant;
-use App\Administration\User\Models\User;
+use App\Administrations\Tenants\Models\Tenant;
+use App\Administrations\Users\Models\User;
 use App\Auth\Enums\TokenAbility;
-use App\Inventory\Warehouse\Models\Warehouse;
+use App\Administrations\Warehouses\Models\Warehouse;
 use App\Shared\Foundation\Exceptions\ApiExceptionRenderer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Session\TokenMismatchException;

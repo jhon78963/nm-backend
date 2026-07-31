@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Administration\User\Seeders\UserSeeder;
+use App\Administrations\Users\Seeders\UserSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -14,7 +14,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             TenantSeeder::class,
-            \App\Inventory\Warehouse\Seeders\WarehouseSeeder::class,
+            \App\Administrations\Warehouses\Seeders\WarehouseSeeder::class,
             RoleAndPermissionSeeder::class,
             UserSeeder::class,
             AssignUserWarehousesSeeder::class,
