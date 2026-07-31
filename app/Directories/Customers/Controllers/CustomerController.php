@@ -63,7 +63,7 @@ class CustomerController extends Controller
     {
         $query = $this->sharedService->query(
             request:      $request,
-            entityName:   'Directory\\Customer',
+            entityName:   'Directories\\Customers',
             modelName:    'Customer',
             columnSearch: ['id', 'dni', 'name', 'surname']
         );

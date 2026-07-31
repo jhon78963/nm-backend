@@ -21,7 +21,7 @@ final class AuditHttpActionResolver
     private static function excludedMethodPaths(): array
     {
         return [
-            ['GET', 'api/auth/me'],            // Polling del perfil autenticado
+            ['*',   'api/auth/me'],             // Hidratación de sesión (GET/POST)
             ['*',   'api/auth/csrf-token'],     // Token CSRF (llamada frecuente)
             ['*',   'api/user-action-logs'],    // Evitar meta-logging de los propios logs
             ['*',   'sanctum/csrf-cookie'],     // Cookie CSRF inicial

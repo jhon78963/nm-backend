@@ -57,7 +57,7 @@ class SaleController extends Controller
     {
         $query = $this->sharedService->query(
             request: $request,
-            entityName: 'Finance\\Sale',
+            entityName: 'Finances\\Sales',
             modelName: 'Sale',
             columnSearch: ['id', 'code', 'creation_time', 'status', 'payment_method', 'customer.name'],
             filters: [],

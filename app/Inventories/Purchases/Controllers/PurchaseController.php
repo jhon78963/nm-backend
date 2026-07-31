@@ -103,7 +103,7 @@ class PurchaseController extends Controller
 
         $query = $this->sharedService->query(
             $request,
-            'Inventory\\Purchase',
+            'Inventories\\Purchases',
             'Purchase',
             ['id', 'supplier_name', 'document_note'],
             $filters,

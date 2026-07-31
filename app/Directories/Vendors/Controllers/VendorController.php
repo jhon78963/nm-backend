@@ -63,7 +63,7 @@ class VendorController extends Controller
     {
         $query = $this->sharedService->query(
             request:      $request,
-            entityName:   'Directory\\Vendor',
+            entityName:   'Directories\\Vendors',
             modelName:    'Vendor',
             columnSearch: ['id', 'name', 'address', 'local', 'balance', 'phone'],
         );

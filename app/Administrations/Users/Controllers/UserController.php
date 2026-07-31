@@ -127,7 +127,7 @@ class UserController extends Controller
 
         $query = $this->sharedService->query(
             request: $request,
-            entityName: 'Administration\\User',
+            entityName: 'Administrations\\Users',
             modelName: 'User',
             columnSearch: ['username', 'email', 'name', 'surname'],
             extendQuery: $extendQuery,

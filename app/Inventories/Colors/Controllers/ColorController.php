@@ -243,7 +243,7 @@ class ColorController extends Controller
     {
         $query = $this->sharedService->query(
             $request,
-            'Inventory\\Color',
+            'Inventories\\Colors',
             'Color',
             ['id', 'description', 'hash']
         );
@@ -258,7 +258,7 @@ class ColorController extends Controller
     {
         $query = $this->sharedService->query(
             $request,
-            'Inventory\\Color',
+            'Inventories\\Colors',
             'Color',
             'description'
         );

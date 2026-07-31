@@ -70,7 +70,7 @@ class WarehouseController extends Controller
 
         $query = $this->sharedService->query(
             request: $request,
-            entityName: 'Inventory\\Warehouse',
+            entityName: 'Administrations\\Warehouses',
             modelName: 'Warehouse',
             columnSearch: ['id', 'name'],
             extendQuery: $extendQuery,

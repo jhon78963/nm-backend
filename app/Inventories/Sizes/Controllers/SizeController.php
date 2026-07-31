@@ -84,7 +84,7 @@ class SizeController extends Controller
 
         $query = $this->sharedService->query(
             request:      $request,
-            entityName:   'Inventory\\Size',
+            entityName:   'Inventories\\Sizes',
             modelName:    'Size',
             columnSearch: ['id', 'description', 'sizeType.description'],
             filters:      $filters
@@ -111,7 +111,7 @@ class SizeController extends Controller
     {
         $query = $this->sharedService->query(
             request:      $request,
-            entityName:   'Inventory\\Size',
+            entityName:   'Inventories\\Sizes',
             modelName:    'Size',
             columnSearch: 'description'
         );

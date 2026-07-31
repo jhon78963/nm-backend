@@ -110,7 +110,7 @@ class TeamController extends Controller
     {
         $query = $this->sharedService->query(
             request:      $request,
-            entityName:   'Directory\\Team',
+            entityName:   'Directories\\Teams',
             modelName:    'Team',
             columnSearch: ['id', 'dni', 'name', 'surname', 'salary']
         );

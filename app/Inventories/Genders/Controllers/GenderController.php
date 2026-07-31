@@ -32,7 +32,7 @@ class GenderController extends Controller
     {
         $query = $this->sharedService->query(
             request: $request,
-            entityName: 'Inventory\\Gender',
+            entityName: 'Inventories\\Genders',
             modelName: 'Gender',
             columnSearch: 'name'
         );

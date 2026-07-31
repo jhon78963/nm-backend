@@ -117,7 +117,7 @@ class ProductController extends Controller
 
         $queryResult = $this->sharedService->query(
             request:      $request,
-            entityName:   'Inventory\\Product',
+            entityName:   'Inventories\\Products',
             modelName:    'Product',
             columnSearch: $columnSearch,
             filters:      $filters,
