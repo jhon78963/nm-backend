@@ -50,4 +50,10 @@ return [
         'url' => env('FRONTEND_URL', 'http://localhost:4200'),
     ],
 
+    'ai_engine' => [
+        'url' => env('AI_ENGINE_URL'),
+        'key' => env('AI_ENGINE_API_KEY'),
+        'timeout' => env('AI_ENGINE_TIMEOUT', 30),
+    ],
+
 ];
