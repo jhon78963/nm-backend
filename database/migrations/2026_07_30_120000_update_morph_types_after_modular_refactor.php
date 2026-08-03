@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 return new class extends Migration
 {
@@ -27,7 +28,17 @@ return new class extends Migration
             DB::table('inventory_movements')
                 ->where('reference_type', $from)
                 ->update(['reference_type' => $to]);
+
+            DB::table('model_has_roles')
+                ->where('model_type', $from)
+                ->update(['model_type' => $to]);
+
+            DB::table('model_has_permissions')
+                ->where('model_type', $from)
+                ->update(['model_type' => $to]);
         }
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 
     public function down(): void
@@ -49,6 +60,16 @@ return new class extends Migration
             DB::table('inventory_movements')
                 ->where('reference_type', $from)
                 ->update(['reference_type' => $to]);
+
+            DB::table('model_has_roles')
+                ->where('model_type', $from)
+                ->update(['model_type' => $to]);
+
+            DB::table('model_has_permissions')
+                ->where('model_type', $from)
+                ->update(['model_type' => $to]);
         }
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 };
