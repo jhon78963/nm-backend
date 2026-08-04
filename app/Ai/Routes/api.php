@@ -4,6 +4,10 @@ use App\Ai\Controllers\AiPredictionController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(AiPredictionController::class)->group(function (): void {
-    Route::post('/ai/predict/price', 'optimizePrice');
-    Route::post('/ai/predict/demand', 'predictDemand');
+    Route::get('/ai/products/{product}/context', 'productContext')
+        ->middleware('permission:product.get');
+    Route::post('/ai/predict/price', 'optimizePrice')
+        ->middleware('permission:product.get');
+    Route::post('/ai/predict/demand', 'predictDemand')
+        ->middleware('permission:product.get');
 });
