@@ -10,4 +10,6 @@ Route::controller(AiPredictionController::class)->group(function (): void {
         ->middleware('permission:product.get');
     Route::post('/ai/predict/demand', 'predictDemand')
         ->middleware('permission:product.get');
+    Route::get('/ai/reports/products-inventory', 'productsInventoryReport')
+        ->middleware('permission:report.products|product.get');
 });

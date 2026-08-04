@@ -3,6 +3,7 @@
 namespace App\Ai\Controllers;
 
 use App\Ai\Services\AiEngineService;
+use App\Ai\Services\AiInventoryReportService;
 use App\Ai\Services\AiProductContextService;
 use App\Inventories\Products\Models\Product;
 use App\Inventories\Products\Services\ProductService;
@@ -17,6 +18,7 @@ class AiPredictionController extends Controller
     public function __construct(
         private readonly AiEngineService $aiEngineService,
         private readonly AiProductContextService $aiProductContextService,
+        private readonly AiInventoryReportService $aiInventoryReportService,
         private readonly ProductService $productService,
     ) {}
 
@@ -87,5 +89,31 @@ class AiPredictionController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * Reporte masivo: inventario por producto/talla + columnas IA (precio y restock).
+     */
+    public function productsInventoryReport(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'horizon_days' => ['sometimes', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $horizonDays = (int) ($validated['horizon_days'] ?? 30);
+
+        try {
+            $report = $this->aiInventoryReportService->build($request, $horizonDays);
+        } catch (RuntimeException $exception) {
+            return response()->json(
+                ['message' => $exception->getMessage()],
+                Response::HTTP_BAD_GATEWAY,
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $report,
+        ]);
     }
 }

@@ -32,10 +32,31 @@ class AiEngineService
     }
 
     /**
+     * Predicciones masivas para el reporte de inventario con IA.
+     *
+     * @param  list<array{product_id: int, price: array<string, mixed>|null, demand: array<string, mixed>}>  $items
+     * @return array<int, array<string, mixed>>  product_id => predicción
+     */
+    public function predictBulk(array $items): array
+    {
+        $response = $this->post('/api/v1/predict/bulk', ['items' => $items], bulk: true);
+
+        $mapped = [];
+        foreach ($response['items'] ?? [] as $item) {
+            if (! is_array($item) || ! isset($item['product_id'])) {
+                continue;
+            }
+            $mapped[(int) $item['product_id']] = $item;
+        }
+
+        return $mapped;
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
-    private function post(string $path, array $payload): array
+    private function post(string $path, array $payload, bool $bulk = false): array
     {
         $baseUrl = config('services.ai_engine.url');
         $apiKey = config('services.ai_engine.key');
@@ -49,7 +70,10 @@ class AiEngineService
         }
 
         $url = rtrim($baseUrl, '/').$path;
-        $timeout = (int) config('services.ai_engine.timeout', 30);
+        $defaultTimeout = (int) config('services.ai_engine.timeout', 30);
+        $timeout = $bulk
+            ? (int) config('services.ai_engine.bulk_timeout', max($defaultTimeout, 120))
+            : $defaultTimeout;
 
         $response = Http::withHeaders(['X-API-Key' => $apiKey])
             ->acceptJson()

@@ -30,9 +30,18 @@ final class InventoryBalanceLookup
         return (int) ($q->value('quantity') ?? 0);
     }
 
+    /**
+     * Stock total del producto en un almacén.
+     *
+     * Usa solo filas maestro (color_id IS NULL), igual que el listado/buscador de productos.
+     * Las filas por color son desglose de la misma talla; sumarlas duplicaría el inventario.
+     */
     public static function sumQuantityForProduct(int $productId, int $warehouseId): int
     {
-        $q = InventoryBalance::query()->where('product_id', $productId);
+        $q = InventoryBalance::query()
+            ->where('product_id', $productId)
+            ->whereNull('color_id');
+
         if ($warehouseId > 0) {
             $q->where('warehouse_id', $warehouseId);
         }
