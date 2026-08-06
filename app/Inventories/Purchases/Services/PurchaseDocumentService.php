@@ -139,4 +139,93 @@ class PurchaseDocumentService
 
         return $purchase->fresh(['lines.colorDeltas']);
     }
+
+    /**
+     * Persiste líneas nuevas sobre una compra existente (sin crear cabecera).
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @param  array<string, int>  $productTempMap
+     * @param  array<string, int>  $sizeTempMap
+     * @param  array<string, int>  $colorTempMap
+     */
+    public function appendLines(
+        Purchase $purchase,
+        array $lines,
+        array $productTempMap,
+        array $sizeTempMap,
+        array $colorTempMap,
+    ): void {
+        $maxLineId = PurchaseLine::query()
+            ->where('purchase_id', $purchase->id)
+            ->max('line_id');
+        $nextLineId = ((int) $maxLineId) + 1;
+
+        foreach ($lines as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+
+            $productId = $this->resolver->resolveProductId($line['productRef'] ?? [], $productTempMap);
+            $sizeId = $this->resolver->resolveSizeId($line['sizeRef'] ?? [], $sizeTempMap);
+            $product = Product::query()->where('is_deleted', false)->findOrFail($productId);
+            $productSize = $this->resolver->resolveProductSize($product, $sizeId, $line);
+            $productSize->refresh();
+
+            $colors = array_map(
+                fn (mixed $c): array => $this->resolver->normalizeLineColorRow(is_array($c) ? $c : []),
+                $line['colors'] ?? [],
+            );
+            $hasColorKeys = $this->resolver->colorsHaveIds($colors);
+            $lineTotalQty = 0;
+            foreach ($colors as $c) {
+                $lineTotalQty += $c['quantity'];
+            }
+
+            $isSizeOnly = ! $hasColorKeys && count($colors) === 1;
+
+            $purchasePrice = (float) ($line['purchasePrice'] ?? 0);
+            $payloadSubtotal = (float) ($line['subtotal'] ?? 0);
+            $lineSubtotal = $payloadSubtotal > 0.00001
+                ? round($payloadSubtotal, 2)
+                : round($purchasePrice * max(0, $lineTotalQty), 2);
+
+            $purchaseLine = PurchaseLine::query()->create([
+                'purchase_id' => $purchase->id,
+                'line_id' => (string) $nextLineId,
+                'product_id' => $productId,
+                'size_id' => $sizeId,
+                'product_size_id' => $productSize->id,
+                'barcode' => $line['barcode'] ?? null,
+                'purchase_price' => $line['purchasePrice'] ?? null,
+                'sale_price' => $line['salePrice'] ?? null,
+                'min_sale_price' => $line['minSalePrice'] ?? null,
+                'subtotal' => $lineSubtotal,
+                'size_stock_delta' => max(0, $lineTotalQty),
+                'has_color_breakdown' => ! $isSizeOnly,
+            ]);
+            $nextLineId++;
+
+            if ($isSizeOnly) {
+                continue;
+            }
+
+            foreach ($colors as $c) {
+                if ($c['quantity'] <= 0) {
+                    continue;
+                }
+                $colorId = $c['colorId'];
+                if ($colorId === null && $c['tempId'] !== null) {
+                    $colorId = $colorTempMap[$c['tempId']] ?? null;
+                }
+                if ($colorId === null) {
+                    continue;
+                }
+                PurchaseLineColorDelta::query()->create([
+                    'purchase_line_id' => $purchaseLine->id,
+                    'color_id' => (int) $colorId,
+                    'quantity' => $c['quantity'],
+                ]);
+            }
+        }
+    }
 }

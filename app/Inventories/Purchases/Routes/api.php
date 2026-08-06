@@ -7,6 +7,7 @@ Route::controller(PurchaseController::class)->group(function (): void {
     Route::post('/purchases/bulk', 'registerBulk')->middleware('permission:purchase.registerBulk');
     Route::get('/purchases', 'getAll')->middleware('permission:purchase.getAll');
     Route::post('/purchases/{purchase}/lines', 'addLine')->middleware('permission:purchase.updateLine');
+    Route::post('/purchases/{purchase}/lines/bulk', 'appendLines')->middleware('permission:purchase.updateLine');
     Route::patch('/purchases/{purchase}/lines/{purchaseLine}', 'updateLine')->middleware('permission:purchase.updateLine');
     Route::delete('/purchases/{purchase}/lines/{purchaseLine}', 'deleteLine')->middleware('permission:purchase.deleteLine');
     Route::get('/purchases/{purchase}', 'get')->middleware('permission:purchase.get');

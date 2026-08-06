@@ -7,6 +7,7 @@ use App\Finances\CashMovements\Services\CashflowService;
 use App\Inventories\Purchases\Enums\PurchaseStatus;
 use App\Inventories\Purchases\Models\Purchase;
 use App\Inventories\Purchases\Models\PurchaseLine;
+use App\Inventories\Purchases\Requests\PurchaseAppendLinesRequest;
 use App\Inventories\Purchases\Requests\PurchaseBulkRequest;
 use App\Inventories\Purchases\Requests\PurchaseCancelRequest;
 use App\Inventories\Purchases\Requests\PurchaseIndexRequest;
@@ -282,6 +283,18 @@ class PurchaseController extends Controller
         $this->purchaseLineMutationService->addLine($purchase, $request->validated());
 
         return response()->json(['message' => 'Línea agregada.'], 201);
+    }
+
+    public function appendLines(PurchaseAppendLinesRequest $request, Purchase $purchase): JsonResponse
+    {
+        $this->ensurePurchaseVisible($purchase);
+        if ($purchase->status !== PurchaseStatus::Active) {
+            return response()->json(['message' => 'Solo se pueden agregar líneas a compras activas.'], 422);
+        }
+
+        $this->purchaseLineMutationService->appendLines($purchase, $request->validated());
+
+        return response()->json(['message' => 'Líneas agregadas.'], 201);
     }
 
     public function deleteLine(Purchase $purchase, PurchaseLine $purchaseLine): JsonResponse

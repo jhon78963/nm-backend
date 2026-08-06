@@ -18,6 +18,7 @@ class PurchaseLineMutationService
     public function __construct(
         protected PurchaseCancellationService $purchaseCancellationService,
         protected PurchaseBulkService $purchaseBulkService,
+        protected PurchaseDocumentService $purchaseDocumentService,
     ) {
     }
 
@@ -31,6 +32,35 @@ class PurchaseLineMutationService
                 ->where('purchase_line_id', $line->id)
                 ->delete();
             $line->delete();
+            $this->refreshPurchaseTotals($purchase);
+            $this->touchPurchaseMeta($purchase);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data  Validado por PurchaseAppendLinesRequest
+     */
+    public function appendLines(Purchase $purchase, array $data): void
+    {
+        if ($purchase->is_deleted) {
+            abort(404);
+        }
+        if ($purchase->isCancelled()) {
+            throw ValidationException::withMessages(['purchase' => 'La compra está anulada.']);
+        }
+
+        DB::transaction(function () use ($purchase, $data): void {
+            [$productTempMap, $sizeTempMap, $colorTempMap] = $this->purchaseBulkService
+                ->upsertCatalogAndApplyLinesForPurchase($purchase, $data);
+
+            $this->purchaseDocumentService->appendLines(
+                $purchase,
+                $data['lines'] ?? [],
+                $productTempMap,
+                $sizeTempMap,
+                $colorTempMap,
+            );
+
             $this->refreshPurchaseTotals($purchase);
             $this->touchPurchaseMeta($purchase);
         });
