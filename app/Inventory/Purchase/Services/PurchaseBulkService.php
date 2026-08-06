@@ -13,6 +13,7 @@ use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Product\Services\ProductService;
+use App\Inventory\Purchase\Models\Purchase;
 use App\Inventory\Purchase\Support\PurchasePayloadResolver;
 use App\Inventory\Size\Services\SizeService;
 use App\Inventory\Warehouse\Models\Warehouse;
@@ -90,6 +91,55 @@ class PurchaseBulkService
         });
 
         return $purchaseId;
+    }
+
+    /**
+     * Crea productos/tallas/colores temporales y aplica stock para líneas nuevas
+     * en una compra ya existente (mismo contrato que `lines[]` del bulk).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{0: array<string, int>, 1: array<string, int>, 2: array<string, int>}
+     */
+    public function upsertCatalogAndApplyLinesForPurchase(Purchase $purchase, array $payload): array
+    {
+        $warehouseId = (int) $purchase->warehouse_id;
+        if ($warehouseId < 1) {
+            throw new InvalidArgumentException('La compra no tiene un almacén válido.');
+        }
+
+        WarehouseIdForInventoryResolver::assertUserCanAccessWarehouse($warehouseId);
+
+        $tenantId = (int) Warehouse::query()->findOrFail($warehouseId)->tenant_id;
+        $vendorId = $purchase->vendor_id !== null ? (int) $purchase->vendor_id : null;
+        if ($vendorId !== null && $vendorId < 1) {
+            $vendorId = null;
+        }
+
+        $productTempMap = [];
+        $sizeTempMap = [];
+        $colorTempMap = [];
+
+        $this->upsertCatalogProducts(
+            $payload['catalogUpserts']['products'] ?? [],
+            $warehouseId,
+            $vendorId,
+            $productTempMap,
+        );
+        $this->upsertCatalogSizes($payload['catalogUpserts']['sizes'] ?? [], $sizeTempMap);
+        $this->upsertCatalogColors($payload['catalogUpserts']['colors'] ?? [], $colorTempMap);
+        $this->applyLines(
+            $payload['lines'] ?? [],
+            $productTempMap,
+            $sizeTempMap,
+            $colorTempMap,
+            $warehouseId,
+            $tenantId,
+        );
+        if ($vendorId !== null) {
+            $this->assignVendorToPurchaseProducts($vendorId, $payload['lines'] ?? [], $productTempMap);
+        }
+
+        return [$productTempMap, $sizeTempMap, $colorTempMap];
     }
 
     /**
