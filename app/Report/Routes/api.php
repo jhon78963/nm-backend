@@ -13,3 +13,5 @@ Route::get('/reports/sales/daily', [ReportController::class, 'salesDaily'])
     ->middleware('permission:report.sales');
 Route::get('/reports/sales/monthly', [ReportController::class, 'salesMonthly'])
     ->middleware('permission:report.sales');
+Route::get('/reports/sales/daily-period', [ReportController::class, 'salesDailyPeriod'])
+    ->middleware('permission:report.sales');

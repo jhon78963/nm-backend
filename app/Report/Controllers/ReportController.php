@@ -101,4 +101,29 @@ class ReportController extends Controller
             'data' => $this->reportsService->getMonthlySalesReport($month),
         ]);
     }
+
+    public function salesDailyPeriod(Request $request): JsonResponse
+    {
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        if (! $startDate || ! $endDate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debe indicar start_date y end_date (YYYY-MM-DD).',
+            ], 422);
+        }
+
+        if (\Carbon\Carbon::parse($startDate)->startOfDay()->gt(\Carbon\Carbon::parse($endDate)->startOfDay())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La fecha inicial no puede ser mayor que la fecha final.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportsService->getDailySalesPeriodReport($startDate, $endDate),
+        ]);
+    }
 }

@@ -620,7 +620,7 @@ class ReportService
         $transactionCount = $sales->count();
         $itemsSold = (int) $sales->sum(fn (Sale $sale) => $sale->details->sum('quantity'));
         $daysInMonth = $monthDate->daysInMonth;
-        $dailyBreakdown = $this->buildMonthlyDailyBreakdown($sales, $start, $end);
+        $dailyBreakdown = $this->buildDailyBreakdown($sales, $start, $end);
         $daysWithSales = count(array_filter(
             $dailyBreakdown,
             static fn (array $row): bool => ($row['transactions'] ?? 0) > 0,
@@ -653,6 +653,64 @@ class ReportService
                 'labels' => array_column($dailyBreakdown, 'date'),
                 'amounts' => array_column($dailyBreakdown, 'total'),
             ],
+        ];
+    }
+
+    /**
+     * Ventas diarias agrupadas en un rango de fechas (inclusive).
+     *
+     * @return array<string, mixed>
+     */
+    public function getDailySalesPeriodReport(string $startDate, string $endDate): array
+    {
+        $start = Carbon::parse($startDate)->startOfDay();
+        $end = Carbon::parse($endDate)->endOfDay();
+
+        $salesQuery = Sale::query()
+            ->whereBetween('creation_time', [$start, $end])
+            ->where('status', 'COMPLETED')
+            ->where('is_deleted', false)
+            ->with(['payments', 'details'])
+            ->orderBy('creation_time', 'asc');
+
+        WarehouseQueryFilter::apply($salesQuery, 'warehouse_id');
+
+        $sales = $salesQuery->get();
+
+        $paymentBreakdown = $this->buildPaymentBreakdownFromSales($sales);
+        $totalAmount = array_sum(array_column($paymentBreakdown, 'amount'));
+        $transactionCount = $sales->count();
+        $itemsSold = (int) $sales->sum(fn (Sale $sale) => $sale->details->sum('quantity'));
+        $dailyBreakdown = $this->buildDailyBreakdown($sales, $start, $end, true);
+        $daysInRange = $start->copy()->startOfDay()->diffInDays($end->copy()->startOfDay()) + 1;
+        $daysWithSales = count(array_filter(
+            $dailyBreakdown,
+            static fn (array $row): bool => ($row['transactions'] ?? 0) > 0,
+        ));
+
+        return [
+            'period_label' => $start->format('d/m/Y').' — '.$end->format('d/m/Y'),
+            'start_date' => $start->format('Y-m-d'),
+            'end_date' => $end->format('Y-m-d'),
+            'summary' => [
+                'total_amount' => round($totalAmount, 2),
+                'transaction_count' => $transactionCount,
+                'items_sold' => $itemsSold,
+                'average_ticket' => $transactionCount > 0
+                    ? round($totalAmount / $transactionCount, 2)
+                    : 0.0,
+                'average_daily' => $daysInRange > 0
+                    ? round($totalAmount / $daysInRange, 2)
+                    : 0.0,
+                'days_with_sales' => $daysWithSales,
+                'days_in_range' => $daysInRange,
+                'cash' => round($this->sumPaymentBreakdownByMethods($paymentBreakdown, ['CASH']), 2),
+                'digital' => round($this->sumPaymentBreakdownByMethods(
+                    $paymentBreakdown,
+                    ['YAPE', 'PLIN', 'CARD', 'TRANSFER'],
+                ), 2),
+            ],
+            'daily_breakdown' => $dailyBreakdown,
         ];
     }
 
@@ -747,15 +805,16 @@ class ReportService
      * @param  \Illuminate\Support\Collection<int, Sale>  $sales
      * @return list<array{date: string, day_of_week: string, transactions: int, total: float, cash: float, digital: float}>
      */
-    private function buildMonthlyDailyBreakdown($sales, Carbon $start, Carbon $end): array
+    private function buildDailyBreakdown($sales, Carbon $start, Carbon $end, bool $includeYear = false): array
     {
         $bancosMethods = ['YAPE', 'PLIN', 'CARD', 'TRANSFER'];
         $byDay = [];
+        $dateFormat = $includeYear ? 'd/m/Y' : 'd/m';
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $key = $date->format('Y-m-d');
             $byDay[$key] = [
-                'date' => $date->format('d/m'),
+                'date' => $date->format($dateFormat),
                 'day_of_week' => $this->formatSpanishWeekdayShort($date),
                 'transactions' => 0,
                 'total' => 0.0,
