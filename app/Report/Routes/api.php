@@ -9,3 +9,7 @@ Route::get('/reports/products', [ReportController::class, 'products'])
     ->middleware('permission:report.products');
 Route::get('/reports/products/export/pdf', [ReportController::class, 'productsPdf'])
     ->middleware('permission:report.products');
+Route::get('/reports/sales/daily', [ReportController::class, 'salesDaily'])
+    ->middleware('permission:report.sales');
+Route::get('/reports/sales/monthly', [ReportController::class, 'salesMonthly'])
+    ->middleware('permission:report.sales');

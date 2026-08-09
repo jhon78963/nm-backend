@@ -38,6 +38,7 @@ class RoleAndPermissionSeeder extends Seeder
             'expense.create', 'expense.update', 'expense.delete', 'expense.getAll', 'expense.get',
             'report.index',
             'report.products',
+            'report.sales',
             'financialSummary.getSummary',
             'size.create', 'size.update', 'size.delete', 'size.getAll', 'size.getAllSelected', 'size.getAllAutocomplete', 'size.getAutocomplete', 'size.get', 'size.getSizeType',
             'vendor.create', 'vendor.update', 'vendor.delete', 'vendor.getAll', 'vendor.get',

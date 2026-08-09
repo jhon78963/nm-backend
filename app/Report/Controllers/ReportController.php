@@ -81,4 +81,24 @@ class ReportController extends Controller
 
         return $pdf->download($filename);
     }
+
+    public function salesDaily(Request $request): JsonResponse
+    {
+        $date = $request->query('date', now()->format('Y-m-d'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportsService->getDailySalesReport($date),
+        ]);
+    }
+
+    public function salesMonthly(Request $request): JsonResponse
+    {
+        $month = $request->query('month', now()->format('Y-m'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportsService->getMonthlySalesReport($month),
+        ]);
+    }
 }
