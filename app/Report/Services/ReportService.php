@@ -30,6 +30,35 @@ class ReportService
     }
 
     /**
+     * Métodos digitales alineados con Control de Caja (YAPE/PLIN comparten filtro).
+     *
+     * @return list<string>
+     */
+    private function digitalPaymentMethods(): array
+    {
+        return ['YAPE', 'PLIN', 'CARD', 'TRANSFER'];
+    }
+
+    /**
+     * Ingresos manuales de tienda (caja): chasqui, otros ingresos STORE/INCOME.
+     *
+     * @return \Illuminate\Support\Collection<int, CashMovement>
+     */
+    private function getStoreIncomeMovementsForRange(Carbon $start, Carbon $end)
+    {
+        $query = CashMovement::query()
+            ->whereBetween('date', [$start, $end])
+            ->where('is_deleted', false)
+            ->where('category', CashMovement::CATEGORY_STORE)
+            ->where('type', CashMovement::TYPE_INCOME)
+            ->orderBy('date', 'asc');
+
+        WarehouseQueryFilter::apply($query, 'warehouse_id');
+
+        return $query->get();
+    }
+
+    /**
      * Ventas mensuales repartidas por canal usando sale_payments (soporta MIXTO).
      * Misma lógica que /api/cash-flow/daily: cada fila de pago va a su método.
      * Ventas legacy sin sale_payments usan payment_method de la cabecera.
@@ -556,17 +585,22 @@ class ReportService
         WarehouseQueryFilter::apply($salesQuery, 'warehouse_id');
 
         $sales = $salesQuery->get();
+        $storeIncomes = $this->getStoreIncomeMovementsForRange($start, $end);
 
-        $paymentBreakdown = $this->buildPaymentBreakdownFromSales($sales);
+        $paymentBreakdown = $this->buildCajaIngresosBreakdown($sales, $storeIncomes);
         $totalAmount = array_sum(array_column($paymentBreakdown, 'amount'));
+        $salesAmount = (float) $sales->sum('total_amount');
+        $storeIncomesAmount = (float) $storeIncomes->sum('amount');
         $itemsSold = (int) $sales->sum(fn (Sale $sale) => $sale->details->sum('quantity'));
-        $transactionCount = $sales->count();
+        $transactionCount = $sales->count() + $storeIncomes->count();
 
         return [
             'date' => $day->format('d/m/Y'),
             'date_iso' => $day->format('Y-m-d'),
             'summary' => [
                 'total_amount' => round($totalAmount, 2),
+                'total_sales' => round($salesAmount, 2),
+                'total_store_incomes' => round($storeIncomesAmount, 2),
                 'transaction_count' => $transactionCount,
                 'items_sold' => $itemsSold,
                 'average_ticket' => $transactionCount > 0
@@ -575,21 +609,12 @@ class ReportService
                 'cash' => round($this->sumPaymentBreakdownByMethods($paymentBreakdown, ['CASH']), 2),
                 'digital' => round($this->sumPaymentBreakdownByMethods(
                     $paymentBreakdown,
-                    ['YAPE', 'PLIN', 'CARD', 'TRANSFER'],
+                    $this->digitalPaymentMethods(),
                 ), 2),
             ],
             'payment_breakdown' => $paymentBreakdown,
-            'hourly_chart' => $this->buildHourlySalesChart($sales, $start, $end),
-            'sales' => $sales->map(fn (Sale $sale) => [
-                'id' => $sale->id,
-                'code' => $sale->code,
-                'time' => $sale->creation_time?->format('h:i A') ?? '—',
-                'customer' => $sale->customer?->name ?? 'Público General',
-                'items_count' => (int) $sale->details->sum('quantity'),
-                'total_amount' => (float) $sale->total_amount,
-                'payment_method' => $sale->payment_method,
-                'payment_label' => $this->formatPaymentMethodLabel($sale->payment_method),
-            ])->values()->all(),
+            'hourly_chart' => $this->buildHourlyCajaChart($sales, $storeIncomes, $start, $end),
+            'sales' => $this->buildDailyCajaEntries($sales, $storeIncomes),
         ];
     }
 
@@ -614,13 +639,16 @@ class ReportService
         WarehouseQueryFilter::apply($salesQuery, 'warehouse_id');
 
         $sales = $salesQuery->get();
+        $storeIncomes = $this->getStoreIncomeMovementsForRange($start, $end);
 
-        $paymentBreakdown = $this->buildPaymentBreakdownFromSales($sales);
+        $paymentBreakdown = $this->buildCajaIngresosBreakdown($sales, $storeIncomes);
         $totalAmount = array_sum(array_column($paymentBreakdown, 'amount'));
-        $transactionCount = $sales->count();
+        $salesAmount = (float) $sales->sum('total_amount');
+        $storeIncomesAmount = (float) $storeIncomes->sum('amount');
+        $transactionCount = $sales->count() + $storeIncomes->count();
         $itemsSold = (int) $sales->sum(fn (Sale $sale) => $sale->details->sum('quantity'));
         $daysInMonth = $monthDate->daysInMonth;
-        $dailyBreakdown = $this->buildDailyBreakdown($sales, $start, $end);
+        $dailyBreakdown = $this->buildDailyBreakdown($sales, $storeIncomes, $start, $end);
         $daysWithSales = count(array_filter(
             $dailyBreakdown,
             static fn (array $row): bool => ($row['transactions'] ?? 0) > 0,
@@ -632,6 +660,8 @@ class ReportService
             'month_iso' => $monthDate->format('Y-m'),
             'summary' => [
                 'total_amount' => round($totalAmount, 2),
+                'total_sales' => round($salesAmount, 2),
+                'total_store_incomes' => round($storeIncomesAmount, 2),
                 'transaction_count' => $transactionCount,
                 'items_sold' => $itemsSold,
                 'average_ticket' => $transactionCount > 0
@@ -644,7 +674,7 @@ class ReportService
                 'cash' => round($this->sumPaymentBreakdownByMethods($paymentBreakdown, ['CASH']), 2),
                 'digital' => round($this->sumPaymentBreakdownByMethods(
                     $paymentBreakdown,
-                    ['YAPE', 'PLIN', 'CARD', 'TRANSFER'],
+                    $this->digitalPaymentMethods(),
                 ), 2),
             ],
             'payment_breakdown' => $paymentBreakdown,
@@ -676,12 +706,15 @@ class ReportService
         WarehouseQueryFilter::apply($salesQuery, 'warehouse_id');
 
         $sales = $salesQuery->get();
+        $storeIncomes = $this->getStoreIncomeMovementsForRange($start, $end);
 
-        $paymentBreakdown = $this->buildPaymentBreakdownFromSales($sales);
+        $paymentBreakdown = $this->buildCajaIngresosBreakdown($sales, $storeIncomes);
         $totalAmount = array_sum(array_column($paymentBreakdown, 'amount'));
-        $transactionCount = $sales->count();
+        $salesAmount = (float) $sales->sum('total_amount');
+        $storeIncomesAmount = (float) $storeIncomes->sum('amount');
+        $transactionCount = $sales->count() + $storeIncomes->count();
         $itemsSold = (int) $sales->sum(fn (Sale $sale) => $sale->details->sum('quantity'));
-        $dailyBreakdown = $this->buildDailyBreakdown($sales, $start, $end, true);
+        $dailyBreakdown = $this->buildDailyBreakdown($sales, $storeIncomes, $start, $end, true);
         $daysInRange = $start->copy()->startOfDay()->diffInDays($end->copy()->startOfDay()) + 1;
         $daysWithSales = count(array_filter(
             $dailyBreakdown,
@@ -694,6 +727,8 @@ class ReportService
             'end_date' => $end->format('Y-m-d'),
             'summary' => [
                 'total_amount' => round($totalAmount, 2),
+                'total_sales' => round($salesAmount, 2),
+                'total_store_incomes' => round($storeIncomesAmount, 2),
                 'transaction_count' => $transactionCount,
                 'items_sold' => $itemsSold,
                 'average_ticket' => $transactionCount > 0
@@ -707,7 +742,7 @@ class ReportService
                 'cash' => round($this->sumPaymentBreakdownByMethods($paymentBreakdown, ['CASH']), 2),
                 'digital' => round($this->sumPaymentBreakdownByMethods(
                     $paymentBreakdown,
-                    ['YAPE', 'PLIN', 'CARD', 'TRANSFER'],
+                    $this->digitalPaymentMethods(),
                 ), 2),
             ],
             'daily_breakdown' => $dailyBreakdown,
@@ -715,10 +750,13 @@ class ReportService
     }
 
     /**
+     * Ingresos de caja = ventas + ingresos manuales de tienda (misma lógica que Control de Caja).
+     *
      * @param  \Illuminate\Support\Collection<int, Sale>  $sales
+     * @param  \Illuminate\Support\Collection<int, CashMovement>  $storeIncomes
      * @return list<array{method: string, label: string, amount: float, count: int}>
      */
-    private function buildPaymentBreakdownFromSales($sales): array
+    private function buildCajaIngresosBreakdown($sales, $storeIncomes): array
     {
         $totals = [];
 
@@ -740,6 +778,12 @@ class ReportService
             $totals[$method]['count'] = ($totals[$method]['count'] ?? 0) + 1;
         }
 
+        foreach ($storeIncomes as $movement) {
+            $method = (string) $movement->payment_method;
+            $totals[$method]['amount'] = ($totals[$method]['amount'] ?? 0) + (float) $movement->amount;
+            $totals[$method]['count'] = ($totals[$method]['count'] ?? 0) + 1;
+        }
+
         $breakdown = [];
         foreach ($totals as $method => $data) {
             $breakdown[] = [
@@ -753,6 +797,60 @@ class ReportService
         usort($breakdown, static fn (array $a, array $b): int => $b['amount'] <=> $a['amount']);
 
         return $breakdown;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Sale>  $sales
+     * @param  \Illuminate\Support\Collection<int, CashMovement>  $storeIncomes
+     * @return list<array<string, mixed>>
+     */
+    private function buildDailyCajaEntries($sales, $storeIncomes): array
+    {
+        $entries = [];
+
+        foreach ($sales as $sale) {
+            $entries[] = [
+                'sort_at' => $sale->creation_time?->timestamp ?? 0,
+                'id' => $sale->id,
+                'source' => 'sale',
+                'code' => $sale->code,
+                'time' => $sale->creation_time?->format('h:i A') ?? '—',
+                'customer' => $sale->customer?->name ?? 'Público General',
+                'description' => null,
+                'items_count' => (int) $sale->details->sum('quantity'),
+                'total_amount' => (float) $sale->total_amount,
+                'payment_method' => $sale->payment_method,
+                'payment_label' => $this->formatPaymentMethodLabel($sale->payment_method),
+            ];
+        }
+
+        foreach ($storeIncomes as $movement) {
+            $movementDate = $movement->date instanceof Carbon
+                ? $movement->date
+                : Carbon::parse($movement->date);
+
+            $entries[] = [
+                'sort_at' => $movementDate->timestamp,
+                'id' => $movement->id,
+                'source' => 'income',
+                'code' => 'ING',
+                'time' => $movementDate->format('h:i A'),
+                'customer' => '—',
+                'description' => $movement->description,
+                'items_count' => 0,
+                'total_amount' => (float) $movement->amount,
+                'payment_method' => $movement->payment_method,
+                'payment_label' => $this->formatPaymentMethodLabel($movement->payment_method),
+            ];
+        }
+
+        usort($entries, static fn (array $a, array $b): int => $b['sort_at'] <=> $a['sort_at']);
+
+        return array_values(array_map(static function (array $entry): array {
+            unset($entry['sort_at']);
+
+            return $entry;
+        }, $entries));
     }
 
     /**
@@ -774,9 +872,10 @@ class ReportService
 
     /**
      * @param  \Illuminate\Support\Collection<int, Sale>  $sales
+     * @param  \Illuminate\Support\Collection<int, CashMovement>  $storeIncomes
      * @return array{labels: list<string>, amounts: list<float>, counts: list<int>}
      */
-    private function buildHourlySalesChart($sales, Carbon $start, Carbon $end): array
+    private function buildHourlyCajaChart($sales, $storeIncomes, Carbon $start, Carbon $end): array
     {
         $labels = [];
         $amounts = [];
@@ -794,6 +893,15 @@ class ReportService
             $counts[$hour]++;
         }
 
+        foreach ($storeIncomes as $movement) {
+            $movementDate = $movement->date instanceof Carbon
+                ? $movement->date
+                : Carbon::parse($movement->date);
+            $hour = (int) $movementDate->format('G');
+            $amounts[$hour] += (float) $movement->amount;
+            $counts[$hour]++;
+        }
+
         return [
             'labels' => $labels,
             'amounts' => array_map(static fn (float $value): float => round($value, 2), $amounts),
@@ -803,11 +911,12 @@ class ReportService
 
     /**
      * @param  \Illuminate\Support\Collection<int, Sale>  $sales
-     * @return list<array{date: string, day_of_week: string, transactions: int, total: float, cash: float, digital: float}>
+     * @param  \Illuminate\Support\Collection<int, CashMovement>  $storeIncomes
+     * @return list<array{date: string, day_of_week: string, transactions: int, total: float, cash: float, digital: float, sales_total: float, store_incomes_total: float}>
      */
-    private function buildDailyBreakdown($sales, Carbon $start, Carbon $end, bool $includeYear = false): array
+    private function buildDailyBreakdown($sales, $storeIncomes, Carbon $start, Carbon $end, bool $includeYear = false): array
     {
-        $bancosMethods = ['YAPE', 'PLIN', 'CARD', 'TRANSFER'];
+        $bancosMethods = $this->digitalPaymentMethods();
         $byDay = [];
         $dateFormat = $includeYear ? 'd/m/Y' : 'd/m';
 
@@ -820,6 +929,8 @@ class ReportService
                 'total' => 0.0,
                 'cash' => 0.0,
                 'digital' => 0.0,
+                'sales_total' => 0.0,
+                'store_incomes_total' => 0.0,
             ];
         }
 
@@ -831,37 +942,74 @@ class ReportService
 
             $byDay[$key]['transactions']++;
             $byDay[$key]['total'] += (float) $sale->total_amount;
+            $byDay[$key]['sales_total'] += (float) $sale->total_amount;
+            $this->applyPaymentAmountsToDayRow(
+                $byDay[$key],
+                $sale->payments->isNotEmpty()
+                    ? $sale->payments->map(fn ($payment) => [
+                        'method' => (string) $payment->method,
+                        'amount' => (float) $payment->amount,
+                    ])->all()
+                    : [[
+                        'method' => (string) $sale->payment_method,
+                        'amount' => (float) $sale->total_amount,
+                    ]],
+                $bancosMethods,
+            );
+        }
 
-            if ($sale->payments->isNotEmpty()) {
-                foreach ($sale->payments as $payment) {
-                    $method = (string) $payment->method;
-                    $amount = (float) $payment->amount;
-                    if ($method === 'CASH') {
-                        $byDay[$key]['cash'] += $amount;
-                    } elseif (in_array($method, $bancosMethods, true)) {
-                        $byDay[$key]['digital'] += $amount;
-                    }
-                }
+        foreach ($storeIncomes as $movement) {
+            $movementDate = $movement->date instanceof Carbon
+                ? $movement->date
+                : Carbon::parse($movement->date);
+            $key = $movementDate->format('Y-m-d');
 
+            if (! isset($byDay[$key])) {
                 continue;
             }
 
-            $method = (string) $sale->payment_method;
-            $amount = (float) $sale->total_amount;
-            if ($method === 'CASH') {
-                $byDay[$key]['cash'] += $amount;
-            } elseif (in_array($method, $bancosMethods, true)) {
-                $byDay[$key]['digital'] += $amount;
-            }
+            $amount = (float) $movement->amount;
+            $byDay[$key]['transactions']++;
+            $byDay[$key]['total'] += $amount;
+            $byDay[$key]['store_incomes_total'] += $amount;
+            $this->applyPaymentAmountsToDayRow(
+                $byDay[$key],
+                [[
+                    'method' => (string) $movement->payment_method,
+                    'amount' => $amount,
+                ]],
+                $bancosMethods,
+            );
         }
 
         return array_values(array_map(static function (array $row): array {
             $row['total'] = round($row['total'], 2);
             $row['cash'] = round($row['cash'], 2);
             $row['digital'] = round($row['digital'], 2);
+            $row['sales_total'] = round($row['sales_total'], 2);
+            $row['store_incomes_total'] = round($row['store_incomes_total'], 2);
 
             return $row;
         }, $byDay));
+    }
+
+    /**
+     * @param  array{cash: float, digital: float}  $row
+     * @param  list<array{method: string, amount: float}>  $payments
+     * @param  list<string>  $bancosMethods
+     */
+    private function applyPaymentAmountsToDayRow(array &$row, array $payments, array $bancosMethods): void
+    {
+        foreach ($payments as $payment) {
+            $method = $payment['method'];
+            $amount = (float) $payment['amount'];
+
+            if ($method === 'CASH') {
+                $row['cash'] += $amount;
+            } elseif (in_array($method, $bancosMethods, true)) {
+                $row['digital'] += $amount;
+            }
+        }
     }
 
     private function formatPaymentMethodLabel(?string $method): string
