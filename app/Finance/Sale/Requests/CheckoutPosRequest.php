@@ -27,7 +27,8 @@ class CheckoutPosRequest extends FormRequest
         $warehouseId = $this->operativeWarehouseId();
 
         return [
-            'document_type' => 'required|string|in:BOLETA,FACTURA,TICKET_INTERNO',
+            // Boleta y factura deshabilitadas temporalmente (SUNAT); solo ticket interno.
+            'document_type' => 'required|string|in:TICKET_INTERNO',
             // serie obligatoria para BOLETA/FACTURA; omitida para TICKET_INTERNO
             'serie' => 'required_unless:document_type,TICKET_INTERNO|nullable|string|size:4',
             'customer' => 'nullable|array',
@@ -54,6 +55,16 @@ class CheckoutPosRequest extends FormRequest
             'payments.*.method' => 'required|string|in:CASH,YAPE,CARD,TRANSFER',
             'payments.*.amount' => 'required|decimal:0,2|min:0',
             'payments.*.reference' => 'nullable|string',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'document_type.in' => 'La emisión de boletas y facturas electrónicas no está disponible temporalmente por SUNAT. Utilice ticket interno.',
         ];
     }
 
