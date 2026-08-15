@@ -49,31 +49,16 @@ class InventoryReconciliationController extends Controller
     {
         $q = trim($request->validated('q'));
 
-        $products = Product::query()
-            ->where('is_deleted', false)
-            ->where(function ($query) use ($q): void {
-                $query
-                    ->where('name', 'ilike', '%'.$q.'%')
-                    ->orWhere('barcode', $q)
-                    ->orWhereHas(
-                        'productSizes',
-                        static fn ($ps) => $ps->where('barcode', $q),
-                    );
-
-                if (ctype_digit($q)) {
-                    $query->orWhere('id', (int) $q);
-                }
-            })
-            ->with([
+        $products = $this->productService->searchByTerm(
+            $q,
+            self::SEARCH_LIMIT,
+            extendQuery: static fn ($query) => $query->with([
                 'gender',
-                'productSizes' => static fn ($rel) => $rel
-                    ->orderBy('size_id'),
+                'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
                 'productSizes.size',
                 'productSizes.colors',
-            ])
-            ->orderByDesc('id')
-            ->limit(self::SEARCH_LIMIT)
-            ->get();
+            ]),
+        );
 
         return response()->json([
             'products' => InventoryReconciliationProductResource::collection($products),

@@ -2,25 +2,77 @@
 
 namespace App\Inventory\Product\Services;
 
+use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
 use App\Inventory\Product\Models\Product;
 use App\Inventory\Product\Models\ProductSize;
-use App\Inventory\InventoryLedger\Support\InventoryBalanceLookup;
+use App\Inventory\Product\Support\ProductBarcodeSearch;
 use App\Shared\Foundation\Services\ModelService;
+use App\Shared\Foundation\Services\SharedService;
 use App\Shared\Foundation\Support\AuthenticatedUserWarehouseResolver;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class ProductService extends ModelService
 {
     protected ProductHistoryService $historyService;
+
     public function __construct(
         Product $product,
         ProductHistoryService $historyService,
+        protected SharedService $sharedService,
     ) {
         parent::__construct($product);
         $this->historyService = $historyService;
     }
 
+    /**
+     * Búsqueda unificada de productos (listado, cuadre de inventario, POS, etc.).
+     *
+     * @param  array<int, string>|null  $columns
+     * @param  (callable(Builder<Product>): Builder<Product>)|null  $extendQuery
+     * @return Collection<int, Product>
+     */
+    public function searchByTerm(
+        string $term,
+        int $limit = 20,
+        ?array $columns = null,
+        ?callable $extendQuery = null,
+    ): Collection {
+        $normalized = ProductBarcodeSearch::normalize($term);
+        if ($normalized === '') {
+            return new Collection;
+        }
+
+        $query = Product::query()->where('is_deleted', false);
+
+        ProductBarcodeSearch::apply(
+            $query,
+            $normalized,
+            $columns ?? ProductBarcodeSearch::DEFAULT_COLUMNS,
+            $this->sharedService,
+        );
+
+        if ($extendQuery !== null) {
+            $query = $extendQuery($query);
+        }
+
+        return $query
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * @param  (callable(Builder<Product>): Builder<Product>)|null  $extendQuery
+     */
+    public function findFirstByTerm(string $term, ?callable $extendQuery = null): ?Product
+    {
+        $product = $this->searchByTerm($term, 1, null, $extendQuery)->first();
+
+        return $product instanceof Product ? $product : null;
+    }
 
     public function create(array $data): Model
     {
@@ -88,33 +140,11 @@ class ProductService extends ModelService
 
     public function findBySkuForPos(string $barcode): ?array
     {
-        $product = $this->model
-            ->with([
-                'productSizes' => static fn ($query) => $query->orderBy('size_id'),
-                'productSizes.size',
-                'productSizes.productSizeColors',
-            ])
-            ->where('barcode', $barcode)
-            ->where('is_deleted', false)
-            ->first();
-
-        if (! $product) {
-            $sizeMatch = ProductSize::query()
-                ->where('barcode', $barcode)
-                ->first();
-
-            if ($sizeMatch !== null) {
-                $product = $this->model
-                    ->with([
-                        'productSizes' => static fn ($query) => $query->orderBy('size_id'),
-                        'productSizes.size',
-                        'productSizes.productSizeColors',
-                    ])
-                    ->where('id', $sizeMatch->product_id)
-                    ->where('is_deleted', false)
-                    ->first();
-            }
-        }
+        $product = $this->findFirstByTerm($barcode, static fn ($query) => $query->with([
+            'productSizes' => static fn ($q) => $q->orderBy('size_id'),
+            'productSizes.size',
+            'productSizes.productSizeColors',
+        ]));
 
         if (! $product) {
             return null;
@@ -225,11 +255,11 @@ class ProductService extends ModelService
         }
 
         return [
-            'id'        => $product->id,
-            'sku'       => $barcode,
-            'name'      => $product->name,
+            'id' => $product->id,
+            'sku' => $barcode,
+            'name' => $product->name,
             'basePrice' => (float) ($basePrice ?? 0),
-            'variants'  => $variantsMap
+            'variants' => $variantsMap,
         ];
     }
 }

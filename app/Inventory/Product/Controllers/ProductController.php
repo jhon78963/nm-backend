@@ -39,7 +39,7 @@ class ProductController extends Controller
             $product = $this->productService->create($data);
 
             return response()->json([
-                'message'   => 'Product created successfully.',
+                'message' => 'Product created successfully.',
                 'productId' => $product->id,
             ], 201);
         });
@@ -58,7 +58,7 @@ class ProductController extends Controller
             $this->productService->update($product, $data);
 
             return response()->json([
-                'message'   => 'Product updated successfully.',
+                'message' => 'Product updated successfully.',
                 'productId' => $product->id,
             ]);
         });
@@ -113,14 +113,14 @@ class ProductController extends Controller
             : '';
         $stockSubquery .= ')';
 
-        $columnSearch = ['id', 'name', 'barcode', 'gender.name', 'productSizes.barcode', $stockSubquery];
+        $columnSearch = [...ProductBarcodeSearch::DEFAULT_COLUMNS, $stockSubquery];
 
         $queryResult = $this->sharedService->query(
-            request:      $request,
-            entityName:   'Inventory\\Product',
-            modelName:    'Product',
+            request: $request,
+            entityName: 'Inventory\\Product',
+            modelName: 'Product',
             columnSearch: $columnSearch,
-            filters:      $filters,
+            filters: $filters,
             extendQuery: function ($q) use ($warehouseId) {
                 $q = $q->with('media');
 
@@ -180,7 +180,7 @@ class ProductController extends Controller
             'message' => "Importación completada: {$result['updated']} filas actualizadas, {$result['skipped']} omitidas.",
             'updated' => $result['updated'],
             'skipped' => $result['skipped'],
-            'errors'  => $result['errors'],
+            'errors' => $result['errors'],
         ]);
     }
 

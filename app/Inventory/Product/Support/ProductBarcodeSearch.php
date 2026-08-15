@@ -22,6 +22,15 @@ final class ProductBarcodeSearch
 
     private const BODY_SUFFIX_LENGTH = 4;
 
+    /** @var array<int, string> */
+    public const DEFAULT_COLUMNS = [
+        'id',
+        'name',
+        'barcode',
+        'gender.name',
+        'productSizes.barcode',
+    ];
+
     /**
      * Normaliza texto: trim + colapsa espacios (conserva espacios para nombres).
      */
