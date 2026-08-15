@@ -1,11 +1,28 @@
 <?php
 
+use App\Administration\Audit\Middleware\LogUserActivity;
+use App\Auth\Middleware\EnsureUserIsEnabled;
+use App\Auth\Middleware\ForcePasswordChange;
+use App\Console\Commands\ConfigCheckSecurityCommand;
+use App\Console\Commands\InventoryCheckMismatchesCommand;
+use App\Console\Commands\InventoryFixMismatchesCommand;
+use App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand;
+use App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand;
+use App\Inventory\InventoryLedger\Command\SeedInitialInventoryMovementsCommand;
+use App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand;
 use App\Shared\Foundation\Exceptions\ApiExceptionRenderer;
+use App\Shared\Foundation\Middleware\SecurityHeaders;
+use App\Shared\Foundation\Support\LegacyModelAliases;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->booting(function (): void {
         JsonResource::withoutWrapping();
+        LegacyModelAliases::register();
     })
     ->withMiddleware(function (Middleware $middleware) {
         // API JSON/SPA: sin ruta web `login`; evita 500 (Route [login] not defined) en 401.
@@ -26,17 +44,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
 
         // SEC-004: headers HTTP en todas las rutas api/* (nginx puede duplicar/reforzar).
-        $middleware->appendToGroup('api', \App\Shared\Foundation\Middleware\SecurityHeaders::class);
-        $middleware->appendToGroup('api', \App\Auth\Middleware\EnsureUserIsEnabled::class);
-        $middleware->appendToGroup('api', \App\Administration\Audit\Middleware\LogUserActivity::class);
+        $middleware->appendToGroup('api', SecurityHeaders::class);
+        $middleware->appendToGroup('api', EnsureUserIsEnabled::class);
+        $middleware->appendToGroup('api', LogUserActivity::class);
 
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
-            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
-            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
-            'force.password.change' => \App\Auth\Middleware\ForcePasswordChange::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'abilities' => CheckAbilities::class,
+            'ability' => CheckForAnyAbility::class,
+            'force.password.change' => ForcePasswordChange::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
@@ -45,12 +63,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withCommands([
-        \App\Console\Commands\ConfigCheckSecurityCommand::class,
-        \App\Console\Commands\InventoryCheckMismatchesCommand::class,
-        \App\Console\Commands\InventoryFixMismatchesCommand::class,
-        \App\Inventory\InventoryLedger\Console\MigrateLegacyStockCommand::class,
-        \App\Inventory\InventoryLedger\Command\InventoryAuditMissingBalancesCommand::class,
-        \App\Inventory\InventoryLedger\Command\InventoryBackfillMissingBalancesCommand::class,
-        \App\Inventory\InventoryLedger\Command\SeedInitialInventoryMovementsCommand::class,
+        ConfigCheckSecurityCommand::class,
+        InventoryCheckMismatchesCommand::class,
+        InventoryFixMismatchesCommand::class,
+        MigrateLegacyStockCommand::class,
+        InventoryAuditMissingBalancesCommand::class,
+        InventoryBackfillMissingBalancesCommand::class,
+        SeedInitialInventoryMovementsCommand::class,
     ])
     ->create();

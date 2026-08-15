@@ -9,6 +9,7 @@ use App\Inventory\InventoryLedger\Enums\InventoryMovementDirection;
 use App\Inventory\InventoryLedger\Enums\InventoryMovementType;
 use App\Inventory\Product\Models\ProductSize;
 use App\Inventory\Warehouse\Models\Warehouse;
+use App\Shared\Foundation\Support\LegacyModelAliases;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -78,7 +79,7 @@ class InventoryMovement extends Model
      */
     public function resolveReferenceModel(): ?Model
     {
-        $type = $this->reference_type;
+        $type = LegacyModelAliases::resolve($this->reference_type);
         $id = $this->reference_id;
 
         if ($type === null || $id === null) {
