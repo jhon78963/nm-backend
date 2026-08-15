@@ -22,6 +22,7 @@ final class AuditHttpActionResolver
     {
         return [
             ['GET', 'api/auth/me'],            // Polling del perfil autenticado
+            ['GET', 'api/profile'],            // Carga del perfil en /profile
             ['*',   'api/auth/csrf-token'],     // Token CSRF (llamada frecuente)
             ['*',   'api/user-action-logs'],    // Evitar meta-logging de los propios logs
             ['*',   'sanctum/csrf-cookie'],     // Cookie CSRF inicial
@@ -87,6 +88,15 @@ final class AuditHttpActionResolver
         // Auth (rutas privadas, sí pasan por el middleware)
         if ($method === 'PATCH' && $path === 'auth/me') {
             return AuditActions::AUTH_PROFILE_UPDATED;
+        }
+        if ($method === 'PUT' && $path === 'profile') {
+            return AuditActions::AUTH_PROFILE_UPDATED;
+        }
+        if ($method === 'POST' && $path === 'profile/avatar') {
+            return AuditActions::AUTH_PROFILE_UPDATED;
+        }
+        if ($method === 'PUT' && $path === 'profile/password') {
+            return AuditActions::AUTH_PASSWORD_CHANGED;
         }
         if ($method === 'POST' && $path === 'auth/change-password') {
             return AuditActions::AUTH_PASSWORD_CHANGED;
