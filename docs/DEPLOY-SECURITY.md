@@ -92,6 +92,39 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment
 
 ---
 
+## Cutover `nm-frontend-v2`
+
+Al reemplazar el SPA legacy por v2 en el mismo dominio (`adm.*`):
+
+| Variable | Valor ejemplo | Notas |
+|----------|---------------|--------|
+| `FRONTEND_URL` | `https://adm.novedadesmaritex.net.pe` | Links de reset password y emails |
+| `CORS_ALLOWED_ORIGINS` | `https://adm.novedadesmaritex.net.pe` | Sin barra final; añade staging si aplica |
+| `SANCTUM_STATEFUL_DOMAINS` | `adm.novedadesmaritex.net.pe` | Sin `https://` |
+| `SESSION_DOMAIN` | `.novedadesmaritex.net.pe` | Punto inicial para subdominios |
+| `SESSION_SAME_SITE` | `none` | Con `SESSION_SECURE_COOKIE=true` |
+
+**Archivos en repo:**
+
+- `deploy/.env.production.example` — plantilla `.env` lista para copiar
+- `deploy/verify-production-env.sh` — ejecuta `config:check-security`
+- `../nm-frontend-v2/cutover/04-backend-env.md` — checklist del cutover
+
+```bash
+# En servidor API, tras editar .env:
+./deploy/verify-production-env.sh
+php artisan config:cache
+```
+
+**Prueba manual post-cutover:**
+
+1. Login en v2 → cookies `access_token`, `refresh_token`, `XSRF-TOKEN`
+2. `GET /api/auth/me` → 200
+3. Sin errores CORS en consola del navegador
+4. Refresh automático tras 401 (token expirado)
+
+---
+
 ## Referencias
 
 - [Laravel Sanctum SPA authentication](https://laravel.com/docs/sanctum#spa-authentication)
