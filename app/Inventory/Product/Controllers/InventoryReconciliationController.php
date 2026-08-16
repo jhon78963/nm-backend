@@ -52,16 +52,22 @@ class InventoryReconciliationController extends Controller
         $products = $this->productService->searchByTerm(
             $q,
             self::SEARCH_LIMIT,
-            extendQuery: static fn ($query) => $query->with([
-                'gender',
-                'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
-                'productSizes.size',
-                'productSizes.colors',
-            ]),
+            extendQuery: static fn ($query) => $query->with(self::reconciliationRelationsStatic()),
         );
 
         return response()->json([
             'products' => InventoryReconciliationProductResource::collection($products),
+        ]);
+    }
+
+    public function show(Product $product): JsonResponse
+    {
+        $this->productService->validate($product, 'Product');
+
+        $product->load($this->reconciliationRelations());
+
+        return response()->json([
+            'product' => new InventoryReconciliationProductResource($product),
         ]);
     }
 
@@ -288,5 +294,26 @@ class InventoryReconciliationController extends Controller
             $data,
             self::AUDIT_REASON_PHYSICAL_COUNT,
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reconciliationRelations(): array
+    {
+        return self::reconciliationRelationsStatic();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function reconciliationRelationsStatic(): array
+    {
+        return [
+            'gender',
+            'productSizes' => static fn ($rel) => $rel->orderBy('size_id'),
+            'productSizes.size',
+            'productSizes.colors',
+        ];
     }
 }
