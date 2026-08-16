@@ -18,7 +18,16 @@ class AiEngineClient
         return $this->post('/api/v1/predict/demand', $payload);
     }
 
-    private function post(string $path, array $payload): array
+    /**
+     * @param  array{items: list<array<string, mixed>>}  $payload
+     * @return array<string, mixed>
+     */
+    public function predictBulk(array $payload): array
+    {
+        return $this->post('/api/v1/predict/bulk', $payload, (int) config('ai.bulk_timeout', 120));
+    }
+
+    private function post(string $path, array $payload, ?int $timeout = null): array
     {
         $baseUrl = (string) config('ai.engine_url');
         $apiKey = (string) config('ai.api_key');
@@ -28,7 +37,7 @@ class AiEngineClient
         }
 
         try {
-            $response = Http::timeout((int) config('ai.timeout', 30))
+            $response = Http::timeout($timeout ?? (int) config('ai.timeout', 30))
                 ->withHeaders(['X-API-Key' => $apiKey])
                 ->acceptJson()
                 ->post("{$baseUrl}{$path}", $payload)
