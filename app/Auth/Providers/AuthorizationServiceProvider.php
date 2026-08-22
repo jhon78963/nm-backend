@@ -17,6 +17,32 @@ use Spatie\Permission\Models\Role;
 
 class AuthorizationServiceProvider extends ServiceProvider
 {
+    /**
+     * Admin de tenant: roles, usuarios y tiendas de su cliente (no tenants globales).
+     *
+     * @var list<string>
+     */
+    private const TENANT_ADMIN_PERMISSIONS = [
+        'role.getAll',
+        'role.get',
+        'role.create',
+        'role.update',
+        'role.delete',
+        'role.syncPermissions',
+        'role.permissionsIndex',
+        'user.getAll',
+        'user.get',
+        'user.create',
+        'user.update',
+        'user.delete',
+        'warehouse.getAll',
+        'warehouse.get',
+        'warehouse.create',
+        'warehouse.update',
+        'warehouse.delete',
+        'tenant.get',
+    ];
+
     public function boot(): void
     {
         Gate::policy(Sale::class, SalePolicy::class);
@@ -32,6 +58,15 @@ class AuthorizationServiceProvider extends ServiceProvider
             // saltan aquí. Super Admin solo puede consultar otro almacén si envía
             // warehouse_id / warehouseId / X-Warehouse-Id explícito en la petición.
             if ($user && method_exists($user, 'hasRole') && $user->hasRole('Super Admin')) {
+                return true;
+            }
+
+            if (
+                $user
+                && method_exists($user, 'hasRole')
+                && $user->hasRole('Admin')
+                && in_array($ability, self::TENANT_ADMIN_PERMISSIONS, true)
+            ) {
                 return true;
             }
 

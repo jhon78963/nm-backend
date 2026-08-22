@@ -68,6 +68,22 @@ class RoleAndPermissionSeeder extends Seeder
         ];
     }
 
+    /**
+     * Permisos del rol Admin: gestión de roles, usuarios y tiendas dentro de su tenant.
+     *
+     * @return list<string>
+     */
+    private function tenantAdminPermissionNames(): array
+    {
+        return [
+            'role.getAll', 'role.get', 'role.create', 'role.update', 'role.delete',
+            'role.syncPermissions', 'role.permissionsIndex',
+            'user.getAll', 'user.get', 'user.create', 'user.update', 'user.delete',
+            'warehouse.getAll', 'warehouse.get', 'warehouse.create', 'warehouse.update', 'warehouse.delete',
+            'tenant.get',
+        ];
+    }
+
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
@@ -91,12 +107,24 @@ class RoleAndPermissionSeeder extends Seeder
             ['name' => 'Vendedora', 'guard_name' => $guard]
         );
 
+        $roleAdmin = Role::query()->firstOrCreate(
+            ['name' => 'Admin', 'guard_name' => $guard],
+            ['name' => 'Admin', 'guard_name' => $guard]
+        );
+
         $vendedoraPermissions = Permission::query()
             ->where('guard_name', $guard)
             ->whereIn('name', $this->vendedoraPermissionNames())
             ->get();
 
         $roleVendedora->syncPermissions($vendedoraPermissions);
+
+        $adminPermissions = Permission::query()
+            ->where('guard_name', $guard)
+            ->whereIn('name', $this->tenantAdminPermissionNames())
+            ->get();
+
+        $roleAdmin->syncPermissions($adminPermissions);
 
         // Alias legacy / manual: mismo alcance que Vendedora (solo POS + caja diaria).
         $roleVendedor = Role::query()->where('name', 'Vendedor')->where('guard_name', $guard)->first();
