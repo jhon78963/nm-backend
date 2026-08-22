@@ -84,6 +84,21 @@ class RoleAndPermissionSeeder extends Seeder
         ];
     }
 
+    /**
+     * Permisos reservados a Super Admin (gestión global de clientes y auditoría).
+     *
+     * @return list<string>
+     */
+    private function superAdminOnlyPermissionNames(): array
+    {
+        return [
+            'tenant.create',
+            'tenant.update',
+            'tenant.delete',
+            'tenant.getAll',
+        ];
+    }
+
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
@@ -121,7 +136,7 @@ class RoleAndPermissionSeeder extends Seeder
 
         $adminPermissions = Permission::query()
             ->where('guard_name', $guard)
-            ->whereIn('name', $this->tenantAdminPermissionNames())
+            ->whereNotIn('name', $this->superAdminOnlyPermissionNames())
             ->get();
 
         $roleAdmin->syncPermissions($adminPermissions);

@@ -4,6 +4,7 @@ namespace App\Administration\Audit\Support;
 
 use App\Administration\User\Models\User;
 use App\Administration\User\Support\SuperAdminRole;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Builder;
 
 final class ActionLogVisibility
@@ -33,24 +34,47 @@ final class ActionLogVisibility
         if (self::actorIsSuperAdmin($actor)) {
             $tenantId = (int) ($actor->tenant_id ?? 0);
             if ($tenantId > 0) {
-                $query->where(function (Builder $scoped) use ($tenantId): void {
-                    $scoped->whereHas('user', function (Builder $userQuery) use ($tenantId): void {
-                        $userQuery->withoutGlobalScopes()
-                            ->where('tenant_id', $tenantId);
-                    })->orWhereNull('user_id');
-                });
+                self::scopeToTenant($query, $tenantId, includeAnonymous: true);
             }
 
             return;
         }
 
-        $warehouseId = (int) ($actor->warehouse_id ?? 0);
-        if ($warehouseId > 0) {
-            $query->where('warehouse_id', $warehouseId);
+        $tenantId = (int) ($actor->tenant_id ?? 0);
+        if ($tenantId > 0) {
+            self::scopeToTenant($query, $tenantId, includeAnonymous: false);
 
             return;
         }
 
         $query->whereRaw('1 = 0');
+    }
+
+    /**
+     * @param  Builder<\App\Administration\Audit\Models\UserActionLog>  $query
+     */
+    private static function scopeToTenant(
+        Builder $query,
+        int $tenantId,
+        bool $includeAnonymous,
+    ): void {
+        $warehouseIds = Warehouse::query()
+            ->where('tenant_id', $tenantId)
+            ->pluck('id');
+
+        $query->where(function (Builder $scoped) use ($tenantId, $warehouseIds, $includeAnonymous): void {
+            if ($warehouseIds->isNotEmpty()) {
+                $scoped->whereIn('warehouse_id', $warehouseIds);
+            }
+
+            $scoped->orWhereHas('user', function (Builder $userQuery) use ($tenantId): void {
+                $userQuery->withoutGlobalScopes()
+                    ->where('tenant_id', $tenantId);
+            });
+
+            if ($includeAnonymous) {
+                $scoped->orWhereNull('user_id');
+            }
+        });
     }
 }

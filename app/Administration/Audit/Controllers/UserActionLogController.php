@@ -47,8 +47,15 @@ class UserActionLogController extends Controller
 
         ActionLogVisibility::apply($query, $actor);
 
-        if ($userId > 0 && ActionLogVisibility::actorIsSuperAdmin($actor)) {
+        if ($userId > 0) {
             $query->where('user_id', $userId);
+
+            if (! ActionLogVisibility::actorIsSuperAdmin($actor)) {
+                $query->whereHas('user', function (Builder $userQuery) use ($actor): void {
+                    $userQuery->withoutGlobalScopes()
+                        ->where('tenant_id', (int) $actor->tenant_id);
+                });
+            }
         }
 
         if ($search !== '') {

@@ -9,6 +9,7 @@ use App\Administration\Role\Requests\RoleUpdateRequest;
 use App\Administration\Role\Requests\SyncRolePermissionsRequest;
 use App\Administration\Role\Resources\PermissionResource;
 use App\Administration\Role\Resources\RoleResource;
+use App\Administration\Role\Support\TenantAssignableSystemRoles;
 use App\Administration\User\Support\SuperAdminRole;
 use App\Shared\Foundation\Controllers\Controller;
 use App\Shared\Foundation\Requests\GetAllRequest;
@@ -34,7 +35,11 @@ class RoleController extends Controller
         // SEC-001: Non-Super Admin only sees roles belonging to their tenant.
         $actor = auth()->user();
         if ($actor !== null && ! $actor->hasRole(SuperAdminRole::NAME)) {
-            $query->where('tenant_id', $actor->tenant_id);
+            $tenantId = (int) $actor->tenant_id;
+            $query->where(function ($scoped) use ($tenantId): void {
+                $scoped->where('tenant_id', $tenantId)
+                    ->orWhereIn('name', TenantAssignableSystemRoles::NAMES);
+            });
         }
 
         if ($search !== '') {
@@ -58,8 +63,7 @@ class RoleController extends Controller
 
     public function get(Role $role): JsonResponse
     {
-        // SEC-001: Verify actor can access this role.
-        $this->authorizeRoleTenantScope($role);
+        $this->authorizeRoleTenantView($role);
 
         $role->load('permissions');
 

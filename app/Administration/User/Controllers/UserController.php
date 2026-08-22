@@ -128,6 +128,9 @@ class UserController extends Controller
 
             if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
                 $query->where('tenant_id', (int) $actor->tenant_id);
+                $query->whereDoesntHave('roles', function ($roleQuery): void {
+                    $roleQuery->where('name', SuperAdminRole::NAME);
+                });
             } elseif ($tenantFilter !== null && $tenantFilter !== '') {
                 $query->where('tenant_id', (int) $tenantFilter);
             }
@@ -167,6 +170,10 @@ class UserController extends Controller
             return;
         }
 
+        if ($this->userIsSuperAdmin($user)) {
+            abort(403, 'No tiene permiso para gestionar usuarios con rol Super Admin.');
+        }
+
         if ((int) $user->tenant_id !== (int) $actor->tenant_id) {
             abort(403, 'No tiene permiso para gestionar usuarios de otro tenant.');
         }
@@ -176,5 +183,11 @@ class UserController extends Controller
     {
         return method_exists($actor, 'hasRole')
             && $actor->hasRole(SuperAdminRole::NAME);
+    }
+
+    private function userIsSuperAdmin(User $user): bool
+    {
+        return method_exists($user, 'hasRole')
+            && $user->hasRole(SuperAdminRole::NAME);
     }
 }

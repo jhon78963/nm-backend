@@ -41,6 +41,7 @@ class AuthorizationServiceProvider extends ServiceProvider
         'warehouse.update',
         'warehouse.delete',
         'tenant.get',
+        'audit.getAll',
     ];
 
     public function boot(): void

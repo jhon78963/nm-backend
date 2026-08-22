@@ -160,10 +160,22 @@ it('tenant admin lists users of every warehouse in their tenant but not other te
     $ids = userAdminIds($response->json());
 
     expect($ids)
-        ->toContain($this->superAdmin->id)
+        ->not->toContain($this->superAdmin->id)
         ->toContain($this->tenantAdmin->id)
         ->toContain($this->userA2->id)
         ->not->toContain($this->userB->id);
+});
+
+it('tenant admin cannot get or update a super admin user in their tenant', function () {
+    $this->withToken(userAdminToken($this->tenantAdmin))
+        ->getJson('/api/users/'.$this->superAdmin->id)
+        ->assertForbidden();
+
+    $this->withToken(userAdminToken($this->tenantAdmin))
+        ->patchJson('/api/users/'.$this->superAdmin->id, [
+            'name' => 'No debe',
+        ])
+        ->assertForbidden();
 });
 
 it('tenant admin cannot get or update a user from another tenant', function () {

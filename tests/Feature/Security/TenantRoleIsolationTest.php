@@ -226,13 +226,17 @@ it('super admin creates system role (tenant_id null)', function () {
 // getAll — visibilidad tenant-scoped
 // ---------------------------------------------------------------------------
 
-it('tenant A admin only sees own tenant roles in getAll', function () {
-    $this->withToken(tokenFor($this->adminA))
-        ->getJson('/api/roles?limit=100')
-        ->assertOk()
-        ->assertJsonFragment(['name' => 'Custom Role A'])
-        ->assertJsonMissing(['name' => 'Custom Role B'])
-        ->assertJsonMissing(['name' => 'Vendedora']); // system role hidden
+it('tenant A admin sees own tenant roles and assignable system roles in getAll', function () {
+    $response = $this->withToken(tokenFor($this->adminA))
+        ->getJson('/api/roles?limit=100');
+
+    $response->assertOk();
+    $names = collect($response->json('data'))->pluck('name');
+
+    expect($names)->toContain('Custom Role A')
+        ->and($names)->not->toContain('Custom Role B')
+        ->and($names)->toContain('Vendedora')
+        ->and($names)->not->toContain('Super Admin');
 });
 
 it('super admin sees all roles in getAll', function () {

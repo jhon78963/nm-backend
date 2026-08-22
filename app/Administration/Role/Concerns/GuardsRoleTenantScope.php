@@ -2,6 +2,7 @@
 
 namespace App\Administration\Role\Concerns;
 
+use App\Administration\Role\Support\TenantAssignableSystemRoles;
 use App\Administration\User\Support\SuperAdminRole;
 use Illuminate\Auth\Access\AuthorizationException;
 use Spatie\Permission\Models\Role;
@@ -30,6 +31,28 @@ trait GuardsRoleTenantScope
                 'No tiene permiso para modificar roles de otro tenant.',
             );
         }
+    }
+
+    /**
+     * Verifica que el actor puede consultar el rol (incluye roles globales asignables).
+     */
+    protected function authorizeRoleTenantView(Role $role): void
+    {
+        if (! $this->actorCanViewRole($role)) {
+            throw new AuthorizationException(
+                'No tiene permiso para ver roles de otro tenant.',
+            );
+        }
+    }
+
+    private function actorCanViewRole(Role $role): bool
+    {
+        if ($this->actorCanManageRole($role)) {
+            return true;
+        }
+
+        return $role->tenant_id === null
+            && TenantAssignableSystemRoles::isAssignable($role->name);
     }
 
     /**

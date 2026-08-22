@@ -50,6 +50,13 @@ class UserPolicy
             return true;
         }
 
+        if (
+            method_exists($target, 'hasRole')
+            && $target->hasRole(SuperAdminRole::NAME)
+        ) {
+            return false;
+        }
+
         return (int) $actor->tenant_id === (int) $target->tenant_id;
     }
 }
