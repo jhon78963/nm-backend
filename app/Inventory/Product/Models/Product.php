@@ -5,12 +5,14 @@ namespace App\Inventory\Product\Models;
 use App\Directory\Vendor\Models\Vendor;
 use App\Inventory\Gender\Models\Gender;
 use App\Inventory\InventoryLedger\Models\InventoryBalance;
+use App\Inventory\InventoryLedger\Support\WarehouseIdForInventoryResolver;
 use App\Inventory\Product\Enums\ProductStatus;
 use App\Inventory\Size\Models\Size;
 use App\Shared\Foundation\Traits\BelongsToWarehouse;
 use App\Traits\HasMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -127,5 +129,28 @@ class Product extends Model
     public function inventoryBalances(): HasMany
     {
         return $this->hasMany(InventoryBalance::class, 'product_id');
+    }
+
+    /**
+     * El detalle por ID no debe depender del almacén activo (X-Warehouse-Id):
+     * el scope operativo solo aplica al listado. El acceso se valida por almacén del producto.
+     */
+    public function resolveRouteBinding($value, $field = null): Model
+    {
+        $field = $field ?? $this->getRouteKeyName();
+
+        $product = static::withoutGlobalScopes()
+            ->where($field, $value)
+            ->first();
+
+        if ($product === null) {
+            throw (new ModelNotFoundException)->setModel(static::class, [$value]);
+        }
+
+        WarehouseIdForInventoryResolver::assertUserCanAccessWarehouse(
+            (int) $product->warehouse_id,
+        );
+
+        return $product;
     }
 }

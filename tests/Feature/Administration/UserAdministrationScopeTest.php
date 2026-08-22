@@ -27,7 +27,7 @@ beforeEach(function () {
     $this->warehouseA2 = userAdminWarehouse('Tienda A2', $this->tenantA->id);
     $this->warehouseB = userAdminWarehouse('Tienda B', $this->tenantB->id);
 
-    foreach (['user.create', 'user.update', 'user.delete', 'user.getAll', 'user.get'] as $name) {
+    foreach (['user.create', 'user.update', 'user.delete', 'user.getAll', 'user.get', 'warehouse.getAll', 'warehouse.get'] as $name) {
         Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
     }
 
@@ -40,6 +40,7 @@ beforeEach(function () {
     $this->tenantAdmin = userAdminUser('tenant.admin@test.com', $this->tenantA->id, $this->warehouseA1->id);
     $this->tenantAdmin->givePermissionTo([
         'user.create', 'user.update', 'user.delete', 'user.getAll', 'user.get',
+        'warehouse.getAll', 'warehouse.get',
     ]);
 
     $this->userA2 = userAdminUser('user.a2@test.com', $this->tenantA->id, $this->warehouseA2->id);
@@ -183,5 +184,24 @@ it('tenant admin cannot reassign a user to another tenant', function () {
             'tenantId' => $this->tenantB->id,
             'warehouseId' => $this->warehouseB->id,
         ])
+        ->assertForbidden();
+});
+
+it('tenant admin lists only warehouses of their tenant', function () {
+    $response = $this->withToken(userAdminToken($this->tenantAdmin))
+        ->getJson('/api/warehouses?limit=50&page=1');
+
+    $response->assertOk();
+    $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+    expect($ids)
+        ->toContain($this->warehouseA1->id)
+        ->toContain($this->warehouseA2->id)
+        ->not->toContain($this->warehouseB->id);
+});
+
+it('tenant admin cannot access warehouse from another tenant', function () {
+    $this->withToken(userAdminToken($this->tenantAdmin))
+        ->getJson('/api/warehouses/'.$this->warehouseB->id)
         ->assertForbidden();
 });

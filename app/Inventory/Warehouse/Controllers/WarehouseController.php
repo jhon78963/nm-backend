@@ -2,6 +2,8 @@
 
 namespace App\Inventory\Warehouse\Controllers;
 
+use App\Administration\User\Models\User;
+use App\Administration\User\Support\SuperAdminRole;
 use App\Inventory\Warehouse\Models\Warehouse;
 use App\Inventory\Warehouse\Requests\WarehouseCreateRequest;
 use App\Inventory\Warehouse\Requests\WarehouseUpdateRequest;
@@ -34,6 +36,7 @@ class WarehouseController extends Controller
     public function update(WarehouseUpdateRequest $request, Warehouse $warehouse): JsonResponse
     {
         return DB::transaction(function () use ($request, $warehouse) {
+            $this->assertActorCanAccessWarehouse($warehouse);
             $this->warehouseService->validate($warehouse, 'Warehouse');
 
             $data = $this->sharedService->convertCamelToSnake($request->validated());
@@ -45,7 +48,8 @@ class WarehouseController extends Controller
 
     public function delete(Warehouse $warehouse): JsonResponse
     {
-        return DB::transaction(function () use ($warehouse): JsonResponse {
+        return DB::transaction(function () use ($warehouse) {
+            $this->assertActorCanAccessWarehouse($warehouse);
             $this->warehouseService->validate($warehouse, 'Warehouse');
             $this->warehouseService->delete($warehouse);
 
@@ -55,6 +59,7 @@ class WarehouseController extends Controller
 
     public function get(Warehouse $warehouse): JsonResponse
     {
+        $this->assertActorCanAccessWarehouse($warehouse);
         $this->warehouseService->validate($warehouse, 'Warehouse');
 
         return response()->json(new WarehouseResource($warehouse));
@@ -62,11 +67,20 @@ class WarehouseController extends Controller
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $tenantId = $request->query('tenant_id');
-        $extendQuery = null;
-        if ($tenantId !== null && $tenantId !== '') {
-            $extendQuery = fn ($q) => $q->where('tenant_id', (int) $tenantId);
-        }
+        $actor = auth()->user();
+        $tenantFilter = $request->query('tenant_id', $request->query('tenantId'));
+
+        $extendQuery = function ($query) use ($actor, $tenantFilter): void {
+            if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
+                $query->where('tenant_id', (int) $actor->tenant_id);
+
+                return;
+            }
+
+            if ($tenantFilter !== null && $tenantFilter !== '') {
+                $query->where('tenant_id', (int) $tenantFilter);
+            }
+        };
 
         $query = $this->sharedService->query(
             request: $request,
@@ -81,5 +95,28 @@ class WarehouseController extends Controller
             $query['total'],
             $query['pages'],
         ));
+    }
+
+    private function assertActorCanAccessWarehouse(Warehouse $warehouse): void
+    {
+        $actor = auth()->user();
+
+        if ($actor === null) {
+            abort(403, 'Forbidden');
+        }
+
+        if ($this->actorIsSuperAdmin($actor)) {
+            return;
+        }
+
+        if ((int) $warehouse->tenant_id !== (int) $actor->tenant_id) {
+            abort(403, 'No tiene permiso para gestionar tiendas de otro tenant.');
+        }
+    }
+
+    private function actorIsSuperAdmin(User $actor): bool
+    {
+        return method_exists($actor, 'hasRole')
+            && $actor->hasRole(SuperAdminRole::NAME);
     }
 }
