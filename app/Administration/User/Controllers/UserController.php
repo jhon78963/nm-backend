@@ -112,18 +112,30 @@ class UserController extends Controller
     {
         $this->assertActorCanAccessUser($user);
         $this->userService->validate($user, 'User');
+        $user->load(['tenant:id,name', 'warehouse:id,name,tenant_id']);
 
         return response()->json(new UserResource($user));
     }
 
     public function getAll(GetAllRequest $request): JsonResponse
     {
-        $extendQuery = null;
         $actor = auth()->user();
+        $tenantFilter = $request->query('tenant_id', $request->query('tenantId'));
+        $warehouseFilter = $request->query('warehouse_id', $request->query('warehouseId'));
 
-        if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
-            $extendQuery = fn ($query) => $query->where('tenant_id', (int) $actor->tenant_id);
-        }
+        $extendQuery = function ($query) use ($actor, $tenantFilter, $warehouseFilter): void {
+            $query->with(['tenant:id,name', 'warehouse:id,name,tenant_id']);
+
+            if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
+                $query->where('tenant_id', (int) $actor->tenant_id);
+            } elseif ($tenantFilter !== null && $tenantFilter !== '') {
+                $query->where('tenant_id', (int) $tenantFilter);
+            }
+
+            if ($warehouseFilter !== null && $warehouseFilter !== '') {
+                $query->where('warehouse_id', (int) $warehouseFilter);
+            }
+        };
 
         $query = $this->sharedService->query(
             request: $request,

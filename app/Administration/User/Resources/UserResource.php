@@ -22,7 +22,9 @@ class UserResource extends JsonResource
             'roles' => $this->getRoleNames()->values()->all(),
             'role' => $this->getRoleNames()->first(),
             'tenantId' => $this->tenant_id,
+            'tenantName' => $this->whenLoaded('tenant', fn () => $this->tenant?->name),
             'warehouseId' => $this->warehouse_id,
+            'warehouseName' => $this->whenLoaded('warehouse', fn () => $this->warehouse?->name),
             'isEnabled' => ! (bool) $this->is_deleted,
         ];
     }

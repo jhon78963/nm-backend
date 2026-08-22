@@ -28,6 +28,9 @@ class GetAllRequest extends FormRequest
             'sizeTypeId' => 'nullable',
             'genderId' => 'nullable',
             'warehouseId' => 'nullable',
+            'warehouse_id' => 'nullable',
+            'tenantId' => 'nullable',
+            'tenant_id' => 'nullable',
         ];
     }
 }

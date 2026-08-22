@@ -5,7 +5,7 @@ namespace App\Administration\User\Models;
 use App\Administration\Tenant\Models\Tenant;
 use App\Auth\Notifications\ForgotPasswordNotification;
 use App\Directory\Team\Models\Team;
-use App\Shared\Foundation\Traits\BelongsToWarehouse;
+use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -16,7 +16,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use BelongsToWarehouse, HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     protected $guard_name = 'web';
 
@@ -77,6 +77,15 @@ class User extends Authenticatable
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Tienda asignada al usuario. No usa WarehouseScope: la administración de
+     * cuentas se aísla por tenant (Super Admin ve todos los clientes y tiendas).
+     */
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function team(): HasOne

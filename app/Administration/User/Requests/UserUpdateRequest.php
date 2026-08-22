@@ -27,6 +27,10 @@ class UserUpdateRequest extends FormRequest
             return false;
         }
 
+        if (! $this->authorizesActorTenantScope()) {
+            $this->failedActorTenantScopeAuthorization();
+        }
+
         return $this->authorizesSuperAdminRoleAssignment();
     }
 
