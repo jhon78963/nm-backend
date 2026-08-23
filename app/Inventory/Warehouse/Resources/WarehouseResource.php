@@ -16,6 +16,7 @@ class WarehouseResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'tenantId' => $this->tenant_id,
+            'tenantName' => $this->whenLoaded('tenant', fn () => $this->tenant?->name),
         ];
     }
 }

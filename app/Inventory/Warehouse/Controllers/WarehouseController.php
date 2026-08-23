@@ -71,6 +71,8 @@ class WarehouseController extends Controller
         $tenantFilter = $request->query('tenant_id', $request->query('tenantId'));
 
         $extendQuery = function ($query) use ($actor, $tenantFilter): void {
+            $query->with('tenant:id,name');
+
             if ($actor !== null && ! $this->actorIsSuperAdmin($actor)) {
                 $query->where('tenant_id', (int) $actor->tenant_id);
 
