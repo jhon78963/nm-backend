@@ -184,6 +184,37 @@ class ProductService extends ModelService
             return (float) $sale;
         };
 
+        $minSalePriceByPsId = DB::table('product_size')
+            ->where('product_id', $product->id)
+            ->pluck('min_sale_price', 'id');
+
+        $minSalePriceFor = static function (
+            ProductSize $pSize,
+            Product $product,
+        ) use ($minSalePriceByPsId): ?float {
+            $pid = (int) $pSize->id;
+            $min = $minSalePriceByPsId->get($pid);
+            if ($min === null) {
+                $min = $minSalePriceByPsId->get((string) $pid);
+            }
+
+            if (($min === null || $min === '') && $pSize->size_id) {
+                $sizeRow = $product->sizes->firstWhere('id', (int) $pSize->size_id);
+                $min = $sizeRow?->pivot?->min_sale_price ?? $min;
+            }
+
+            if ($min === null || $min === '') {
+                $raw = $pSize->getRawOriginal('min_sale_price');
+                $min = $raw;
+            }
+
+            if ($min === null || $min === '') {
+                return null;
+            }
+
+            return (float) $min;
+        };
+
         // ---------------------------------------------------------
         // FASE 2: MAPEO DE DATOS (Tu lógica original)
         // ---------------------------------------------------------
@@ -197,6 +228,7 @@ class ProductService extends ModelService
 
             $tallaNombre = $pSize->size->description;
             $currentPrice = $salePriceFor($pSize, $product);
+            $currentMinSalePrice = $minSalePriceFor($pSize, $product);
             $currentSku = $pSize->barcode ?? '';
             $productWarehouseId = (int) ($product->warehouse_id ?? 0);
             $warehouseId = AuthenticatedUserWarehouseResolver::resolveForPosInventory($productWarehouseId);
@@ -229,6 +261,7 @@ class ProductService extends ModelService
                                 'warehouse_id' => $warehouseId,
                             ],
                             'price' => $currentPrice,
+                            'minSalePrice' => $currentMinSalePrice,
                             'sku' => $currentSku,
                         ];
                     }
@@ -248,6 +281,7 @@ class ProductService extends ModelService
                             'warehouse_id' => $warehouseId,
                         ],
                         'price' => $currentPrice,
+                        'minSalePrice' => $currentMinSalePrice,
                         'sku' => $currentSku,
                     ];
                 }
