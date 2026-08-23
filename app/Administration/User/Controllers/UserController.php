@@ -37,11 +37,20 @@ class UserController extends Controller
 
             $user = new User;
             $user->fill($data);
-            $user->tenant_id = $tenantId;
-            $user->warehouse_id = $warehouseId;
             $user->password = Hash::make($password);
             $user->save();
-            $user->syncRoles(is_array($roleNames) ? $roleNames : []);
+            $user->syncRoles($this->filterAssignableRoleNames(
+                is_array($roleNames) ? $roleNames : [],
+            ));
+
+            if ($this->userIsSuperAdmin($user)) {
+                $user->tenant_id = null;
+                $user->warehouse_id = null;
+            } else {
+                $user->tenant_id = $tenantId;
+                $user->warehouse_id = $warehouseId;
+            }
+            $user->save();
 
             return response()->json(['message' => 'User created successfully.'], 201);
         });
@@ -58,16 +67,24 @@ class UserController extends Controller
             $warehouseId = Arr::pull($data, 'warehouse_id');
             $data = Arr::except($data, ['password']);
             $user->fill($data);
-            if ($tenantId !== null) {
-                $user->tenant_id = $tenantId;
+            if ($roleNames !== null) {
+                $user->syncRoles($this->filterAssignableRoleNames(
+                    is_array($roleNames) ? $roleNames : [],
+                ));
             }
-            if ($warehouseId !== null) {
+
+            if ($this->userIsSuperAdmin($user)) {
+                $user->tenant_id = null;
+                $user->warehouse_id = null;
+            } elseif ($tenantId !== null) {
+                $user->tenant_id = $tenantId;
+                if ($warehouseId !== null) {
+                    $user->warehouse_id = $warehouseId;
+                }
+            } elseif ($warehouseId !== null) {
                 $user->warehouse_id = $warehouseId;
             }
             $user->save();
-            if ($roleNames !== null) {
-                $user->syncRoles(is_array($roleNames) ? $roleNames : []);
-            }
 
             return response()->json(['message' => 'User updated successfully.']);
         });
@@ -92,6 +109,10 @@ class UserController extends Controller
     {
         return DB::transaction(function () use ($user): JsonResponse {
             $this->assertActorCanAccessUser($user);
+
+            if ($this->userIsSuperAdmin($user)) {
+                abort(403, 'Los usuarios Super Admin son internos y no pueden deshabilitarse desde el sistema.');
+            }
 
             if ($user->is_deleted) {
                 return response()->json(['message' => 'El usuario ya está deshabilitado.'], 422);
@@ -189,5 +210,17 @@ class UserController extends Controller
     {
         return method_exists($user, 'hasRole')
             && $user->hasRole(SuperAdminRole::NAME);
+    }
+
+    /**
+     * @param  list<string>  $roleNames
+     * @return list<string>
+     */
+    private function filterAssignableRoleNames(array $roleNames): array
+    {
+        return array_values(array_filter(
+            $roleNames,
+            static fn (string $role): bool => $role !== SuperAdminRole::NAME,
+        ));
     }
 }

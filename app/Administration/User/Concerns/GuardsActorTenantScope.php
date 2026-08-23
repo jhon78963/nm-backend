@@ -32,6 +32,13 @@ trait GuardsActorTenantScope
         $routeUser = $this->route('user');
 
         if ($routeUser !== null) {
+            if (
+                method_exists($routeUser, 'hasRole')
+                && $routeUser->hasRole(SuperAdminRole::NAME)
+            ) {
+                return true;
+            }
+
             return (int) $routeUser->tenant_id === $actorTenantId;
         }
 

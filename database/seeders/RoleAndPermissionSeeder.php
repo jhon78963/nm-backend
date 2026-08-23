@@ -161,8 +161,8 @@ class RoleAndPermissionSeeder extends Seeder
             ]
         );
         $super->password = $seedPassword;
-        $super->warehouse_id = $defaultWarehouseId;
-        $super->tenant_id = $defaultTenantId;
+        $super->tenant_id = null;
+        $super->warehouse_id = null;
         $super->save();
         $super->syncRoles([$roleSuper]);
 

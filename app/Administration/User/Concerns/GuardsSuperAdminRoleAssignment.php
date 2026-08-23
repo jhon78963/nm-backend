@@ -14,17 +14,14 @@ trait GuardsSuperAdminRoleAssignment
             return true;
         }
 
-        $actor = $this->user();
-
-        return $actor !== null
-            && method_exists($actor, 'hasRole')
-            && $actor->hasRole(SuperAdminRole::NAME);
+        // Rol interno: no se crea ni asigna vía API (solo seeders / consola).
+        return false;
     }
 
     protected function failedAuthorization(): void
     {
         throw new AuthorizationException(
-            'No tiene permiso para asignar el rol Super Admin.',
+            'El rol Super Admin es interno y no puede asignarse desde el sistema.',
         );
     }
 

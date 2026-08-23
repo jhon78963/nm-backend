@@ -36,6 +36,9 @@ beforeEach(function () {
 
     $this->superAdmin = userAdminUser('super.admin@test.com', $this->tenantA->id, $this->warehouseA1->id);
     $this->superAdmin->syncRoles(['Super Admin']);
+    $this->superAdmin->tenant_id = null;
+    $this->superAdmin->warehouse_id = null;
+    $this->superAdmin->save();
 
     $this->tenantAdmin = userAdminUser('tenant.admin@test.com', $this->tenantA->id, $this->warehouseA1->id);
     $this->tenantAdmin->givePermissionTo([
@@ -91,6 +94,43 @@ function userAdminIds(array $payload): array
         ->map(fn ($id) => (int) $id)
         ->all();
 }
+
+it('super admin user has no tenant or warehouse assignment', function () {
+    $this->superAdmin->refresh();
+
+    expect($this->superAdmin->tenant_id)->toBeNull()
+        ->and($this->superAdmin->warehouse_id)->toBeNull();
+});
+
+it('rejects creating user with Super Admin role via API', function () {
+    $this->withToken(userAdminToken($this->superAdmin))
+        ->postJson('/api/users', [
+            'username' => 'new.super',
+            'email' => 'new.super@test.com',
+            'name' => 'Nuevo',
+            'surname' => 'Super',
+            'roleNames' => ['Super Admin'],
+            'password' => 'SecurePass1!x',
+            'password_confirmation' => 'SecurePass1!x',
+        ])
+        ->assertForbidden();
+});
+
+it('rejects promoting a user to Super Admin via API', function () {
+    $this->withToken(userAdminToken($this->superAdmin))
+        ->patchJson('/api/users/'.$this->userA2->id, [
+            'roleNames' => ['Super Admin'],
+        ])
+        ->assertForbidden();
+});
+
+it('rejects changing roles on an existing Super Admin user via API', function () {
+    $this->withToken(userAdminToken($this->superAdmin))
+        ->patchJson('/api/users/'.$this->superAdmin->id, [
+            'roleNames' => ['Super Admin'],
+        ])
+        ->assertForbidden();
+});
 
 it('super admin lists users of every warehouse and tenant even with X-Warehouse-Id of one store', function () {
     $response = $this->withToken(userAdminToken($this->superAdmin))

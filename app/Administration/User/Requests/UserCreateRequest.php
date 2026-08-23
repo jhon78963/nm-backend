@@ -4,6 +4,9 @@ namespace App\Administration\User\Requests;
 
 use App\Administration\User\Concerns\GuardsActorTenantScope;
 use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
+use App\Administration\User\Concerns\ValidatesSuperAdminScope;
+use App\Administration\User\Models\User;
+use App\Administration\User\Support\SuperAdminRole;
 use App\Administration\User\Models\User;
 use App\Auth\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
@@ -13,6 +16,7 @@ class UserCreateRequest extends FormRequest
 {
     use GuardsActorTenantScope;
     use GuardsSuperAdminRoleAssignment;
+    use ValidatesSuperAdminScope;
 
     public function authorize(): bool
     {
@@ -41,18 +45,29 @@ class UserCreateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $requiresScope = ! $this->assignsSuperAdminRole();
+
         return [
             'username' => 'required|string|unique:users,username|max:25',
             'email' => 'required|email|unique:users,email|max:190',
             'name' => 'required|string|max:25',
             'surname' => 'required|string|max:25',
             'roleNames' => ['required', 'array', 'min:1'],
-            'roleNames.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
-            'tenantId' => ['required', 'exists:tenants,id'],
-            'warehouseId' => [
-                'required',
-                Rule::exists('warehouses', 'id')->where('tenant_id', $this->input('tenantId')),
+            'roleNames.*' => [
+                'string',
+                Rule::notIn([SuperAdminRole::NAME]),
+                Rule::exists('roles', 'name')->where('guard_name', 'web'),
             ],
+            'tenantId' => array_merge(
+                $requiresScope ? ['required'] : ['nullable', 'prohibited'],
+                ['exists:tenants,id'],
+            ),
+            'warehouseId' => array_merge(
+                $requiresScope ? ['required'] : ['nullable', 'prohibited'],
+                $requiresScope
+                    ? [Rule::exists('warehouses', 'id')->where('tenant_id', $this->input('tenantId'))]
+                    : [],
+            ),
             'password' => PasswordPolicy::rules(),
             'file' => 'nullable|mimes:jpeg,png,jpg,webp|max:2048',
         ];

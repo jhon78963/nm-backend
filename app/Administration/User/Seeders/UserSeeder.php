@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
         $defaultWarehouseId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->orderBy('id')->value('id') ?? 1);
         $defaultTenantId = (int) (\App\Inventory\Warehouse\Models\Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
 
-        $make = function (array $attrs, $role) use ($defaultWarehouseId, $defaultTenantId, $seedPassword) {
+        $make = function (array $attrs, $role, bool $isSuperAdmin = false) use ($defaultWarehouseId, $defaultTenantId, $seedPassword) {
             $user = User::query()->updateOrCreate(
                 ['email' => $attrs['email']],
                 [
@@ -32,8 +32,13 @@ class UserSeeder extends Seeder
                 ]
             );
             $user->password = $seedPassword;
-            $user->tenant_id = $defaultTenantId;
-            $user->warehouse_id = $defaultWarehouseId;
+            if ($isSuperAdmin) {
+                $user->tenant_id = null;
+                $user->warehouse_id = null;
+            } else {
+                $user->tenant_id = $defaultTenantId;
+                $user->warehouse_id = $defaultWarehouseId;
+            }
             $user->save();
             if ($role) {
                 $user->syncRoles([$role]);
@@ -45,21 +50,21 @@ class UserSeeder extends Seeder
             'email' => 'jhonlivias3@gmail.com',
             'name' => 'Jhon',
             'surname' => 'Livias',
-        ], $roleSuper);
+        ], $roleSuper, true);
 
         $make([
             'username' => 'user.admin',
             'email' => 'user.admin@gmail.com',
             'name' => 'User',
             'surname' => 'Admin',
-        ], $roleSuper);
+        ], $roleSuper, true);
 
         $make([
             'username' => 'maritex',
             'email' => 'maritex@gmail.com',
             'name' => 'User',
             'surname' => 'Admin',
-        ], $roleSuper);
+        ], $roleSuper, true);
 
         $make([
             'username' => 'user.employee',

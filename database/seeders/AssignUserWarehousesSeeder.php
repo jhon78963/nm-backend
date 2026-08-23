@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Administration\User\Models\User;
+use App\Administration\User\Support\SuperAdminRole;
 use App\Inventory\Warehouse\Models\Warehouse;
 use Illuminate\Database\Seeder;
 
@@ -19,13 +20,19 @@ class AssignUserWarehousesSeeder extends Seeder
 
         $defaultTenantId = (int) (Warehouse::query()->find($defaultWarehouseId)?->tenant_id ?? 1);
 
+        $superAdminIds = User::query()
+            ->role(SuperAdminRole::NAME)
+            ->pluck('id');
+
         User::query()
+            ->when($superAdminIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $superAdminIds))
             ->where(function ($q) {
                 $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0);
             })
             ->update(['warehouse_id' => $defaultWarehouseId]);
 
         User::query()
+            ->when($superAdminIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $superAdminIds))
             ->where(function ($q) {
                 $q->whereNull('tenant_id')->orWhere('tenant_id', 0);
             })
