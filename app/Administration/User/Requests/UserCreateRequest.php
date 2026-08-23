@@ -7,7 +7,6 @@ use App\Administration\User\Concerns\GuardsSuperAdminRoleAssignment;
 use App\Administration\User\Concerns\ValidatesSuperAdminScope;
 use App\Administration\User\Models\User;
 use App\Administration\User\Support\SuperAdminRole;
-use App\Administration\User\Models\User;
 use App\Auth\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
