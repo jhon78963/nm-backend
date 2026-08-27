@@ -1,5 +1,5 @@
 services:
-    laravel.test:
+    laravel.saas:
         build:
             context: './vendor/laravel/sail/runtimes/8.5'
             dockerfile: Dockerfile
@@ -71,8 +71,8 @@ services:
             - '${FORWARD_MINIO_PORT:-9000}:9000'
             - '${FORWARD_MINIO_CONSOLE_PORT:-8900}:8900'
         environment:
-            MINIO_ROOT_USER: '${MINIO_ROOT_USER:-sail}'
-            MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:-password}'
+            MINIO_ROOT_USER: '${MINIO_ROOT_USER:-zero}'
+            MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:-mvByVmJaKmv465NP2}'
         volumes:
             - 'sail-minio:/data'
         networks:
