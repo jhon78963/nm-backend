@@ -34,6 +34,8 @@ import { RolesGuard } from '@app/common/guards/roles.guard';
 import { Public } from '@app/common/decorators/public.decorator';
 import { Roles } from '@app/common/decorators/roles.decorator';
 import { CLIENTE_ROLE } from '@app/common/auth/ecommerce-customer-permissions';
+import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
+import { RECAPTCHA_ACTIONS } from '@app/common/recaptcha/recaptcha.constants';
 import { CurrentUser } from '@app/common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '@app/common/types/authenticated-user.type';
 
@@ -44,6 +46,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly customerAuthService: CustomerAuthService,
     private readonly usersService: UsersService,
+    private readonly recaptcha: RecaptchaService,
   ) {}
 
   // ── POST /v1/auth/login ───────────────────────────────────────────────────
@@ -66,6 +69,7 @@ export class AuthController {
   @Throttle({ login: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Registrar cliente de tienda online (rol Cliente)' })
   async registerCustomer(@Body() dto: RegisterCustomerDto) {
+    await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.customerRegister);
     return this.customerAuthService.register(dto);
   }
 
@@ -76,6 +80,7 @@ export class AuthController {
   @Throttle({ login: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Iniciar sesión de cliente de tienda online' })
   async loginCustomer(@Body() dto: LoginCustomerDto) {
+    await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.customerLogin);
     return this.customerAuthService.login(dto);
   }
 

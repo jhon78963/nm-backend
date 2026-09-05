@@ -12,4 +12,9 @@ export class SubscribeNewsletterDto {
   @IsString()
   @MaxLength(50)
   source?: string;
+
+  @ApiPropertyOptional({ description: 'Token reCAPTCHA v3' })
+  @IsOptional()
+  @IsString()
+  captchaToken?: string;
 }

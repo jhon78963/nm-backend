@@ -161,4 +161,9 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
+
+  @ApiPropertyOptional({ description: 'Token reCAPTCHA v3' })
+  @IsOptional()
+  @IsString()
+  captchaToken?: string;
 }

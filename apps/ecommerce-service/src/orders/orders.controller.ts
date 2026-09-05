@@ -19,6 +19,8 @@ import { Roles } from '@app/common/decorators/roles.decorator';
 import { JwtAuthGuard } from '@app/common/guards/jwt-auth.guard';
 import { RolesGuard } from '@app/common/guards/roles.guard';
 import { resolveClientIp } from '@app/common/utils/client-ip.util';
+import { RECAPTCHA_ACTIONS } from '@app/common/recaptcha/recaptcha.constants';
+import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
 
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListCustomerOrdersQueryDto } from './dto/list-customer-orders-query.dto';
@@ -34,7 +36,10 @@ import type { AuthenticatedCustomer } from '../customer-auth/types/authenticated
 @ApiTags('Ecommerce Orders')
 @Controller('ecommerce/orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly recaptcha: RecaptchaService,
+  ) {}
 
   @Post()
   @Public()
@@ -42,10 +47,12 @@ export class OrdersController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Crear pedido web (checkout público o cliente autenticado)' })
-  createOrder(
+  async createOrder(
     @Body() dto: CreateOrderDto,
     @Req() request: { user?: AuthenticatedCustomer | null; headers: Record<string, string | string[] | undefined> },
   ) {
+    await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.checkoutOrder);
+
     return this.ordersService.createOrder(
       {
         ...dto,
