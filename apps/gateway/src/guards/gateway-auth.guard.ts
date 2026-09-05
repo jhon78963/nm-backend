@@ -9,6 +9,7 @@ const PUBLIC_AUTH_PATHS = new Set([
   '/api/v1/auth/reset-password',
   '/api/v1/auth/customer/register',
   '/api/v1/auth/customer/login',
+  '/api/v1/auth/customer/google',
 ]);
 
 /**
