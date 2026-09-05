@@ -1,6 +1,7 @@
 import { All, Controller, Module, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from '@app/database';
 import { ProxyService } from './proxy/proxy.service';
 import { HealthController } from './health/health.controller';
@@ -38,6 +39,13 @@ class GatewayController {
     AuthModule,
   ],
   controllers: [GatewayController, HealthController],
-  providers: [ProxyService, GatewayAuthGuard],
+  providers: [
+    ProxyService,
+    GatewayAuthGuard,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

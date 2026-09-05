@@ -28,6 +28,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleCustomerLoginDto } from './dto/google-customer-login.dto';
 import { JwtAuthGuard } from '@app/common/guards/jwt-auth.guard';
 import { JwtRefreshGuard } from '@app/common/guards/jwt-refresh.guard';
 import { RolesGuard } from '@app/common/guards/roles.guard';
@@ -82,6 +83,16 @@ export class AuthController {
   async loginCustomer(@Body() dto: LoginCustomerDto) {
     await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.customerLogin);
     return this.customerAuthService.login(dto);
+  }
+
+  // ── POST /v1/auth/customer/google ──────────────────────────────────────────
+  @Public()
+  @Post('customer/google')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ login: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Iniciar sesión o registrar cliente con Google OAuth' })
+  async loginCustomerWithGoogle(@Body() dto: GoogleCustomerLoginDto) {
+    return this.customerAuthService.loginWithGoogle(dto.id_token);
   }
 
   // ── GET /v1/auth/customer/me ───────────────────────────────────────────────

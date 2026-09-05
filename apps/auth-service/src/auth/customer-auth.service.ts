@@ -210,6 +210,105 @@ export class CustomerAuthService {
     });
   }
 
+  async loginWithGoogle(idToken: string): Promise<CustomerAuthResponse> {
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID')?.trim();
+    if (!clientId) {
+      throw new BadRequestException('Google OAuth no está configurado en auth-service.');
+    }
+
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+    );
+
+    if (!response.ok) {
+      throw new UnauthorizedException('Token de Google inválido.');
+    }
+
+    const payload = (await response.json()) as {
+      aud?: string;
+      email?: string;
+      email_verified?: string | boolean;
+      name?: string;
+      given_name?: string;
+      family_name?: string;
+    };
+
+    if (payload.aud !== clientId || !payload.email) {
+      throw new UnauthorizedException('Token de Google inválido.');
+    }
+
+    const emailVerified =
+      payload.email_verified === true || payload.email_verified === 'true';
+    if (!emailVerified) {
+      throw new UnauthorizedException('El correo de Google no está verificado.');
+    }
+
+    const email = payload.email.trim().toLowerCase();
+    const name =
+      payload.name?.trim() ||
+      [payload.given_name, payload.family_name].filter(Boolean).join(' ').trim() ||
+      email;
+
+    const existingUser = await this.usersService.findByUsernameOrEmail(email);
+
+    if (existingUser) {
+      if (!existingUser.isEnabled) {
+        throw new UnauthorizedException('Tu cuenta ha sido deshabilitada.');
+      }
+
+      const roles = existingUser.userRoles.map((ur) => ur.role.name);
+      if (!roles.includes(CLIENTE_ROLE)) {
+        throw new UnauthorizedException('Esta cuenta no puede usarse en la tienda online.');
+      }
+
+      const customer = await this.ensureEcommerceCustomer(
+        existingUser.id,
+        email,
+        existingUser.name,
+        existingUser.surname,
+      );
+      const tokens = await this.authService.issueTokensForUserId(existingUser.id);
+
+      return { ...tokens, customer };
+    }
+
+    const tenantId = await this.resolveTenantId();
+    const { name: firstName, surname } = this.splitName(name);
+    const passwordHash = await bcrypt.hash(
+      `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      12,
+    );
+
+    const createdUser = await this.db.user.create({
+      data: {
+        username: await this.buildUniqueUsername(email),
+        email,
+        name: firstName,
+        surname,
+        passwordHash,
+        tenantId,
+        warehouseId: null,
+      },
+    });
+
+    await this.usersService.assignRolesByName(createdUser.id, [CLIENTE_ROLE], tenantId);
+
+    const createdCustomer = await this.db.ecommerceCustomer.create({
+      data: {
+        userId: createdUser.id,
+        email,
+        name,
+        passwordHash,
+      },
+      select: { id: true, email: true, name: true },
+    });
+
+    const welcomeCoupon = await this.assignWelcomeCoupon(createdCustomer.id);
+    const tokens = await this.authService.issueTokensForUserId(createdUser.id);
+
+    return { ...tokens, customer: createdCustomer, welcomeCoupon };
+  }
+
   private async ensureEcommerceCustomer(
     userId: string,
     email: string,

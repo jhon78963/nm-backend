@@ -168,6 +168,7 @@ services:
       ECOMMERCE_STORE_URL: ${ECOMMERCE_STORE_URL:-http://localhost:3015}
       ECOMMERCE_SERVICE_URL: http://ecommerce-service:3012
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-nm-internal-dev-key}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - '3001:3001'
     depends_on:
@@ -287,8 +288,7 @@ services:
       MAIL_SERVICE_KEY: ${MAIL_SERVICE_KEY:-nm-mail-dev-key-change-in-production}
       ECOMMERCE_STORE_URL: ${ECOMMERCE_STORE_URL:-http://localhost:3015}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-nm-internal-dev-key}
-    ports:
-      - '3012:3012'
+    # Sin puerto publicado: solo red interna Docker (storefront vía ECOMMERCE_SERVICE_URL).
     depends_on:
       postgres:
         condition: service_healthy
