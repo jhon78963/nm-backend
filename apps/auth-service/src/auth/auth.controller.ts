@@ -16,7 +16,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { CustomerAuthService } from './customer-auth.service';
 import { UsersService } from '../users/users.service';
@@ -54,6 +54,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Tokens de acceso y refresh' })
@@ -67,6 +68,7 @@ export class AuthController {
   @Public()
   @Post('customer/register')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Registrar cliente de tienda online (rol Cliente)' })
   async registerCustomer(@Body() dto: RegisterCustomerDto) {
@@ -78,6 +80,7 @@ export class AuthController {
   @Public()
   @Post('customer/login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Iniciar sesión de cliente de tienda online' })
   async loginCustomer(@Body() dto: LoginCustomerDto) {
@@ -89,6 +92,7 @@ export class AuthController {
   @Public()
   @Post('customer/google')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Iniciar sesión o registrar cliente con Google OAuth' })
   async loginCustomerWithGoogle(@Body() dto: GoogleCustomerLoginDto) {
@@ -136,8 +140,8 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtRefreshGuard, ThrottlerGuard)
   @Throttle({ global: { limit: 30, ttl: 60_000 } })
-  @UseGuards(JwtRefreshGuard)
   @ApiOperation({ summary: 'Renovar access token con refresh token' })
   async refresh(@Req() req: Express.Request & { user: { id: string; tokenId: string } }) {
     return this.authService.refresh(req.user.id, req.user.tokenId);
