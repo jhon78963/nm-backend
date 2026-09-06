@@ -16,7 +16,7 @@ export interface JwtPayload {
 }
 
 /**
- * Estrategia JWT de acceso (token de corta duración, 15 min).
+ * Estrategia JWT de acceso (token de corta duración, 1 h por defecto).
  * Equivale a la verificación de `auth:sanctum` + `access-api` ability de Sanctum.
  */
 @Injectable()

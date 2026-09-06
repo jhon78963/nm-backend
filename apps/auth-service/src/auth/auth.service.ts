@@ -28,7 +28,7 @@ export interface AuthTokens {
  * AuthController (login, refresh, logout, cambio de contraseña).
  *
  * Diferencias clave vs Sanctum:
- * - Tokens JWT stateless (acceso 15 min) + refresh token en DB (7 días)
+ * - Tokens JWT stateless (acceso 1 h) + refresh token en DB (7 días)
  * - No usa cookies SPA; el cliente Angular debe guardar el access_token
  *   y enviar el refresh_token por body (no como bearer)
  */

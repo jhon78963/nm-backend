@@ -5,7 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthService } from '../auth.service';
 
 /**
- * Estrategia JWT para refresh tokens (token de larga duración, 7 días).
+ * Estrategia JWT para refresh tokens (token de larga duración, 7 días por defecto).
  * Los refresh tokens se almacenan en DB y se invalidan al hacer logout.
  * Equivale al `auth/refresh` endpoint con Sanctum dual-token de Laravel.
  *
@@ -19,7 +19,10 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     private readonly authService: AuthService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromBodyField('refresh_token'),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromBodyField('refresh_token'),
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
       passReqToCallback: false,
