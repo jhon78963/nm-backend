@@ -78,7 +78,7 @@ export class ProductsService {
   }
 
   async findAll(filters: ProductFiltersDto, warehouseId: string) {
-    const { search, genderId, vendorId, colorId, sizeId, page = 1, perPage = 20 } = filters;
+    const { search, genderId, vendorId, colorId, sizeId, hasImages, page = 1, perPage = 20 } = filters;
 
     const where = {
       isDeleted: false,
@@ -103,6 +103,8 @@ export class ProductsService {
       ...(colorId && {
         productSizes: { some: { productSizeColors: { some: { colorId } } } },
       }),
+      ...(hasImages === true && { media: { some: {} } }),
+      ...(hasImages === false && { media: { none: {} } }),
     };
 
     const [data, total] = await this.db.$transaction([

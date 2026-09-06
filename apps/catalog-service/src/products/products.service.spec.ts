@@ -207,9 +207,43 @@ describe('ProductsService', () => {
         }),
       );
     });
-  });
 
-  // ── findById ──────────────────────────────────────────────────────────────
+    it('aplica filtro de productos con imágenes', async () => {
+      mockDb.$transaction.mockImplementation(async (queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      mockDb.product.findMany.mockResolvedValue([]);
+      mockDb.product.count.mockResolvedValue(0);
+
+      await service.findAll({ hasImages: true }, faker.string.uuid());
+
+      expect(mockDb.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            media: { some: {} },
+          }),
+        }),
+      );
+    });
+
+    it('aplica filtro de productos sin imágenes', async () => {
+      mockDb.$transaction.mockImplementation(async (queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      mockDb.product.findMany.mockResolvedValue([]);
+      mockDb.product.count.mockResolvedValue(0);
+
+      await service.findAll({ hasImages: false }, faker.string.uuid());
+
+      expect(mockDb.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            media: { none: {} },
+          }),
+        }),
+      );
+    });
+  });
 
   describe('findById()', () => {
     it('lanza NotFoundException para producto inexistente', async () => {

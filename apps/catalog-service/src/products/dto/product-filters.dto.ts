@@ -52,6 +52,16 @@ export class ProductFiltersDto {
   @IsBoolean()
   lowStock?: boolean;
 
+  @ApiPropertyOptional({ description: 'true = con imágenes, false = sin imágenes' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  @IsBoolean()
+  hasImages?: boolean;
+
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
