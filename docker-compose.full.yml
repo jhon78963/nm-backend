@@ -18,6 +18,8 @@ x-service-defaults: &service-defaults
   env_file:
     - .env
     - .env.docker
+  environment:
+    DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-nm_services}
   depends_on: *depends-postgres-migrated
   networks:
     - default
