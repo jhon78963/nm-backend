@@ -12,7 +12,7 @@ FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 
 RUN apk update \
-    && apk add --no-cache openssl gcompat python3 make g++
+    && apk add --no-cache openssl gcompat tzdata python3 make g++
 
 COPY package.json package-lock.json ./
 
@@ -48,7 +48,7 @@ ARG SERVICE
 WORKDIR /app
 
 RUN apk update \
-    && apk add --no-cache openssl gcompat
+    && apk add --no-cache openssl gcompat tzdata
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
@@ -67,10 +67,11 @@ FROM node:${NODE_VERSION} AS runner
 ARG SERVICE
 ENV NODE_ENV=production
 ENV SERVICE_NAME=${SERVICE}
+ENV TZ=America/Lima
 WORKDIR /app
 
 RUN apk update \
-    && apk add --no-cache openssl gcompat
+    && apk add --no-cache openssl gcompat tzdata
 
 # document-service necesita Chromium para Puppeteer (PDF)
 RUN if [ "$SERVICE" = "document-service" ]; then \

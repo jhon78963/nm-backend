@@ -10,6 +10,12 @@ x-depends-postgres-migrated: &depends-postgres-migrated
   migrate:
     condition: service_completed_successfully
 
+x-timezone: &timezone
+  TZ: America/Lima
+
+x-timezone-volumes: &timezone-volumes
+  - /etc/localtime:/etc/localtime:ro
+
 x-service-defaults: &service-defaults
   build:
     context: .
@@ -19,7 +25,9 @@ x-service-defaults: &service-defaults
     - .env
     - .env.docker
   environment:
+    <<: *timezone
     DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-nm_services}
+  volumes: *timezone-volumes
   depends_on: *depends-postgres-migrated
   networks:
     - default
@@ -33,6 +41,8 @@ services:
     container_name: nm_postgres
     restart: unless-stopped
     environment:
+      <<: *timezone
+      PGTZ: America/Lima
       POSTGRES_DB: ${POSTGRES_DB:-nm_services}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -40,6 +50,7 @@ services:
       - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - nm_postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 5s
@@ -52,6 +63,10 @@ services:
     image: redis:7-alpine
     container_name: nm_redis
     restart: unless-stopped
+    environment:
+      <<: *timezone
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - '${REDIS_PORT:-6379}:6379'
     healthcheck:
@@ -75,6 +90,7 @@ services:
       - .env
       - .env.docker
     environment:
+      <<: *timezone
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-nm_services}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -86,6 +102,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - default
 
@@ -362,6 +380,7 @@ services:
       STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:-nm-storage-dev-key-change-in-production}
     volumes:
       - storage_uploads:/data/uploads
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - '3010:3008'   # host 3010 — evita conflicto con ai-engine (3008:8000)
     # El volumen montado puede ser root-owned; asegurar permisos al iniciar
@@ -424,6 +443,7 @@ services:
     env_file:
       - ./services/invoicing/.env
     environment:
+      <<: *timezone
       APP_ENV: local
       DB_HOST: postgres
       DB_PORT: 5432
@@ -435,6 +455,8 @@ services:
     volumes:
       - ./services/invoicing:/var/www/invoicing
       - invoicing_vendor:/var/www/invoicing/vendor
+      - ./services/invoicing/docker/php-timezone.ini:/usr/local/etc/php/conf.d/timezone.ini:ro
+      - /etc/localtime:/etc/localtime:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -453,8 +475,11 @@ services:
     restart: unless-stopped
     env_file:
       - ./services/ai-engine/.env
+    environment:
+      <<: *timezone
     volumes:
       - ./services/ai-engine/models:/app/models
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - '3008:8000'
     depends_on:
@@ -478,6 +503,7 @@ services:
     env_file:
       - ./services/chatbot/.env
     environment:
+      <<: *timezone
       NODE_ENV: production
       SERVICE_NAME: nm-chatbot
       PORT: 3000
@@ -489,6 +515,7 @@ services:
       - '${CHATBOT_PORT:-8090}:3000'
     volumes:
       - nm_chatbot_uploads:/app/uploads
+      - /etc/localtime:/etc/localtime:ro
     init: true
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
