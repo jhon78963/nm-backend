@@ -25,7 +25,7 @@ import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListCustomerOrdersQueryDto } from './dto/list-customer-orders-query.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
-import { PublicOrderQueryDto, TrackOrderQueryDto } from './dto/track-order.dto';
+import { PublicOrderQueryDto, TrackOrderDto } from './dto/track-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrdersService } from './orders.service';
 import { OptionalCustomerJwtAuthGuard } from '../customer-auth/guards/optional-customer-jwt.guard';
@@ -86,13 +86,16 @@ export class OrdersController {
     return this.ordersService.getCustomerOrder(customer.id, orderNumber);
   }
 
-  @Get('track')
+  @Post('track')
   @Public()
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Seguimiento de pedido por número y correo/teléfono' })
-  trackOrder(@Query() query: TrackOrderQueryDto) {
-    return this.ordersService.trackOrder(query.orderNumber, query.contact);
+  async trackOrder(@Body() dto: TrackOrderDto) {
+    await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.orderTrack);
+
+    return this.ordersService.trackOrder(dto.orderNumber, dto.contact);
   }
 
   @Get('public/:orderNumber')

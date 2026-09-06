@@ -1,7 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class TrackOrderQueryDto {
+export class TrackOrderDto {
   @ApiProperty({ example: 'NM-20260902-0001' })
   @IsString()
   @IsNotEmpty()
@@ -11,6 +11,11 @@ export class TrackOrderQueryDto {
   @IsString()
   @IsNotEmpty()
   contact!: string;
+
+  @ApiPropertyOptional({ description: 'Token reCAPTCHA v3' })
+  @IsOptional()
+  @IsString()
+  captchaToken?: string;
 }
 
 export class PublicOrderQueryDto {

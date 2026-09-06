@@ -86,7 +86,7 @@ function isPublicEcommerceOrdersRequest(method: string, path: string): boolean {
     return true;
   }
 
-  if (method === 'GET' && path === '/api/v1/ecommerce/orders/track') {
+  if (method === 'POST' && path === '/api/v1/ecommerce/orders/track') {
     return true;
   }
 
