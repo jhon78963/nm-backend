@@ -59,7 +59,10 @@ export class EcommerceMediaService {
     ]);
 
     return {
-      data,
+      data: data.map((item) => ({
+        ...item,
+        url: this.storageClient.getPublicUrl(item.path),
+      })),
       meta: {
         total,
         page,
@@ -101,7 +104,7 @@ export class EcommerceMediaService {
 
       const media = await this.db.ecommerceMedia.create({
         data: {
-          url: stored.url,
+          url: this.storageClient.getPublicUrl(stored.path),
           path: stored.path,
           mimeType: stored.mimeType,
           size: stored.size,

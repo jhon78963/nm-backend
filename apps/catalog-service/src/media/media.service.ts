@@ -29,7 +29,12 @@ export class MediaService {
       where: { productId },
       orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
-    return { data: media };
+    return {
+      data: media.map((item) => ({
+        ...item,
+        url: this.storageClient.getPublicUrl(item.path),
+      })),
+    };
   }
 
   async upload(req: FastifyRequest, productId: string, userId: string) {
@@ -86,7 +91,7 @@ export class MediaService {
       const media = await this.db.productMedia.create({
         data: {
           productId,
-          url: stored.url,
+          url: this.storageClient.getPublicUrl(stored.path),
           path: stored.path,
           mimeType: stored.mimeType,
           size: stored.size,

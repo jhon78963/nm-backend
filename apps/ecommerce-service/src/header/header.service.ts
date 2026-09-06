@@ -7,6 +7,7 @@ import {
   DEFAULT_STORE_HEADER_SLUG,
 } from './constants/header.defaults';
 import { HeaderCacheService } from './header-cache.service';
+import { StorefrontRevalidateService } from './storefront-revalidate.service';
 import { UpdateHeaderDto } from './dto/update-header.dto';
 
 export interface PublicNavigationItem {
@@ -33,6 +34,7 @@ export class HeaderService {
   constructor(
     private readonly db: DatabaseService,
     private readonly cache: HeaderCacheService,
+    private readonly storefrontRevalidate: StorefrontRevalidateService,
   ) {}
 
   async getPublicHeader(): Promise<PublicHeaderResponse> {
@@ -129,6 +131,7 @@ export class HeaderService {
 
     const response = this.mapToPublicResponse(config);
     await this.cache.set(response);
+    await this.storefrontRevalidate.revalidateStoreHeader();
     return response;
   }
 

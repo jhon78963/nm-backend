@@ -25,6 +25,14 @@ export class StorageClientService {
     this.serviceKey = config.get<string>('STORAGE_SERVICE_KEY', '');
   }
 
+  getPublicUrl(logicalPath: string): string {
+    const base = this.config
+      .get<string>('STORAGE_PUBLIC_BASE_URL', 'http://localhost:3000/api/v1/storage/files')
+      .replace(/\/$/, '');
+    const path = logicalPath.replace(/^\/+/, '');
+    return `${base}/${path}`;
+  }
+
   async upload(
     buffer: Buffer,
     mimeType: string,
