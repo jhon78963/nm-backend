@@ -6,7 +6,7 @@ import {
 import { DatabaseService } from '@app/database';
 import { CreateProductDto, UpdateProductDto } from './dto/create-product.dto';
 import { mapProductCreateInput, mapProductInput } from './product.mapper';
-import { reconcileMasterStock, readMasterStockForProductSize } from '@app/common/utils/product-inventory.util';
+import { reconcileMasterStock, readMasterStockForProductSize, getAvailableQuantity } from '@app/common/utils/product-inventory.util';
 import { ProductFiltersDto } from './dto/product-filters.dto';
 import { AddProductSizeDto, UpdateProductSizeDto } from './dto/add-product-size.dto';
 import { AddSizeColorDto } from './dto/add-size-color.dto';
@@ -390,7 +390,7 @@ export class ProductsService {
 
   async searchForPos(query: string, warehouseId: string) {
     // Busca por nombre, barcode de producto o barcode de talla
-    return this.db.productSize.findMany({
+    const rows = await this.db.productSize.findMany({
       where: {
         isDeleted: false,
         product: { isDeleted: false, warehouseId },
@@ -405,8 +405,19 @@ export class ProductsService {
         product: { select: { id: true, name: true } },
         size: { select: { id: true, description: true } },
         productSizeColors: { include: { color: true } },
-        inventoryBalances: { select: { quantity: true, colorId: true } },
+        inventoryBalances: {
+          where: { warehouseId },
+          select: { quantity: true, reservedQuantity: true, colorId: true },
+        },
       },
     });
+
+    return rows.map((row) => ({
+      ...row,
+      inventoryBalances: row.inventoryBalances.map((balance) => ({
+        colorId: balance.colorId,
+        quantity: getAvailableQuantity(balance),
+      })),
+    }));
   }
 }

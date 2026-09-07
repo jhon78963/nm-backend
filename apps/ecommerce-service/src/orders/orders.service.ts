@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import { DatabaseService } from '@app/database';
 import { recordProductColorStockHistory } from '@app/common/utils/product-history.util';
-import { syncMasterBalanceToColorSum } from '@app/common/utils/product-inventory.util';
+import { syncMasterBalanceToColorSum, getAvailableQuantity } from '@app/common/utils/product-inventory.util';
 import Decimal from 'decimal.js';
 
 import {
@@ -110,7 +110,6 @@ export class OrdersService {
 
     await this.validateStock(dto.warehouseId, resolvedItems);
 
-    const systemUserId = await this.resolveSystemUserId(dto.warehouseId);
     const orderNumber = await this.generateUniqueOrderNumber();
 
     const order = await this.db.$transaction(async (tx) => {
@@ -136,6 +135,7 @@ export class OrdersService {
           couponDiscount: new Decimal(couponDiscount).toDecimalPlaces(2).toNumber(),
           taxAmount: 0,
           total: new Decimal(total).toDecimalPlaces(2).toNumber(),
+          stockReservedAt: new Date(),
           items: {
             create: resolvedItems.map((item) => ({
               productId: item.productId,
@@ -154,17 +154,7 @@ export class OrdersService {
       });
 
       for (const item of resolvedItems) {
-        const existingBalance = await tx.inventoryBalance.findFirst({
-          where: {
-            warehouseId: dto.warehouseId,
-            productSizeId: item.productSizeId,
-            colorId: item.colorId,
-          },
-          select: { quantity: true },
-        });
-        const oldStock = existingBalance?.quantity ?? 0;
-
-        const updated = await tx.inventoryBalance.update({
+        await tx.inventoryBalance.update({
           where: {
             warehouseId_productSizeId_colorId: {
               warehouseId: dto.warehouseId,
@@ -172,38 +162,10 @@ export class OrdersService {
               colorId: item.colorId,
             },
           },
-          data: { quantity: { decrement: item.quantity } },
-        });
-
-        await tx.inventoryMovement.create({
-          data: {
-            warehouseId: dto.warehouseId,
-            productSizeId: item.productSizeId,
-            colorId: item.colorId,
-            direction: 'OUT',
-            quantity: item.quantity,
-            movementType: 'ECOMMERCE_ORDER',
-            referenceId: created.id,
-            referenceType: 'EcommerceOrder',
-            balanceAfter: updated.quantity,
-            occurredAt: new Date(),
-            createdById: systemUserId,
-          },
+          data: { reservedQuantity: { increment: item.quantity } },
         });
 
         await syncMasterBalanceToColorSum(tx, dto.warehouseId, item.productSizeId);
-
-        await recordProductColorStockHistory(tx, {
-          productId: item.productId,
-          productSizeId: item.productSizeId,
-          colorId: item.colorId,
-          oldStock,
-          newStock: updated.quantity,
-          createdById: systemUserId,
-          eventType: 'ECOMMERCE_ORDER_STOCK',
-          reason: `Pedido ecommerce ${orderNumber}`,
-          orderNumber,
-        });
       }
 
       if (customerId) {
@@ -262,7 +224,7 @@ export class OrdersService {
     }
 
     const order = await this.db.$transaction(async (tx) => {
-      await this.restoreOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
+      await this.releaseOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
       await this.reverseCouponRedemption(tx, existing.id);
 
       return tx.ecommerceOrder.update({
@@ -449,10 +411,16 @@ export class OrdersService {
 
     const shouldRestoreStock =
       dto.status === 'cancelled' && existing.status !== 'cancelled';
+    const shouldConfirmStock =
+      dto.paymentStatus === 'paid' && existing.paymentStatus !== 'paid';
 
     const order = await this.db.$transaction(async (tx) => {
+      if (shouldConfirmStock) {
+        await this.confirmOrderPaymentInventory(tx, existing);
+      }
+
       if (shouldRestoreStock) {
-        await this.restoreOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
+        await this.releaseOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
       }
 
       return tx.ecommerceOrder.update({
@@ -570,6 +538,86 @@ export class OrdersService {
     throw new BadRequestException('Debe seleccionar un color para completar el pedido.');
   }
 
+  async confirmOrderPaymentInventory(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      orderNumber: string;
+      warehouseId: string;
+      stockReservedAt: Date | null;
+      items: Array<{
+        productId: string;
+        productSizeId: string;
+        colorId: string | null;
+        quantity: number;
+      }>;
+    },
+  ): Promise<void> {
+    if (!order.stockReservedAt) {
+      return;
+    }
+
+    const systemUserId = await this.resolveSystemUserId(order.warehouseId);
+
+    for (const item of order.items) {
+      if (!item.colorId) continue;
+
+      const existingBalance = await tx.inventoryBalance.findFirst({
+        where: {
+          warehouseId: order.warehouseId,
+          productSizeId: item.productSizeId,
+          colorId: item.colorId,
+        },
+        select: { quantity: true, reservedQuantity: true },
+      });
+      const oldStock = existingBalance?.quantity ?? 0;
+
+      const updated = await tx.inventoryBalance.update({
+        where: {
+          warehouseId_productSizeId_colorId: {
+            warehouseId: order.warehouseId,
+            productSizeId: item.productSizeId,
+            colorId: item.colorId,
+          },
+        },
+        data: {
+          quantity: { decrement: item.quantity },
+          reservedQuantity: { decrement: item.quantity },
+        },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          warehouseId: order.warehouseId,
+          productSizeId: item.productSizeId,
+          colorId: item.colorId,
+          direction: 'OUT',
+          quantity: item.quantity,
+          movementType: 'ECOMMERCE_ORDER',
+          referenceId: order.id,
+          referenceType: 'EcommerceOrder',
+          balanceAfter: updated.quantity,
+          occurredAt: new Date(),
+          createdById: systemUserId,
+        },
+      });
+
+      await syncMasterBalanceToColorSum(tx, order.warehouseId, item.productSizeId);
+
+      await recordProductColorStockHistory(tx, {
+        productId: item.productId,
+        productSizeId: item.productSizeId,
+        colorId: item.colorId,
+        oldStock,
+        newStock: updated.quantity,
+        createdById: systemUserId,
+        eventType: 'ECOMMERCE_ORDER_STOCK',
+        reason: `Pago confirmado pedido ${order.orderNumber}`,
+        orderNumber: order.orderNumber,
+      });
+    }
+  }
+
   private async validateStock(warehouseId: string, items: ResolvedOrderItem[]) {
     for (const item of items) {
       const balance = await this.db.inventoryBalance.findFirst({
@@ -580,9 +628,10 @@ export class OrdersService {
         },
       });
 
-      if (!balance || balance.quantity < item.quantity) {
+      const available = balance ? getAvailableQuantity(balance) : 0;
+      if (!balance || available < item.quantity) {
         throw new UnprocessableEntityException(
-          `Stock insuficiente para "${item.nameSnapshot}" (disponible: ${balance?.quantity ?? 0}).`,
+          `Stock insuficiente para "${item.nameSnapshot}" (disponible: ${available}).`,
         );
       }
     }
@@ -698,12 +747,14 @@ export class OrdersService {
     return anyUser.id;
   }
 
-  private async restoreOrderInventory(
+  private async releaseOrderInventory(
     tx: Prisma.TransactionClient,
     order: {
       id: string;
       orderNumber: string;
       warehouseId: string;
+      paymentStatus: string;
+      stockReservedAt: Date | null;
       items: Array<{
         productId: string;
         productSizeId: string;
@@ -714,9 +765,27 @@ export class OrdersService {
     movementType: 'ECOMMERCE_ORDER_CANCEL',
   ) {
     const systemUserId = await this.resolveSystemUserId(order.warehouseId);
+    const releaseReservationOnly =
+      Boolean(order.stockReservedAt) && order.paymentStatus !== 'paid';
 
     for (const item of order.items) {
       if (!item.colorId) continue;
+
+      if (releaseReservationOnly) {
+        await tx.inventoryBalance.update({
+          where: {
+            warehouseId_productSizeId_colorId: {
+              warehouseId: order.warehouseId,
+              productSizeId: item.productSizeId,
+              colorId: item.colorId,
+            },
+          },
+          data: { reservedQuantity: { decrement: item.quantity } },
+        });
+
+        await syncMasterBalanceToColorSum(tx, order.warehouseId, item.productSizeId);
+        continue;
+      }
 
       const existingBalance = await tx.inventoryBalance.findFirst({
         where: {

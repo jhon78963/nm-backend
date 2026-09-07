@@ -5,6 +5,14 @@ type InventoryTx = Pick<
   'productSizeColor' | 'color' | 'inventoryBalance'
 >;
 
+export function getAvailableQuantity(balance: {
+  quantity: number;
+  reservedQuantity?: number | null;
+}): number {
+  const reserved = balance.reservedQuantity ?? 0;
+  return Math.max(0, balance.quantity - reserved);
+}
+
 export async function getNoColorId(
   tx: Pick<DatabaseService, 'color'>,
 ): Promise<string | null> {
@@ -42,6 +50,7 @@ export async function syncMasterBalanceToColorSum(
 
   const noColorId = await getOrCreateNoColorId(tx);
   let total = 0;
+  let reservedTotal = 0;
 
   for (const link of colorLinks) {
     const balance = await tx.inventoryBalance.findFirst({
@@ -50,9 +59,10 @@ export async function syncMasterBalanceToColorSum(
         productSizeId,
         colorId: link.colorId,
       },
-      select: { quantity: true },
+      select: { quantity: true, reservedQuantity: true },
     });
     total += balance?.quantity ?? 0;
+    reservedTotal += balance?.reservedQuantity ?? 0;
   }
 
   await tx.inventoryBalance.upsert({
@@ -63,12 +73,13 @@ export async function syncMasterBalanceToColorSum(
         colorId: noColorId,
       },
     },
-    update: { quantity: total },
+    update: { quantity: total, reservedQuantity: reservedTotal },
     create: {
       warehouseId,
       productSizeId,
       colorId: noColorId,
       quantity: total,
+      reservedQuantity: reservedTotal,
     },
   });
 }
@@ -106,14 +117,14 @@ export async function buildMasterStockByProductSizeId(
       warehouseId,
       productSizeId: { in: productSizeIds },
     },
-    select: { productSizeId: true, colorId: true, quantity: true },
+    select: { productSizeId: true, colorId: true, quantity: true, reservedQuantity: true },
   });
 
-  const quantityByKey = new Map<string, number>();
+  const availableByKey = new Map<string, number>();
   for (const balance of balances) {
-    quantityByKey.set(
+    availableByKey.set(
       `${balance.productSizeId}:${balance.colorId}`,
-      balance.quantity,
+      getAvailableQuantity(balance),
     );
   }
 
@@ -122,7 +133,7 @@ export async function buildMasterStockByProductSizeId(
     if (linkedColors.length > 0) {
       const total = linkedColors.reduce(
         (sum, colorId) =>
-          sum + (quantityByKey.get(`${productSizeId}:${colorId}`) ?? 0),
+          sum + (availableByKey.get(`${productSizeId}:${colorId}`) ?? 0),
         0,
       );
       stockByProductSizeId.set(productSizeId, total);
@@ -130,7 +141,7 @@ export async function buildMasterStockByProductSizeId(
     }
 
     const masterQty = noColorId
-      ? quantityByKey.get(`${productSizeId}:${noColorId}`) ?? 0
+      ? availableByKey.get(`${productSizeId}:${noColorId}`) ?? 0
       : 0;
     stockByProductSizeId.set(productSizeId, masterQty);
   }
@@ -159,10 +170,10 @@ export async function readColorStock(
 ): Promise<number> {
   const balance = await tx.inventoryBalance.findFirst({
     where: { warehouseId, productSizeId, colorId },
-    select: { quantity: true },
+    select: { quantity: true, reservedQuantity: true },
   });
 
-  return balance?.quantity ?? 0;
+  return balance ? getAvailableQuantity(balance) : 0;
 }
 
 export async function buildStockByProductSizeColorId(
@@ -180,13 +191,13 @@ export async function buildStockByProductSizeColorId(
       warehouseId,
       productSizeId: { in: productSizeIds },
     },
-    select: { productSizeId: true, colorId: true, quantity: true },
+    select: { productSizeId: true, colorId: true, quantity: true, reservedQuantity: true },
   });
 
   for (const balance of balances) {
     stockByKey.set(
       `${balance.productSizeId}:${balance.colorId}`,
-      balance.quantity,
+      getAvailableQuantity(balance),
     );
   }
 

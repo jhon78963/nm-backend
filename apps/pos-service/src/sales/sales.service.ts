@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { DatabaseService } from '@app/database';
+import { getAvailableQuantity } from '@app/common/utils/product-inventory.util';
 import type { AuthenticatedUser } from '@app/common/types/authenticated-user.type';
 import { SunatService } from '../sunat/sunat.service';
 import dayjs from 'dayjs';
@@ -207,9 +208,9 @@ export class SalesService {
         },
       });
 
-      if (!balance || balance.quantity < qty) {
+      if (!balance || getAvailableQuantity(balance) < qty) {
         throw new UnprocessableEntityException(
-          `Stock insuficiente para el producto seleccionado (disponible: ${balance?.quantity ?? 0}, requerido: ${qty}).`,
+          `Stock insuficiente para el producto seleccionado (disponible: ${balance ? getAvailableQuantity(balance) : 0}, requerido: ${qty}).`,
         );
       }
 
@@ -476,9 +477,9 @@ export class SalesService {
       where: { warehouseId, productSizeId, colorId: resolvedColorId },
     });
 
-    if (!balance || balance.quantity < quantity) {
+    if (!balance || getAvailableQuantity(balance) < quantity) {
       throw new UnprocessableEntityException(
-        `Stock insuficiente (disponible: ${balance?.quantity ?? 0}, requerido: ${quantity}).`,
+        `Stock insuficiente (disponible: ${balance ? getAvailableQuantity(balance) : 0}, requerido: ${quantity}).`,
       );
     }
 

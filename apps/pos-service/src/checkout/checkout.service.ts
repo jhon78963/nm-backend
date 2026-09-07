@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { DatabaseService } from '@app/database';
+import { getAvailableQuantity } from '@app/common/utils/product-inventory.util';
 import { SunatService } from '../sunat/sunat.service';
 import { DocumentSeriesService } from '../sunat/document-series.service';
 import { FiscalConfigService } from '../fiscal/fiscal-config.service';
@@ -249,10 +250,10 @@ export class CheckoutService {
         },
       });
 
-      if (!balance || balance.quantity < item.quantity) {
+      if (!balance || getAvailableQuantity(balance) < item.quantity) {
         throw new UnprocessableEntityException(
           `Stock insuficiente para el ítem ${item.productSizeId} ` +
-            `(disponible: ${balance?.quantity ?? 0}, requerido: ${item.quantity}).`,
+            `(disponible: ${balance ? getAvailableQuantity(balance) : 0}, requerido: ${item.quantity}).`,
         );
       }
     }

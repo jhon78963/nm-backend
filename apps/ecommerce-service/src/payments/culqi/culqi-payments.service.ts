@@ -126,13 +126,17 @@ export class CulqiPaymentsService {
       );
     }
 
-    const updated = await this.db.ecommerceOrder.update({
-      where: { id: order.id },
-      data: {
-        culqiChargeId: charge.id,
-        paymentStatus: 'paid',
-      },
-      include: { items: true },
+    const updated = await this.db.$transaction(async (tx) => {
+      await this.ordersService.confirmOrderPaymentInventory(tx, order);
+
+      return tx.ecommerceOrder.update({
+        where: { id: order.id },
+        data: {
+          culqiChargeId: charge.id,
+          paymentStatus: 'paid',
+        },
+        include: { items: true },
+      });
     });
 
     void this.orderEvents
@@ -218,13 +222,17 @@ export class CulqiPaymentsService {
       return { handled: false, reason: 'amount_mismatch' };
     }
 
-    const updated = await this.db.ecommerceOrder.update({
-      where: { id: previous.id },
-      data: {
-        culqiOrderId: culqiOrder.id,
-        paymentStatus: 'paid',
-      },
-      include: { items: true },
+    const updated = await this.db.$transaction(async (tx) => {
+      await this.ordersService.confirmOrderPaymentInventory(tx, previous);
+
+      return tx.ecommerceOrder.update({
+        where: { id: previous.id },
+        data: {
+          culqiOrderId: culqiOrder.id,
+          paymentStatus: 'paid',
+        },
+        include: { items: true },
+      });
     });
 
     void this.orderEvents
@@ -282,13 +290,17 @@ export class CulqiPaymentsService {
         return { handled: false, reason: 'amount_mismatch' };
       }
 
-      const updated = await this.db.ecommerceOrder.update({
-        where: { id: order.id },
-        data: {
-          culqiChargeId: charge.id,
-          paymentStatus: 'paid',
-        },
-        include: { items: true },
+      const updated = await this.db.$transaction(async (tx) => {
+        await this.ordersService.confirmOrderPaymentInventory(tx, order);
+
+        return tx.ecommerceOrder.update({
+          where: { id: order.id },
+          data: {
+            culqiChargeId: charge.id,
+            paymentStatus: 'paid',
+          },
+          include: { items: true },
+        });
       });
 
       void this.orderEvents
