@@ -89,14 +89,20 @@ type StockLookupTx = Pick<
   'color' | 'inventoryBalance' | 'productSizeColor'
 >;
 
-export async function buildMasterStockByProductSizeId(
+export type ProductSizeStockBreakdown = {
+  physical: number;
+  reserved: number;
+  available: number;
+};
+
+export async function buildStockBreakdownByProductSizeId(
   tx: StockLookupTx,
   warehouseId: string,
   productSizeIds: string[],
-): Promise<Map<string, number>> {
-  const stockByProductSizeId = new Map<string, number>();
+): Promise<Map<string, ProductSizeStockBreakdown>> {
+  const breakdownByProductSizeId = new Map<string, ProductSizeStockBreakdown>();
   if (productSizeIds.length === 0) {
-    return stockByProductSizeId;
+    return breakdownByProductSizeId;
   }
 
   const noColorId = await getNoColorId(tx);
@@ -120,30 +126,72 @@ export async function buildMasterStockByProductSizeId(
     select: { productSizeId: true, colorId: true, quantity: true, reservedQuantity: true },
   });
 
-  const availableByKey = new Map<string, number>();
+  const balanceByKey = new Map<
+    string,
+    { quantity: number; reservedQuantity: number }
+  >();
   for (const balance of balances) {
-    availableByKey.set(
-      `${balance.productSizeId}:${balance.colorId}`,
-      getAvailableQuantity(balance),
-    );
+    balanceByKey.set(`${balance.productSizeId}:${balance.colorId}`, {
+      quantity: balance.quantity,
+      reservedQuantity: balance.reservedQuantity ?? 0,
+    });
   }
+
+  const accumulateLinkedColors = (productSizeId: string, colorIds: string[]) => {
+    return colorIds.reduce(
+      (totals, colorId) => {
+        const balance = balanceByKey.get(`${productSizeId}:${colorId}`);
+        if (!balance) {
+          return totals;
+        }
+
+        return {
+          physical: totals.physical + balance.quantity,
+          reserved: totals.reserved + balance.reservedQuantity,
+          available: totals.available + getAvailableQuantity(balance),
+        };
+      },
+      { physical: 0, reserved: 0, available: 0 },
+    );
+  };
 
   for (const productSizeId of productSizeIds) {
     const linkedColors = linkedColorsByProductSizeId.get(productSizeId) ?? [];
     if (linkedColors.length > 0) {
-      const total = linkedColors.reduce(
-        (sum, colorId) =>
-          sum + (availableByKey.get(`${productSizeId}:${colorId}`) ?? 0),
-        0,
+      breakdownByProductSizeId.set(
+        productSizeId,
+        accumulateLinkedColors(productSizeId, linkedColors),
       );
-      stockByProductSizeId.set(productSizeId, total);
       continue;
     }
 
-    const masterQty = noColorId
-      ? availableByKey.get(`${productSizeId}:${noColorId}`) ?? 0
-      : 0;
-    stockByProductSizeId.set(productSizeId, masterQty);
+    const masterBalance = noColorId
+      ? balanceByKey.get(`${productSizeId}:${noColorId}`)
+      : undefined;
+    breakdownByProductSizeId.set(productSizeId, {
+      physical: masterBalance?.quantity ?? 0,
+      reserved: masterBalance?.reservedQuantity ?? 0,
+      available: masterBalance ? getAvailableQuantity(masterBalance) : 0,
+    });
+  }
+
+  return breakdownByProductSizeId;
+}
+
+export async function buildMasterStockByProductSizeId(
+  tx: StockLookupTx,
+  warehouseId: string,
+  productSizeIds: string[],
+): Promise<Map<string, number>> {
+  const breakdownByProductSizeId = await buildStockBreakdownByProductSizeId(
+    tx,
+    warehouseId,
+    productSizeIds,
+  );
+  const stockByProductSizeId = new Map<string, number>();
+
+  for (const [productSizeId, breakdown] of breakdownByProductSizeId) {
+    stockByProductSizeId.set(productSizeId, breakdown.available);
   }
 
   return stockByProductSizeId;

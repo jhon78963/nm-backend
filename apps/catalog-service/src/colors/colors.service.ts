@@ -2,6 +2,9 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { DatabaseService } from '@app/database';
 import { CreateColorDto } from './dto/create-color.dto';
 import {
+  getAvailableQuantity,
+} from '@app/common/utils/product-inventory.util';
+import {
   paginatedResponse,
   parsePagination,
 } from '@app/common/utils/pagination.util';
@@ -13,6 +16,8 @@ type CatalogColorRow = {
   hash: string | null;
   isExists: boolean;
   stock: number | null;
+  reservedQuantity: number | null;
+  availableQuantity: number | null;
 };
 
 /**
@@ -109,6 +114,8 @@ export class ColorsService {
     const productSizeId = productSize?.id ?? null;
     const attachedColorIds = new Set<string>();
     const qtyByColorId = new Map<string, number>();
+    const reservedByColorId = new Map<string, number>();
+    const availableByColorId = new Map<string, number>();
 
     if (productSize && productSize.product.warehouseId) {
       const pivots = await this.db.productSizeColor.findMany({
@@ -124,12 +131,21 @@ export class ColorsService {
           warehouseId: productSize.product.warehouseId,
           productSizeId: productSize.id,
         },
-        select: { colorId: true, quantity: true },
+        select: { colorId: true, quantity: true, reservedQuantity: true },
       });
       for (const balance of balances) {
         qtyByColorId.set(
           balance.colorId,
           (qtyByColorId.get(balance.colorId) ?? 0) + balance.quantity,
+        );
+        reservedByColorId.set(
+          balance.colorId,
+          (reservedByColorId.get(balance.colorId) ?? 0) + (balance.reservedQuantity ?? 0),
+        );
+        availableByColorId.set(
+          balance.colorId,
+          (availableByColorId.get(balance.colorId) ?? 0) +
+            getAvailableQuantity(balance),
         );
       }
     }
@@ -149,6 +165,8 @@ export class ColorsService {
           hash: color.hash,
           isExists,
           stock: isExists ? (qtyByColorId.get(color.id) ?? 0) : null,
+          reservedQuantity: isExists ? (reservedByColorId.get(color.id) ?? 0) : null,
+          availableQuantity: isExists ? (availableByColorId.get(color.id) ?? 0) : null,
         };
       })
       .sort((a, b) => {

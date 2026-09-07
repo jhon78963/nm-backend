@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '@app/database';
 import { CreateSizeDto } from './dto/create-size.dto';
-import { buildMasterStockByProductSizeId } from '@app/common/utils/product-inventory.util';
+import { buildStockBreakdownByProductSizeId } from '@app/common/utils/product-inventory.util';
 import {
   paginatedResponse,
   parsePagination,
@@ -75,13 +75,16 @@ export class SizesService {
     );
 
     const productSizeIds = productSizes.map((ps) => ps.id);
-    const stockByProductSizeId = product.warehouseId
-      ? await buildMasterStockByProductSizeId(
+    const stockBreakdownByProductSizeId = product.warehouseId
+      ? await buildStockBreakdownByProductSizeId(
           this.db,
           product.warehouseId,
           productSizeIds,
         )
-      : new Map<string, number>();
+      : new Map<
+          string,
+          { physical: number; reserved: number; available: number }
+        >();
 
     const sizes = await this.db.size.findMany({
       where: {
@@ -108,13 +111,22 @@ export class SizesService {
           };
         }
 
+        const stockBreakdown = stockBreakdownByProductSizeId.get(ps.id) ?? {
+          physical: 0,
+          reserved: 0,
+          available: 0,
+        };
+
         return {
           id: size.id,
           productSizeId: ps.id,
           description: size.description,
           barcode: ps.barcode,
           isExists: true,
-          stock: stockByProductSizeId.get(ps.id) ?? 0,
+          stock: stockBreakdown.available,
+          physicalStock: stockBreakdown.physical,
+          reservedStock: stockBreakdown.reserved,
+          availableStock: stockBreakdown.available,
           purchasePrice: Number(ps.purchasePrice),
           salePrice: Number(ps.salePrice),
           minSalePrice: ps.minSalePrice != null ? Number(ps.minSalePrice) : null,
