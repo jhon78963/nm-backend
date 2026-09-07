@@ -123,8 +123,8 @@ export class CustomerAccountService {
       create: {
         customerId,
         orderUpdates: dto.orderUpdates ?? true,
-        promotions: dto.promotions ?? true,
-        newsletter: dto.newsletter ?? true,
+        promotions: dto.promotions ?? false,
+        newsletter: dto.newsletter ?? false,
       },
       update: {
         ...(dto.orderUpdates !== undefined ? { orderUpdates: dto.orderUpdates } : {}),
@@ -134,12 +134,40 @@ export class CustomerAccountService {
     });
   }
 
-  listNotifications(customerId: string) {
+  async listNotifications(customerId: string) {
+    const settings = await this.getNotificationSettings(customerId);
+    const excludedTypes = this.getExcludedNotificationTypes(settings);
+
     return this.db.ecommerceCustomerNotification.findMany({
-      where: { customerId },
+      where: {
+        customerId,
+        ...(excludedTypes.length > 0 ? { type: { notIn: excludedTypes } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+  }
+
+  private getExcludedNotificationTypes(settings: {
+    orderUpdates: boolean;
+    promotions: boolean;
+    newsletter: boolean;
+  }): string[] {
+    const excluded: string[] = [];
+
+    if (!settings.orderUpdates) {
+      excluded.push('order', 'refund');
+    }
+
+    if (!settings.promotions) {
+      excluded.push('promotion');
+    }
+
+    if (!settings.newsletter) {
+      excluded.push('newsletter');
+    }
+
+    return excluded;
   }
 
   async markNotificationRead(customerId: string, notificationId: string) {

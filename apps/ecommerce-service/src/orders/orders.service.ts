@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 import { DatabaseService } from '@app/database';
 import { recordProductColorStockHistory } from '@app/common/utils/product-history.util';
 import { syncMasterBalanceToColorSum } from '@app/common/utils/product-inventory.util';
@@ -31,7 +32,7 @@ import {
   normalizeOrderNumberForLookup,
 } from './utils/order-number.util';
 import type { AuthenticatedCustomer } from '../customer-auth/types/authenticated-customer.type';
-import { EcommerceMailNotificationsService } from '../mail/ecommerce-mail-notifications.service';
+import { EcommerceOrderEventsService } from '../order-events/ecommerce-order-events.service';
 import { CouponsService } from '../coupons/coupons.service';
 
 type ResolvedOrderItem = {
@@ -51,7 +52,7 @@ export class OrdersService {
   constructor(
     private readonly db: DatabaseService,
     private readonly config: ConfigService,
-    private readonly mailNotifications: EcommerceMailNotificationsService,
+    private readonly orderEvents: EcommerceOrderEventsService,
     private readonly couponsService: CouponsService,
   ) {}
 
@@ -222,9 +223,73 @@ export class OrdersService {
       return created;
     });
 
-    void this.mailNotifications.sendOrderConfirmation(order).catch(() => undefined);
+    void this.orderEvents.publishOrderCreated(order).catch(() => undefined);
 
     return this.mapPublicOrder(order);
+  }
+
+  async cancelPendingCheckoutOrder(
+    orderNumber: string,
+    email: string,
+    options?: { silent?: boolean },
+  ) {
+    const existing = await this.db.ecommerceOrder.findFirst({
+      where: {
+        orderNumber: normalizeOrderNumberForLookup(orderNumber),
+        email: email.trim().toLowerCase(),
+      },
+      include: { items: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('No encontramos un pedido con esos datos.');
+    }
+
+    if (existing.paymentStatus === 'paid') {
+      throw new BadRequestException('No se puede cancelar un pedido ya pagado.');
+    }
+
+    if (existing.status === 'cancelled') {
+      return {
+        orderNumber: existing.orderNumber,
+        status: existing.status,
+        paymentStatus: existing.paymentStatus,
+      };
+    }
+
+    if (existing.status !== 'pending') {
+      throw new BadRequestException('Este pedido ya no se puede cancelar automáticamente.');
+    }
+
+    const order = await this.db.$transaction(async (tx) => {
+      await this.restoreOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
+      await this.reverseCouponRedemption(tx, existing.id);
+
+      return tx.ecommerceOrder.update({
+        where: { id: existing.id },
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+        },
+        include: { items: true },
+      });
+    });
+
+    if (!options?.silent) {
+      void this.orderEvents
+        .publishOrderUpdated({
+          previous: existing,
+          current: order,
+          source: 'customer',
+        })
+        .catch(() => undefined);
+    }
+
+    return {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+    };
   }
 
   async trackOrder(orderNumber: string, contact: string) {
@@ -387,62 +452,7 @@ export class OrdersService {
 
     const order = await this.db.$transaction(async (tx) => {
       if (shouldRestoreStock) {
-        const systemUserId = await this.resolveSystemUserId(existing.warehouseId);
-
-        for (const item of existing.items) {
-          if (!item.colorId) continue;
-
-          const existingBalance = await tx.inventoryBalance.findFirst({
-            where: {
-              warehouseId: existing.warehouseId,
-              productSizeId: item.productSizeId,
-              colorId: item.colorId,
-            },
-            select: { quantity: true },
-          });
-          const oldStock = existingBalance?.quantity ?? 0;
-
-          const updated = await tx.inventoryBalance.update({
-            where: {
-              warehouseId_productSizeId_colorId: {
-                warehouseId: existing.warehouseId,
-                productSizeId: item.productSizeId,
-                colorId: item.colorId,
-              },
-            },
-            data: { quantity: { increment: item.quantity } },
-          });
-
-          await tx.inventoryMovement.create({
-            data: {
-              warehouseId: existing.warehouseId,
-              productSizeId: item.productSizeId,
-              colorId: item.colorId,
-              direction: 'IN',
-              quantity: item.quantity,
-              movementType: 'ECOMMERCE_ORDER_CANCEL',
-              referenceId: existing.id,
-              referenceType: 'EcommerceOrder',
-              balanceAfter: updated.quantity,
-              occurredAt: new Date(),
-              createdById: systemUserId,
-            },
-          });
-
-          await syncMasterBalanceToColorSum(tx, existing.warehouseId, item.productSizeId);
-
-          await recordProductColorStockHistory(tx, {
-            productId: item.productId,
-            productSizeId: item.productSizeId,
-            colorId: item.colorId,
-            oldStock,
-            newStock: updated.quantity,
-            createdById: systemUserId,
-            eventType: 'ECOMMERCE_ORDER_CANCEL_STOCK',
-            reason: `Cancelación pedido ${existing.orderNumber}`,
-            orderNumber: existing.orderNumber,
-          });
-        }
+        await this.restoreOrderInventory(tx, existing, 'ECOMMERCE_ORDER_CANCEL');
       }
 
       return tx.ecommerceOrder.update({
@@ -459,8 +469,12 @@ export class OrdersService {
       });
     });
 
-    void this.mailNotifications
-      .sendOrderStatusChange(existing, order)
+    void this.orderEvents
+      .publishOrderUpdated({
+        previous: existing,
+        current: order,
+        source: 'admin',
+      })
       .catch(() => undefined);
 
     return this.mapAdminOrder(order);
@@ -682,6 +696,98 @@ export class OrdersService {
     }
 
     return anyUser.id;
+  }
+
+  private async restoreOrderInventory(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      orderNumber: string;
+      warehouseId: string;
+      items: Array<{
+        productId: string;
+        productSizeId: string;
+        colorId: string | null;
+        quantity: number;
+      }>;
+    },
+    movementType: 'ECOMMERCE_ORDER_CANCEL',
+  ) {
+    const systemUserId = await this.resolveSystemUserId(order.warehouseId);
+
+    for (const item of order.items) {
+      if (!item.colorId) continue;
+
+      const existingBalance = await tx.inventoryBalance.findFirst({
+        where: {
+          warehouseId: order.warehouseId,
+          productSizeId: item.productSizeId,
+          colorId: item.colorId,
+        },
+        select: { quantity: true },
+      });
+      const oldStock = existingBalance?.quantity ?? 0;
+
+      const updated = await tx.inventoryBalance.update({
+        where: {
+          warehouseId_productSizeId_colorId: {
+            warehouseId: order.warehouseId,
+            productSizeId: item.productSizeId,
+            colorId: item.colorId,
+          },
+        },
+        data: { quantity: { increment: item.quantity } },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          warehouseId: order.warehouseId,
+          productSizeId: item.productSizeId,
+          colorId: item.colorId,
+          direction: 'IN',
+          quantity: item.quantity,
+          movementType,
+          referenceId: order.id,
+          referenceType: 'EcommerceOrder',
+          balanceAfter: updated.quantity,
+          occurredAt: new Date(),
+          createdById: systemUserId,
+        },
+      });
+
+      await syncMasterBalanceToColorSum(tx, order.warehouseId, item.productSizeId);
+
+      await recordProductColorStockHistory(tx, {
+        productId: item.productId,
+        productSizeId: item.productSizeId,
+        colorId: item.colorId,
+        oldStock,
+        newStock: updated.quantity,
+        createdById: systemUserId,
+        eventType: 'ECOMMERCE_ORDER_CANCEL_STOCK',
+        reason: `Cancelación pedido ${order.orderNumber}`,
+        orderNumber: order.orderNumber,
+      });
+    }
+  }
+
+  private async reverseCouponRedemption(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ) {
+    const redemption = await tx.ecommerceCouponRedemption.findFirst({
+      where: { orderId },
+    });
+
+    if (!redemption) {
+      return;
+    }
+
+    await tx.ecommerceCouponRedemption.delete({ where: { id: redemption.id } });
+    await tx.ecommerceCoupon.update({
+      where: { id: redemption.couponId },
+      data: { usageCount: { decrement: 1 } },
+    });
   }
 
   private async findOrderByNumberAndContact(orderNumber: string, contact: string) {

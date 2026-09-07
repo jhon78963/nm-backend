@@ -90,6 +90,10 @@ function isPublicEcommerceOrdersRequest(method: string, path: string): boolean {
     return true;
   }
 
+  if (method === 'POST' && path === '/api/v1/ecommerce/orders/cancel-checkout') {
+    return true;
+  }
+
   return method === 'GET' && /^\/api\/v1\/ecommerce\/orders\/public\/[^/]+$/.test(path);
 }
 
@@ -99,6 +103,18 @@ function isPublicEcommerceNewsletterRequest(method: string, path: string): boole
 
 function isPublicEcommerceCouponsRequest(method: string, path: string): boolean {
   return method === 'POST' && path === '/api/v1/ecommerce/coupons/validate';
+}
+
+function isPublicEcommerceCulqiRequest(method: string, path: string): boolean {
+  if (method !== 'POST') {
+    return false;
+  }
+
+  return (
+    path === '/api/v1/ecommerce/payments/culqi/charge'
+    || path === '/api/v1/ecommerce/payments/culqi/prepare'
+    || path === '/api/v1/ecommerce/webhooks/culqi'
+  );
 }
 
 /**
@@ -155,6 +171,7 @@ export class GatewayAuthGuard extends JwtAuthGuard {
       || isPublicEcommerceOrdersRequest(method, path)
       || isPublicEcommerceNewsletterRequest(method, path)
       || isPublicEcommerceCouponsRequest(method, path)
+      || isPublicEcommerceCulqiRequest(method, path)
       || isEcommerceCustomerAccountRequest(method, path)
       || isChatbotProxyRequest(path)
     ) {

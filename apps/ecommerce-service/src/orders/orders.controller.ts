@@ -22,6 +22,7 @@ import { resolveClientIp } from '@app/common/utils/client-ip.util';
 import { RECAPTCHA_ACTIONS } from '@app/common/recaptcha/recaptcha.constants';
 import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
 
+import { CancelCheckoutOrderDto } from './dto/cancel-checkout-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListCustomerOrdersQueryDto } from './dto/list-customer-orders-query.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
@@ -60,6 +61,18 @@ export class OrdersController {
       },
       request.user ?? undefined,
     );
+  }
+
+  @Post('cancel-checkout')
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancelar pedido pendiente de checkout (rollback stock)' })
+  async cancelCheckoutOrder(@Body() dto: CancelCheckoutOrderDto) {
+    await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.checkoutOrder);
+
+    return this.ordersService.cancelPendingCheckoutOrder(dto.orderNumber, dto.email);
   }
 
   @Get('mine')

@@ -26,6 +26,7 @@ import { CustomerAccountModule } from './customer-account/customer-account.modul
 import { AdminCustomersModule } from './admin-customers/admin-customers.module';
 import { StoreSearchModule } from './store-search/store-search.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
+import { CulqiModule } from './payments/culqi/culqi.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
     AdminCustomersModule,
     StoreSearchModule,
     NewsletterModule,
+    CulqiModule,
   ],
 })
 export class AppModule {}
