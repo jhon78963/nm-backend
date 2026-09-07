@@ -127,7 +127,7 @@ export class CulqiPaymentsService {
     }
 
     const updated = await this.db.$transaction(async (tx) => {
-      await this.ordersService.confirmOrderPaymentInventory(tx, order);
+      await this.ordersService.confirmOrderPaymentInventory(tx, { id: order.id });
 
       return tx.ecommerceOrder.update({
         where: { id: order.id },
@@ -223,7 +223,7 @@ export class CulqiPaymentsService {
     }
 
     const updated = await this.db.$transaction(async (tx) => {
-      await this.ordersService.confirmOrderPaymentInventory(tx, previous);
+      await this.ordersService.confirmOrderPaymentInventory(tx, { id: previous.id });
 
       return tx.ecommerceOrder.update({
         where: { id: previous.id },
@@ -291,7 +291,7 @@ export class CulqiPaymentsService {
       }
 
       const updated = await this.db.$transaction(async (tx) => {
-        await this.ordersService.confirmOrderPaymentInventory(tx, order);
+        await this.ordersService.confirmOrderPaymentInventory(tx, { id: order.id });
 
         return tx.ecommerceOrder.update({
           where: { id: order.id },

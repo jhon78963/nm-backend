@@ -416,7 +416,7 @@ export class OrdersService {
 
     const order = await this.db.$transaction(async (tx) => {
       if (shouldConfirmStock) {
-        await this.confirmOrderPaymentInventory(tx, existing);
+        await this.confirmOrderPaymentInventory(tx, { id: existing.id });
       }
 
       if (shouldRestoreStock) {
@@ -540,20 +540,14 @@ export class OrdersService {
 
   async confirmOrderPaymentInventory(
     tx: Prisma.TransactionClient,
-    order: {
-      id: string;
-      orderNumber: string;
-      warehouseId: string;
-      stockReservedAt: Date | null;
-      items: Array<{
-        productId: string;
-        productSizeId: string;
-        colorId: string | null;
-        quantity: number;
-      }>;
-    },
+    orderRef: { id: string },
   ): Promise<void> {
-    if (!order.stockReservedAt) {
+    const order = await tx.ecommerceOrder.findFirst({
+      where: { id: orderRef.id },
+      include: { items: true },
+    });
+
+    if (!order?.stockReservedAt) {
       return;
     }
 
