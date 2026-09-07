@@ -6,6 +6,7 @@ import {
 
 import { DatabaseService } from '@app/database';
 
+import { normalizeOrderNumberForLookup } from '../orders/utils/order-number.util';
 import { CreateRefundRequestDto } from './dto/create-refund-request.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 import { UpsertCustomerAddressDto } from './dto/upsert-customer-address.dto';
@@ -211,8 +212,28 @@ export class CustomerAccountService {
   }
 
   async createRefund(customerId: string, dto: CreateRefundRequestDto) {
+    const normalizedOrderNumber = normalizeOrderNumberForLookup(dto.orderNumber);
+
+    const customer = await this.db.ecommerceCustomer.findFirst({
+      where: { id: customerId, isEnabled: true },
+      select: { id: true, email: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Cliente no encontrado.');
+    }
+
     const order = await this.db.ecommerceOrder.findFirst({
-      where: { customerId, orderNumber: dto.orderNumber.trim() },
+      where: {
+        orderNumber: normalizedOrderNumber,
+        OR: [
+          { customerId },
+          {
+            customerId: null,
+            email: customer.email.trim().toLowerCase(),
+          },
+        ],
+      },
     });
 
     if (!order) {
@@ -220,7 +241,11 @@ export class CustomerAccountService {
     }
 
     if (order.paymentStatus !== 'paid') {
-      throw new BadRequestException('Solo puedes solicitar reembolso de pedidos pagados.');
+      throw new BadRequestException(
+        order.paymentStatus === 'pending'
+          ? 'No puedes solicitar reembolso mientras el pago del pedido esté pendiente.'
+          : 'Solo puedes solicitar reembolso de pedidos pagados.',
+      );
     }
 
     if (!REFUND_ELIGIBLE_STATUSES.has(order.status)) {
