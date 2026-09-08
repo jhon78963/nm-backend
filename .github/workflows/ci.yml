@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, test, and build
+    name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 25
 

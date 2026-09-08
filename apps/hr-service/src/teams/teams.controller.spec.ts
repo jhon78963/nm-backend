@@ -11,6 +11,7 @@ const mockUser: AuthenticatedUser = {
   tenantId: 'tenant-uuid',
   warehouseId: 'warehouse-uuid',
   roles: ['Admin'],
+  permissions: [],
   mustChangePassword: false,
 };
 

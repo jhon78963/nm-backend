@@ -10,6 +10,7 @@ const mockUser: AuthenticatedUser = {
   tenantId: 'tenant-uuid',
   warehouseId: 'warehouse-uuid',
   roles: ['Admin'],
+  permissions: [],
   mustChangePassword: false,
 };
 
@@ -117,8 +118,9 @@ describe('AttendanceController', () => {
       service.getByMonth.mockResolvedValue(mockMonthlySummary as any);
       const result = await controller.getByMonth(mockUser, '2026-08');
       expect(service.getByMonth).toHaveBeenCalledWith('warehouse-uuid', '2026-08');
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({ presentDays: 20, absentDays: 1 });
+      const rows = result as typeof mockMonthlySummary;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ presentDays: 20, absentDays: 1 });
     });
 
     it('should return team month records when teamId is provided', async () => {
