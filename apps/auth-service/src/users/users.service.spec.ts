@@ -35,6 +35,12 @@ const mockDb = {
     findFirst: jest.fn(),
     update: jest.fn(),
   },
+  rolePermission: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
+  permission: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -3,6 +3,7 @@ import { BadRequestException, UnprocessableEntityException } from '@nestjs/commo
 import { CheckoutService } from './checkout.service';
 import { SunatService } from '../sunat/sunat.service';
 import { DocumentSeriesService } from '../sunat/document-series.service';
+import { FiscalConfigService } from '../fiscal/fiscal-config.service';
 import { DatabaseService } from '@app/database';
 import { faker } from '@faker-js/faker';
 import { DocumentType, PaymentMethod } from './dto/checkout.dto';
@@ -73,6 +74,15 @@ const mockDocSeries = {
   incrementNumber: jest.fn(),
 };
 
+const mockFiscalConfig = {
+  getForWarehouse: jest.fn().mockResolvedValue({
+    tenantElectronicInvoicingEnabled: true,
+    warehouseElectronicInvoicingEnabled: true,
+    electronicInvoicingEnabled: true,
+    series: { boleta: 'B001', factura: 'F001' },
+  }),
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUITE: CheckoutService
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -87,6 +97,7 @@ describe('CheckoutService', () => {
         { provide: DatabaseService, useValue: mockDb },
         { provide: SunatService, useValue: mockSunat },
         { provide: DocumentSeriesService, useValue: mockDocSeries },
+        { provide: FiscalConfigService, useValue: mockFiscalConfig },
       ],
     }).compile();
 

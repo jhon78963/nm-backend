@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { DatabaseService } from '@app/database';
+import { UserActionLogWriter } from '@app/common/audit/user-action-log.writer';
 import { faker } from '@faker-js/faker';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -34,6 +35,11 @@ const mockUsersService = {
   findByUsernameOrEmail: jest.fn(),
   findById: jest.fn(),
   findByEmail: jest.fn(),
+  getPermissionsForUser: jest.fn().mockResolvedValue([]),
+};
+
+const mockActionLogWriter = {
+  logSafely: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockJwtService = {
@@ -92,6 +98,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: DatabaseService, useValue: mockDb },
+        { provide: UserActionLogWriter, useValue: mockActionLogWriter },
       ],
     }).compile();
 

@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Build and test
+    name: Test and build
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -35,7 +35,9 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
-      # TODO: re-enable test:all when auth/inventory mocks are updated (rolePermission).
+      - name: Test
+        run: npm run test:all
+
       - name: Build gateway
         run: npm run build:gateway
 
