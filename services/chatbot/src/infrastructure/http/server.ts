@@ -57,6 +57,10 @@ export function createServer(
     res.json({ status: 'ok', service: 'nm-chatbot', timestamp: new Date().toISOString() });
   });
 
+  app.get('/', (_req, res) => {
+    res.redirect(302, '/admin/');
+  });
+
   // Admin panel React (production build at /admin)
   const adminDist =
     process.env['ADMIN_PANEL_DIST'] ?? path.join(process.cwd(), 'admin', 'dist');
