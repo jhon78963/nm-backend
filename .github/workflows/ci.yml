@@ -63,7 +63,7 @@ jobs:
           event-type: deploy-production
           client-payload: |
             {
-              "repo": "nm-backend-v3",
+              "repo": "nm-backend",
               "sha": "${{ github.sha }}",
               "ref": "${{ github.ref_name }}"
             }
