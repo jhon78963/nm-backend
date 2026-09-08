@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { CustomerAuthService } from './customer-auth.service';
 import { UsersService } from '../users/users.service';
 import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { faker } from '@faker-js/faker';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -68,7 +69,10 @@ describe('AuthController', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: RecaptchaService, useValue: mockRecaptchaService },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<AuthController>(AuthController);
     jest.clearAllMocks();

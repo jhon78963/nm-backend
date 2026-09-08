@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { DatabaseService } from '@app/database';
 import { UserActionLogWriter } from '@app/common/audit/user-action-log.writer';
+import { MailClientService } from '@app/mail-client';
 import { faker } from '@faker-js/faker';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -40,6 +41,10 @@ const mockUsersService = {
 
 const mockActionLogWriter = {
   logSafely: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockMailClient = {
+  sendEcommerceMail: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockJwtService = {
@@ -99,6 +104,7 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: DatabaseService, useValue: mockDb },
         { provide: UserActionLogWriter, useValue: mockActionLogWriter },
+        { provide: MailClientService, useValue: mockMailClient },
       ],
     }).compile();
 
