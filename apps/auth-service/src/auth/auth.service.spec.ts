@@ -86,6 +86,9 @@ const mockDb = {
     findUnique: jest.fn(),
     delete: jest.fn(),
   },
+  ecommerceCustomer: {
+    findUnique: jest.fn().mockResolvedValue(null),
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
