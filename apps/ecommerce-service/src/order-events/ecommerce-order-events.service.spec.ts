@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { DatabaseService } from '@app/database';
 
+import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceMailNotificationsService } from '../mail/ecommerce-mail-notifications.service';
 import { EcommerceOrderEventsService } from './ecommerce-order-events.service';
 
@@ -22,6 +23,10 @@ const mockMailNotifications = {
   sendOrderConfirmation: jest.fn().mockResolvedValue(undefined),
   sendStaffNewOrderAlert: jest.fn().mockResolvedValue(undefined),
   sendOrderStatusChange: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockInvoicingService = {
+  emitForPaidOrder: jest.fn().mockResolvedValue(undefined),
 };
 
 const sampleOrder = {
@@ -60,6 +65,7 @@ describe('EcommerceOrderEventsService', () => {
         EcommerceOrderEventsService,
         { provide: DatabaseService, useValue: mockDb },
         { provide: EcommerceMailNotificationsService, useValue: mockMailNotifications },
+        { provide: EcommerceInvoicingService, useValue: mockInvoicingService },
       ],
     }).compile();
 
@@ -72,5 +78,15 @@ describe('EcommerceOrderEventsService', () => {
     expect(mockDb.ecommerceCustomerNotification.create).toHaveBeenCalled();
     expect(mockMailNotifications.sendOrderConfirmation).toHaveBeenCalledWith(sampleOrder);
     expect(mockMailNotifications.sendStaffNewOrderAlert).toHaveBeenCalledWith(sampleOrder);
+  });
+
+  it('dispara facturación SUNAT cuando el pago pasa a paid', async () => {
+    await service.publishOrderUpdated({
+      previous: { ...sampleOrder, paymentStatus: 'pending' },
+      current: { ...sampleOrder, paymentStatus: 'paid' },
+      source: 'culqi_charge',
+    });
+
+    expect(mockInvoicingService.emitForPaidOrder).toHaveBeenCalledWith('order-uuid-1');
   });
 });

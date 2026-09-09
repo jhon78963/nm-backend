@@ -344,10 +344,11 @@ cd nm-ecommerce && npx playwright test
   - Criterio: "Quedan X unidades" o "Agotado" en PDP
   - **Hecho 2026-09-09:** `GET /ecommerce/products/:id/stock`, BFF `/api/products/:id/stock`, `useProductStock` + copy PDP
 
-- [ ] **3.1.2** **Facturación SUNAT** pedidos ecommerce  
+- [x] **3.1.2** **Facturación SUNAT** pedidos ecommerce  
   - Flujo: orden pagada → `invoicing-service` (Greenter)  
   - Archivos: `apps/ecommerce-service/`, `services/invoicing/`  
   - Criterio: boleta/factura PDF en cuenta cliente
+  - **Hecho 2026-09-09:** `EcommerceInvoicingService`, campos fiscales en `EcommerceOrder`, hook pago `paid`, `GET /ecommerce/orders/mine/:orderNumber/invoice`, botón PDF en cuenta
 
 - [ ] **3.1.3** **Compra por WhatsApp** desde PDP  
   - Botón prellena mensaje a Malu con SKU/link  
@@ -417,7 +418,7 @@ cd nm-ecommerce && npx playwright test
 ## Criterio de cierre Fase 3
 
 - [x] Stock live en tienda
-- [ ] Facturación ecommerce automática
+- [x] Facturación ecommerce automática
 - [ ] AI visible en ERP productos
 - [ ] Error tracking + analytics
 - [ ] Chatbot enlaza a productos tienda

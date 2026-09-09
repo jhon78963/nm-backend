@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -9,8 +10,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -97,6 +101,27 @@ export class OrdersController {
     @Param('orderNumber') orderNumber: string,
   ) {
     return this.ordersService.getCustomerOrder(customer.id, orderNumber);
+  }
+
+  @Get('mine/:orderNumber/invoice')
+  @ApiBearerAuth()
+  @UseGuards(CustomerJwtAuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Header('Content-Type', 'application/pdf')
+  @ApiOperation({ summary: 'Descargar comprobante SUNAT del pedido (cliente autenticado)' })
+  async getCustomerOrderInvoice(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderNumber') orderNumber: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.ordersService.getCustomerOrderInvoicePdf(
+      customer.id,
+      orderNumber,
+    );
+
+    response.set('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return new StreamableFile(buffer);
   }
 
   @Post('track')

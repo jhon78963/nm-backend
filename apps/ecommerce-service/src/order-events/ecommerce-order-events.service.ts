@@ -4,6 +4,7 @@ import { DatabaseService } from '@app/database';
 
 import { ECOMMERCE_ORDER_STATUS_LABELS } from '../orders/constants/order-statuses';
 import { getPaymentStatusLabel } from '../orders/constants/order-payment-statuses';
+import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceMailNotificationsService } from '../mail/ecommerce-mail-notifications.service';
 import type { OrderEventOrder, OrderUpdatedEvent } from './ecommerce-order-events.types';
 
@@ -14,6 +15,7 @@ export class EcommerceOrderEventsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly mailNotifications: EcommerceMailNotificationsService,
+    private readonly invoicingService: EcommerceInvoicingService,
   ) {}
 
   async publishOrderCreated(order: OrderEventOrder): Promise<void> {
@@ -42,6 +44,20 @@ export class EcommerceOrderEventsService {
 
   async publishOrderUpdated(event: OrderUpdatedEvent): Promise<void> {
     await this.dispatchOrderUpdated(event);
+
+    if (
+      event.previous.paymentStatus !== 'paid'
+      && event.current.paymentStatus === 'paid'
+    ) {
+      void this.invoicingService
+        .emitForPaidOrder(event.current.id)
+        .catch((error) => {
+          this.logger.warn(
+            `No se pudo emitir comprobante SUNAT para pedido ${event.current.orderNumber}`,
+            error,
+          );
+        });
+    }
 
     if (event.silent) {
       return;

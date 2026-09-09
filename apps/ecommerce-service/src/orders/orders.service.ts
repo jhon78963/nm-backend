@@ -32,6 +32,7 @@ import {
   normalizeOrderNumberForLookup,
 } from './utils/order-number.util';
 import type { AuthenticatedCustomer } from '../customer-auth/types/authenticated-customer.type';
+import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceOrderEventsService } from '../order-events/ecommerce-order-events.service';
 import { CouponsService } from '../coupons/coupons.service';
 
@@ -54,6 +55,7 @@ export class OrdersService {
     private readonly config: ConfigService,
     private readonly orderEvents: EcommerceOrderEventsService,
     private readonly couponsService: CouponsService,
+    private readonly invoicingService: EcommerceInvoicingService,
   ) {}
 
   async createOrder(dto: CreateOrderDto, customer?: AuthenticatedCustomer) {
@@ -341,6 +343,13 @@ export class OrdersService {
     }
 
     return this.mapPublicOrder(order);
+  }
+
+  getCustomerOrderInvoicePdf(customerId: string, orderNumber: string) {
+    return this.invoicingService.getCustomerInvoicePdf(
+      customerId,
+      normalizeOrderNumberForLookup(orderNumber),
+    );
   }
 
   async listAdminOrders(query: ListOrdersQueryDto) {
@@ -902,6 +911,12 @@ export class OrdersService {
       couponCode: order.couponCode,
       couponDiscount: Number(order.couponDiscount),
       total: Number(order.total),
+      invoice: {
+        available: order.paymentStatus === 'paid' && Boolean(order.saleId),
+        documentType: order.documentType ?? null,
+        fullInvoiceNumber: order.fullInvoiceNumber ?? null,
+        sunatStatus: order.sunatStatus ?? null,
+      },
       items: (order.items ?? []).map((item: {
         id: string;
         productId: string;
