@@ -265,9 +265,10 @@ cd nm-ecommerce && npx playwright test
   - Archivos: `finances.routes.ts`, componentes sales
   - **Hecho 2026-09-09:** rutas en `lists.routes.ts`; list navega en lugar de modales
 
-- [ ] **2.2.3** Pantalla **acceso denegado** explícita  
+- [x] **2.2.3** Pantalla **acceso denegado** explícita  
   - Guards: `permission.guard.ts`, `role.guard.ts`  
   - Criterio: usuario ve mensaje claro, no solo redirect a `/not-found`
+  - **Hecho 2026-09-09:** ruta `/access-denied`; guards redirigen con mensaje 403
 
 - [ ] **2.2.4** **Dashboard vendedora** (rol no-admin)  
   - Archivo: `nm-frontend/src/app/features/dashboards/`  
