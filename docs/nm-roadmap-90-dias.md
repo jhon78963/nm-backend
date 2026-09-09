@@ -325,8 +325,8 @@ cd nm-ecommerce && npx playwright test
 - [ ] E2E checkout en CI
 - [ ] Adapters ecommerce en ERP
 - [x] Notificación pedido nuevo
-- [ ] Cookie banner live
-- [ ] Deep links ventas funcionan
+- [x] Cookie banner live
+- [x] Deep links ventas funcionan
 
 ---
 
@@ -477,6 +477,9 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-08 | Fase 2.1.1 carrito server-side | nm-backend, nm-ecommerce | 8f42e35, dcbaaa8 | CustomerCartModule + sync login |
 | 2026-09-09 | Fase 2.1.2 wishlist server-side | nm-backend, nm-ecommerce | 8dc641e, 1bde329 | CustomerWishlistModule + sync login |
 | 2026-09-09 | Fase 2.1.3 banner cookies | nm-ecommerce | 0f3880a | consent banner + gated analytics |
+| 2026-09-09 | Cierre cookie banner live | nm-ecommerce | — | E2E cookie-consent.spec.ts |
+| 2026-09-09 | Cierre deep links ventas | nm-frontend | — | sales-deep-links.spec.ts + fix mocks /api/v1 |
+| 2026-09-09 | KB URLs categorías chatbot | nm-backend | ae6b9c0 | jovenes / senoritas |
 
 ---
 
