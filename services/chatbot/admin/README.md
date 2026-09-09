@@ -53,14 +53,17 @@ npm run build:all    # backend + admin
 
 ## Gestión de agentes
 
-### Crear / actualizar agentes NM (seed)
+### Sincronizar admins ERP → chat_agents (SSO)
+
+El panel chatbot (SSO desde ERP) busca agente por `username` o `userId` (= `users.id` del JWT).
 
 ```bash
-cd nm-backend-v3/services/chatbot
-npm run create:agents:nm
+cd services/chatbot
+npm run create:agents:nm      # upsert admins ERP + asesores manuales
+npm run verify:agents:erp     # solo verificar (exit 1 si falta alguno)
 ```
 
-Edita `deploy/create-nm-agents.mjs` para agregar más asesores (email, username, whatsapp).
+Edita `deploy/create-nm-agents.mjs` → `MANUAL_SUPPORT_AGENTS` para asesores WhatsApp sin cuenta ERP.
 
 ### Resetear contraseña
 

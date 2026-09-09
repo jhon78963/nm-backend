@@ -307,9 +307,10 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **2.4.1** Verificar mapeo ERP user → `chat_agents` para todos los admins  
+- [x] **2.4.1** Verificar mapeo ERP user → `chat_agents` para todos los admins  
   - Script: `services/chatbot/deploy/create-nm-agents.mjs`  
   - Criterio: cada admin ERP tiene agente activo
+  - **Hecho 2026-09-09:** sync admins ERP por `userId`; `npm run verify:agents:erp`
 
 - [ ] **2.4.2** Link producto en respuestas Malu → tienda  
   - Archivos: `services/chatbot/src/infrastructure/ai/tools/product-tools.service.ts`  

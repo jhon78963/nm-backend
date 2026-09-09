@@ -46,6 +46,7 @@
     "docker:nm:build": "docker compose -f docker-compose.nm.yml build --no-cache",
     "docker:nm:up:build": "docker compose -f docker-compose.nm.yml up -d --build",
     "create:agents:nm": "node --env-file=.env deploy/create-nm-agents.mjs",
+    "verify:agents:erp": "node --env-file=.env deploy/create-nm-agents.mjs --verify-only",
     "reset:password": "node --env-file=.env deploy/reset-agent-password.mjs",
     "sync:products": "node --env-file=.env deploy/sync-products-to-context.mjs",
     "backup:chatbot": "node --env-file=.env deploy/backup-chatbot-config.mjs",
