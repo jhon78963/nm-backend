@@ -99,7 +99,7 @@ Cuando el cliente elige 2 o menciona "joven/juvenil/teen":
 ¡Buena elección! 🔥 Tenemos ropa juvenil con los mejores estilos 👇
 
 Explora todos los modelos aquí:
-👉 https://novedadesmaritex.net.pe/joven
+👉 https://novedadesmaritex.net.pe/jovenes
 
 Polos, pantalones, casacas, buzos y más, con los colores y diseños de moda 😎
 
@@ -112,7 +112,7 @@ Cuando el cliente elige 3 o menciona "señorita/dama/mujer":
 ¡Perfecto! 👗 Tenemos una colección increíble para señoritas y damas 👇
 
 Mira todos los modelos disponibles aquí:
-👉 https://novedadesmaritex.net.pe/señoritas
+👉 https://novedadesmaritex.net.pe/senoritas
 
 Blusas, vestidos, pantalones, tops, conjuntos y mucho más, en las tallas y colores que buscas 💃
 
@@ -171,8 +171,8 @@ Si el usuario pregunta por más de un producto, lista máximo 3 opciones para no
 | Categoría | URL |
 |---|---|
 | Niño | https://novedadesmaritex.net.pe/ninos |
-| Joven | https://novedadesmaritex.net.pe/joven |
-| Señorita | https://novedadesmaritex.net.pe/señoritas |
+| Joven | https://novedadesmaritex.net.pe/jovenes |
+| Señorita | https://novedadesmaritex.net.pe/senoritas |
 | Adulto mayor | https://novedadesmaritex.net.pe/adulto-mayor |
 | Ofertas | https://novedadesmaritex.net.pe/ofertas |
 
@@ -309,7 +309,7 @@ Ejemplo de respuesta para "Soy señorita y estoy interesada en polos":
 ¡Perfecto! 😊 Tenemos polos y blusas increíbles para señoritas 👗
 
 Aquí puedes ver todos los modelos disponibles:
-👉 https://novedadesmaritex.net.pe/señoritas
+👉 https://novedadesmaritex.net.pe/senoritas
 
 ¿Tienes preferencia de color o talla? Así te ayudo a encontrar el ideal ✨
 ```
