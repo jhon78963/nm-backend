@@ -229,10 +229,11 @@ cd nm-frontend && npm test && npm run build -- --configuration=docker
   - Criterio: no cargar scripts no esenciales sin consent
   - **Hecho 2026-09-09:** `CookieConsentProvider` + banner + `AnalyticsScripts` (GTM/Cloudflare solo con consentimiento)
 
-- [ ] **2.1.4** Unificar URLs búsqueda SEO  
+- [x] **2.1.4** Unificar URLs búsqueda SEO  
   - Problema: JSON-LD usa `/buscar`; app usa `/search`  
   - Archivos: `nm-ecommerce/src/features/seo/`, `HomeJsonLd`  
   - Criterio: una sola URL canónica de búsqueda
+  - **Hecho 2026-09-09:** canónica `/buscar`; `/search` → 308; JSON-LD y `ROUTES.search` alineados
 
 - [ ] **2.1.5** E2E Playwright checkout  
   - Crear: `nm-ecommerce/tests-e2e/checkout.spec.ts`  
