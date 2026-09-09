@@ -16,7 +16,7 @@ export const HANDOFF_BUTTON_IDS = {
   NO: 'handoff_no',
 } as const;
 
-const MENU_KEYWORD_PATTERN = /\b(men[uú]|menu|opciones|ayuda|inicio)\b/i;
+const MENU_KEYWORD_PATTERN = /\b(men[uú]|menu|opciones)\b/i;
 
 const GREETING_PATTERN =
   /^(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|hi|hello|hey|ola|qué tal|que tal|buen\s*d[ií]a)[\s!?.]*$/i;
@@ -44,10 +44,9 @@ export function isGreeting(text: string): boolean {
   return GREETING_PATTERN.test(text.trim());
 }
 
-export function isMainMenuTrigger(text: string, isFirstMessage: boolean): boolean {
-  if (isFirstMessage) return true;
+export function isMainMenuTrigger(text: string, _isFirstMessage: boolean): boolean {
   const trimmed = text.trim();
-  return MENU_KEYWORD_PATTERN.test(trimmed) || isGreeting(trimmed);
+  return MENU_KEYWORD_PATTERN.test(trimmed);
 }
 
 export function getWelcomeMessage(): string {

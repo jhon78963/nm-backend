@@ -78,6 +78,7 @@ import {
   buildB2bQuoteHandoffPrompt,
   parseB2bQuoteMessage,
 } from '../../services/ecommerce-b2b-quote.service.js';
+import { shouldBotRespondToInbound } from '../../services/commercial-interest-filter.service.js';
 
 const CONTEXT_WINDOW_SIZE = 10;
 const MAX_CONSECUTIVE_HANDOFFS = 3;
@@ -144,6 +145,28 @@ export class HandleIncomingMessageUseCase {
   async execute(dto: HandleIncomingMessageDto): Promise<HandleIncomingMessageResult> {
     const phoneNumber = PhoneNumber.create(dto.fromPhoneNumber);
 
+    const existingConversation = await this.conversationRepo.findActiveByPhoneNumber(phoneNumber.value);
+    if (
+      !shouldBotRespondToInbound({
+        content: dto.content,
+        ...(dto.caption !== undefined && { caption: dto.caption }),
+        ...(dto.interactiveReplyId !== undefined && { interactiveReplyId: dto.interactiveReplyId }),
+        conversation: existingConversation,
+      })
+    ) {
+      logger.info('[HandleIncomingMessage] Ignoring message without commercial interest', {
+        phone: phoneNumber.value,
+        preview: dto.content.slice(0, 120),
+        externalMessageId: dto.externalMessageId,
+      });
+      return {
+        conversationId: existingConversation?.id ?? '',
+        userMessageId: '',
+        aiResponseId: '',
+        aiResponseContent: '',
+      };
+    }
+
     // ── 1. Upsert user — always resolved before anything else ────────────
     let user = await this.userRepo.findByPhoneNumber(phoneNumber);
     if (!user) {
@@ -162,7 +185,7 @@ export class HandleIncomingMessageUseCase {
     }
 
     // ── 2. Upsert conversation — persist to DB immediately so context is never lost ──
-    let conversation = await this.conversationRepo.findActiveByPhoneNumber(phoneNumber.value);
+    let conversation = existingConversation;
     let isFirstMessage = false;
     if (!conversation) {
       isFirstMessage = true;
