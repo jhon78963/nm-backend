@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: nm-services
+    orgId: 1
+    folder: NM Services
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

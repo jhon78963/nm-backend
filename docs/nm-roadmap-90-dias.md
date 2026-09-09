@@ -399,8 +399,9 @@ cd nm-ecommerce && npx playwright test
   - Respetar cookie consent (Fase 2.1.3)
   - **Hecho 2026-09-09:** módulo `features/analytics` en nm-ecommerce — GTM/GA4 gated + Consent Mode; page views; eventos GA4 ecommerce
 
-- [ ] **3.3.4** Dashboard Grafana operacional (opcional)  
+- [x] **3.3.4** Dashboard Grafana operacional (opcional)  
   - Chatbot ya tiene patrón Loki en `services/chatbot/docker-compose.yml`
+  - **Hecho 2026-09-09:** `deploy/observability` + profile `observability` en docker-compose.full — Loki/Promtail/Grafana para todos los microservicios NM
 
 ---
 

@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: false
+    jsonData:
+      derivedFields:
+        - datasourceUid: loki
+          matcherRegex: '"requestId":"(?P<requestId>[^"]+)"'
+          name: Request ID
+          url: '/explore?left={"datasource":"loki","queries":[{"expr":"{app=\"nm-services\"} | json | requestId=\"${__value.raw}\""}]}'
