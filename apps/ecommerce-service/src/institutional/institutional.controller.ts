@@ -8,6 +8,7 @@ import { RecaptchaService } from '@app/common/recaptcha/recaptcha.service';
 
 import { SubmitContactDto } from './dto/submit-contact.dto';
 import { SubmitLibroReclamacionesDto } from './dto/submit-libro.dto';
+import { SubmitWholesaleQuoteDto } from './dto/submit-wholesale-quote.dto';
 import { InstitutionalService } from './institutional.service';
 
 @ApiTags('Ecommerce Institutional')
@@ -29,6 +30,19 @@ export class InstitutionalController {
       await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.contactForm);
     }
     return this.institutionalService.submitContact(dto);
+  }
+
+  @Post('wholesale-quote')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Solicitud de cotización mayorista (público)' })
+  async submitWholesaleQuote(@Body() dto: SubmitWholesaleQuoteDto) {
+    if (dto.captchaToken) {
+      await this.recaptcha.verify(dto.captchaToken, RECAPTCHA_ACTIONS.wholesaleQuote);
+    }
+    return this.institutionalService.submitWholesaleQuote(dto);
   }
 
   @Post('libro-reclamaciones')

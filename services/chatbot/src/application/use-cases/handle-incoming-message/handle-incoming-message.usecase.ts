@@ -74,6 +74,10 @@ import {
   buildPdpPurchaseHandoffPrompt,
   parsePdpPurchaseMessage,
 } from '../../services/ecommerce-pdp-purchase.service.js';
+import {
+  buildB2bQuoteHandoffPrompt,
+  parseB2bQuoteMessage,
+} from '../../services/ecommerce-b2b-quote.service.js';
 
 const CONTEXT_WINDOW_SIZE = 10;
 const MAX_CONSECUTIVE_HANDOFFS = 3;
@@ -480,6 +484,25 @@ export class HandleIncomingMessageUseCase {
         funnelUserId,
         userMessage,
         confirmBody: buildPdpPurchaseHandoffPrompt(pdpPurchaseIntent),
+      });
+    }
+
+    const b2bQuoteIntent = parseB2bQuoteMessage(userContent);
+    if (b2bQuoteIntent) {
+      logger.info('[HandleIncomingMessage] B2B wholesale quote intent detected', {
+        phone: phoneNumberValue,
+        quoteNumber: b2bQuoteIntent.quoteNumber,
+        businessName: b2bQuoteIntent.businessName,
+      });
+
+      await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
+
+      return this.startHandoffConfirmation({
+        conversation,
+        phoneNumberValue,
+        funnelUserId,
+        userMessage,
+        confirmBody: buildB2bQuoteHandoffPrompt(b2bQuoteIntent),
       });
     }
 

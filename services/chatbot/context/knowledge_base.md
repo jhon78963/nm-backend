@@ -243,6 +243,8 @@ Si ya realizaste una compra y necesitas ayuda, te comunico con un asesor.
 Activar HANDOFF_TRIGGER o indicar:
 ```
 Para ventas al por mayor: 👉 https://novedadesmaritex.net.pe/ventas-al-por-mayor
+
+Si el cliente envía una solicitud con `[NM-B2B:...]` o pide cotización mayorista desde la web, ofrece handoff a un asesor comercial.
 ```
 
 ## ¿Cuáles son los horarios de atención de los asesores?

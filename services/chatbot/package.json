@@ -51,6 +51,7 @@
     "sync:products": "node --env-file=.env deploy/sync-products-to-context.mjs",
     "test:slug": "node --test deploy/product-slug.test.mjs",
     "test:pdp": "npm run build && node --test deploy/ecommerce-pdp-purchase.test.mjs",
+    "test:b2b": "npm run build && node --test deploy/ecommerce-b2b-quote.test.mjs",
     "backup:chatbot": "node --env-file=.env deploy/backup-chatbot-config.mjs",
     "restore:chatbot": "node --env-file=.env deploy/restore-chatbot-config.mjs"
   },

@@ -355,8 +355,9 @@ cd nm-ecommerce && npx playwright test
   - Integrar con chatbot handoff
   - **Hecho 2026-09-09:** `ProductWhatsAppPurchaseButton`, mensaje `[NM-PDP:...]`, detección en chatbot → handoff asesor
 
-- [ ] **3.1.4** **Ventas al por mayor** (B2B)  
+- [x] **3.1.4** **Ventas al por mayor** (B2B)  
   - Página institucional existe; flujo: precios mayorista + checkout separado o cotización
+  - **Hecho 2026-09-09:** formulario cotización `/ventas-al-por-mayor`, API `wholesale-quote`, WhatsApp `[NM-B2B:...]`, handoff chatbot
 
 ---
 

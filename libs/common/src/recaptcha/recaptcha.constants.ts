@@ -5,6 +5,7 @@ export const RECAPTCHA_ACTIONS = {
   orderTrack: 'order_track',
   newsletterSubscribe: 'newsletter_subscribe',
   contactForm: 'contact_form',
+  wholesaleQuote: 'wholesale_quote',
   libroReclamaciones: 'libro_reclamaciones',
 } as const;
 
