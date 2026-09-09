@@ -376,9 +376,10 @@ cd nm-ecommerce && npx playwright test
   - Notificación: email o WhatsApp interno
   - **Hecho 2026-09-09:** digest diario 8am PE + hook POS/ecommerce; email interno `inventory.low-stock` con dedup 24h
 
-- [ ] **3.2.3** Eventos async post-checkout (Redis Pub/Sub)  
+- [x] **3.2.3** Eventos async post-checkout (Redis Pub/Sub)  
   - Desacoplar: POS checkout → inventario → mail → reportes  
   - Referencia comentarios en `apps/pos-service/`
+  - **Hecho 2026-09-09:** `libs/event-bus` (`nm:events:checkout`); POS/ecommerce publican; report-service consume alertas stock
 
 ---
 

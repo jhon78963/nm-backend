@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '@app/database';
 import { getAvailableQuantity } from '@app/common/utils/product-inventory.util';
-import { LowStockAlertsService } from '@app/common/inventory/low-stock-alerts.service';
+import { CheckoutEventPublisher } from '@app/event-bus';
 import { SunatService } from '../sunat/sunat.service';
 import { DocumentSeriesService } from '../sunat/document-series.service';
 import { FiscalConfigService } from '../fiscal/fiscal-config.service';
@@ -36,8 +36,9 @@ export interface CheckoutResult {
  *   5. Retornar la venta creada + URL del ticket
  *
  * DIFERENCIA vs Laravel:
- * - El descuento de inventario se hace directo en DB (misma TX),
- *   no via evento. En fases posteriores se puede extraer a evento Redis/NATS.
+ * - El descuento de inventario se hace directo en DB (misma TX).
+ * - Efectos secundarios (alertas stock, reportes) se publican vía Redis Pub/Sub
+ *   (`nm:events:checkout`) y los consume report-service de forma async.
  */
 @Injectable()
 export class CheckoutService {
@@ -46,7 +47,7 @@ export class CheckoutService {
     private readonly sunat: SunatService,
     private readonly docSeries: DocumentSeriesService,
     private readonly fiscalConfig: FiscalConfigService,
-    private readonly lowStockAlerts: LowStockAlertsService,
+    private readonly checkoutEvents: CheckoutEventPublisher,
   ) {}
 
   async process(dto: CheckoutDto, createdById: string): Promise<CheckoutResult> {
@@ -234,10 +235,13 @@ export class CheckoutService {
         colorId: item.colorId!,
       }));
 
-    void this.lowStockAlerts
-      .checkAfterSale(dto.warehouseId, soldVariants, {
-        source: 'pos_sale',
+    void this.checkoutEvents
+      .publishPosCheckoutCompleted({
+        warehouseId: dto.warehouseId,
+        referenceId: sale.id,
         referenceLabel: sale.code ?? sale.fullInvoiceNumber ?? sale.id,
+        totalAmount: Number(sale.totalAmount),
+        variants: soldVariants,
       })
       .catch(() => undefined);
 

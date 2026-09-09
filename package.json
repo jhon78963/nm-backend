@@ -150,7 +150,8 @@
       "^@app/contracts(|/.*)$": "<rootDir>/libs/contracts/src/$1",
       "^@app/document-client(|/.*)$": "<rootDir>/libs/document-client/src/$1",
       "^@app/mail-client(|/.*)$": "<rootDir>/libs/mail-client/src/$1",
-      "^@app/queue-manager(|/.*)$": "<rootDir>/libs/queue-manager/src/$1"
+      "^@app/queue-manager(|/.*)$": "<rootDir>/libs/queue-manager/src/$1",
+      "^@app/event-bus(|/.*)$": "<rootDir>/libs/event-bus/src/$1"
     }
   },
   "prisma": {

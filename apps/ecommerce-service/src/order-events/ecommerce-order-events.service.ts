@@ -6,7 +6,7 @@ import { ECOMMERCE_ORDER_STATUS_LABELS } from '../orders/constants/order-statuse
 import { getPaymentStatusLabel } from '../orders/constants/order-payment-statuses';
 import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceMailNotificationsService } from '../mail/ecommerce-mail-notifications.service';
-import { LowStockAlertsService } from '@app/common/inventory/low-stock-alerts.service';
+import { CheckoutEventPublisher } from '@app/event-bus';
 import type { OrderEventOrder, OrderUpdatedEvent } from './ecommerce-order-events.types';
 
 @Injectable()
@@ -17,7 +17,7 @@ export class EcommerceOrderEventsService {
     private readonly db: DatabaseService,
     private readonly mailNotifications: EcommerceMailNotificationsService,
     private readonly invoicingService: EcommerceInvoicingService,
-    private readonly lowStockAlerts: LowStockAlertsService,
+    private readonly checkoutEvents: CheckoutEventPublisher,
   ) {}
 
   async publishOrderCreated(order: OrderEventOrder): Promise<void> {
@@ -60,10 +60,10 @@ export class EcommerceOrderEventsService {
           );
         });
 
-      void this.notifyLowStockAfterPaidOrder(event.current.id, event.current.orderNumber).catch(
+      void this.publishCheckoutInventoryEvent(event.current.id, event.current.orderNumber).catch(
         (error) => {
           this.logger.warn(
-            `No se pudo evaluar stock bajo tras pago ${event.current.orderNumber}`,
+            `No se pudo publicar evento checkout tras pago ${event.current.orderNumber}`,
             error,
           );
         },
@@ -84,11 +84,15 @@ export class EcommerceOrderEventsService {
       });
   }
 
-  private async notifyLowStockAfterPaidOrder(orderId: string, orderNumber: string): Promise<void> {
+  private async publishCheckoutInventoryEvent(
+    orderId: string,
+    orderNumber: string,
+  ): Promise<void> {
     const order = await this.db.ecommerceOrder.findFirst({
       where: { id: orderId },
       select: {
         warehouseId: true,
+        total: true,
         items: {
           where: { colorId: { not: null } },
           select: { productSizeId: true, colorId: true },
@@ -107,9 +111,12 @@ export class EcommerceOrderEventsService {
         colorId: item.colorId,
       }));
 
-    await this.lowStockAlerts.checkAfterSale(order.warehouseId, variants, {
-      source: 'ecommerce_order',
+    await this.checkoutEvents.publishEcommerceOrderPaid({
+      warehouseId: order.warehouseId,
+      referenceId: orderId,
       referenceLabel: orderNumber,
+      totalAmount: Number(order.total),
+      variants,
     });
   }
 

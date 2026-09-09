@@ -11,6 +11,7 @@ import { HealthModule } from '@app/common/health/health.module';
 import { PermissionsModule } from '@app/common/auth/permissions.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LowStockAlertsModule } from './low-stock-alerts/low-stock-alerts.module';
+import { CheckoutEventsModule } from './checkout-events/checkout-events.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { LowStockAlertsModule } from './low-stock-alerts/low-stock-alerts.module
     FinancialSummaryModule,
     CashflowReportsModule,
     LowStockAlertsModule,
+    CheckoutEventsModule,
   ],
 })
 export class AppModule {}

@@ -249,8 +249,16 @@ services:
     environment:
       SERVICE_NAME: pos-service
       APP_PORT: 3004
+      REDIS_URL: redis://redis:6379
     ports:
       - '3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   finance-service:
     <<: *service-defaults
@@ -334,9 +342,14 @@ services:
     environment:
       SERVICE_NAME: report-service
       APP_PORT: 3007
+      REDIS_URL: redis://redis:6379
       AI_ENGINE_URL: http://ai-engine:8000
       DOCUMENT_SERVICE_URL: http://document-service:3011
       DOCUMENT_SERVICE_KEY: ${DOCUMENT_SERVICE_KEY:-nm-document-dev-key-change-in-production}
+      MAIL_SERVICE_URL: http://mail-service:3013
+      MAIL_SERVICE_KEY: ${MAIL_SERVICE_KEY:-nm-mail-dev-key-change-in-production}
+      MAIL_LOW_STOCK_ALERT_EMAIL: ${MAIL_LOW_STOCK_ALERT_EMAIL:-}
+      MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-soporte@novedadesmaritex.net.pe}
     ports:
       - '3007:3007'
     depends_on:
@@ -344,9 +357,13 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
       ai-engine:
         condition: service_started
       document-service:
+        condition: service_started
+      mail-service:
         condition: service_started
 
   document-service:
