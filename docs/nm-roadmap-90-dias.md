@@ -218,9 +218,10 @@ cd nm-frontend && npm test && npm run build -- --configuration=docker
   - Criterio: login en otro dispositivo recupera carrito
   - **Hecho 2026-09-08:** `CustomerCartModule` + BFF `/api/account/cart` + sync/merge en login
 
-- [ ] **2.1.2** **Wishlist server-side** (mismo patrón)  
+- [x] **2.1.2** **Wishlist server-side** (mismo patrón)  
   - Archivos: `nm-ecommerce/src/features/wishlist/`  
   - Criterio: favoritos persisten en cuenta
+  - **Hecho 2026-09-09:** `CustomerWishlistModule` + BFF `/api/account/wishlist` + sync en login
 
 - [ ] **2.1.3** **Banner cookies** + consentimiento  
   - Crear componente en layout raíz  
@@ -460,7 +461,8 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-08 | Fase 1.4 backend | nm-backend | 2cbb57b | PDF mensual + nest-cli |
 | 2026-09-08 | Fase 1.4 frontend | nm-frontend | fb34a7a | rutas WooCommerce eliminadas |
 | 2026-09-08 | **Fase 1 cerrada** | todos | push main | Ver criterios arriba |
-| 2026-09-08 | Fase 2.1.1 carrito server-side | nm-backend, nm-ecommerce | pendiente push | CustomerCartModule + sync login |
+| 2026-09-08 | Fase 2.1.1 carrito server-side | nm-backend, nm-ecommerce | 8f42e35, dcbaaa8 | CustomerCartModule + sync login |
+| 2026-09-09 | Fase 2.1.2 wishlist server-side | nm-backend, nm-ecommerce | pendiente push | CustomerWishlistModule + sync login |
 
 ---
 

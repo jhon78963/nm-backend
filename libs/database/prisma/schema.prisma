@@ -910,6 +910,7 @@ model EcommerceCustomer {
   couponAssignments     EcommerceCouponAssignment[]
   couponRedemptions     EcommerceCouponRedemption[]
   cart                  EcommerceCart?
+  wishlist              EcommerceWishlist?
 
   @@map("ecommerce_customers")
 }
@@ -946,6 +947,39 @@ model EcommerceCartItem {
   @@unique([cartId, productSizeId, colorId])
   @@index([cartId])
   @@map("ecommerce_cart_items")
+}
+
+model EcommerceWishlist {
+  id          String   @id @default(uuid())
+  customerId  String   @unique @map("customer_id")
+  warehouseId String   @map("warehouse_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer EcommerceCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items    EcommerceWishlistItem[]
+
+  @@map("ecommerce_wishlists")
+}
+
+model EcommerceWishlistItem {
+  id             String   @id @default(uuid())
+  wishlistId     String   @map("wishlist_id")
+  productId      String   @map("product_id")
+  productSizeId  String?  @map("product_size_id")
+  colorId        String?  @map("color_id")
+  nameSnapshot   String   @map("name_snapshot") @db.VarChar(255)
+  variationLabel String?  @map("variation_label") @db.VarChar(255)
+  imageUrl       String?  @map("image_url") @db.VarChar(500)
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(12, 2)
+  addedAt        DateTime @default(now()) @map("added_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  wishlist EcommerceWishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+
+  @@unique([wishlistId, productId])
+  @@index([wishlistId])
+  @@map("ecommerce_wishlist_items")
 }
 
 model EcommerceCustomerAddress {

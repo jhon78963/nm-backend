@@ -29,6 +29,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
 import { CulqiModule } from './payments/culqi/culqi.module';
 import { InstitutionalModule } from './institutional/institutional.module';
 import { CustomerCartModule } from './customer-cart/customer-cart.module';
+import { CustomerWishlistModule } from './customer-wishlist/customer-wishlist.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { CustomerCartModule } from './customer-cart/customer-cart.module';
     CulqiModule,
     InstitutionalModule,
     CustomerCartModule,
+    CustomerWishlistModule,
   ],
 })
 export class AppModule {}
