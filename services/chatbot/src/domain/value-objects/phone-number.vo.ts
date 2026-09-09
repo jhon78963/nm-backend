@@ -5,6 +5,8 @@ import { DomainException } from '../exceptions/domain.exception.js';
  */
 export class PhoneNumber {
   private static readonly E164_REGEX = /^\+[1-9]\d{7,14}$/;
+  /** Peru: country code +51 followed by exactly 9 digits (e.g. +51987654321). */
+  private static readonly PERU_E164_REGEX = /^\+51\d{9}$/;
 
   readonly value: string;
 
@@ -20,6 +22,15 @@ export class PhoneNumber {
       );
     }
     return new PhoneNumber(normalized);
+  }
+
+  static isPeruvian(raw: string): boolean {
+    const normalized = raw.trim().replace(/\s+/g, '');
+    return PhoneNumber.PERU_E164_REGEX.test(normalized);
+  }
+
+  isPeruvian(): boolean {
+    return PhoneNumber.isPeruvian(this.value);
   }
 
   equals(other: PhoneNumber): boolean {

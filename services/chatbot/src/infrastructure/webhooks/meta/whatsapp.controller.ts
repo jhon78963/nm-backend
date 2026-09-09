@@ -10,6 +10,7 @@ import type {
 } from './meta-whatsapp.types.js';
 import type { MessageContentType } from '../../../domain/entities/message.entity.js';
 import type { WhatsAppParserService } from './whatsapp-parser.service.js';
+import { PhoneNumber } from '../../../domain/value-objects/phone-number.vo.js';
 import { logger } from '../../shared/logger.js';
 import { formatMetaApiError } from './meta-api-error.js';
 
@@ -100,8 +101,19 @@ export class WhatsAppController {
 
   private async dispatchToAiFlow(message: ParsedWhatsAppInboundMessage): Promise<void> {
     try {
+      const fromPhoneNumber = this.toE164(message.waId);
+
+      if (!PhoneNumber.isPeruvian(fromPhoneNumber)) {
+        logger.info('[WhatsApp] Ignoring message from non-Peruvian number', {
+          waId: message.waId,
+          fromPhoneNumber,
+          messageId: message.externalMessageId,
+        });
+        return;
+      }
+
       await this.handleIncomingMessage.execute({
-        fromPhoneNumber: this.toE164(message.waId),
+        fromPhoneNumber,
         ...(message.profileName !== undefined && { profileName: message.profileName }),
         externalMessageId: message.externalMessageId,
         content: message.text,
