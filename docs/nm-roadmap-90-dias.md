@@ -321,9 +321,9 @@ cd nm-ecommerce && npx playwright test
 
 ## Criterio de cierre Fase 2
 
-- [ ] Carrito/wishlist persisten en cuenta
-- [ ] E2E checkout en CI
-- [ ] Adapters ecommerce en ERP
+- [x] Carrito/wishlist persisten en cuenta
+- [x] E2E checkout en CI
+- [x] Adapters ecommerce en ERP
 - [x] Notificación pedido nuevo
 - [x] Cookie banner live
 - [x] Deep links ventas funcionan
@@ -480,6 +480,7 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-09 | Cierre cookie banner live | nm-ecommerce | — | E2E cookie-consent.spec.ts |
 | 2026-09-09 | Cierre deep links ventas | nm-frontend | — | sales-deep-links.spec.ts + fix mocks /api/v1 |
 | 2026-09-09 | KB URLs categorías chatbot | nm-backend | ae6b9c0 | jovenes / senoritas |
+| 2026-09-09 | **Fase 2 cerrada** | todos | — | E2E account-sync + adapters ERP + CI e2e |
 
 ---
 
