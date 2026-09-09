@@ -5,6 +5,7 @@ import {
   resolveHttpDescription,
   shouldLogHttpRequest,
 } from '@app/common/audit/audit-http.util';
+import { buildHttpAuditMetadata } from '@app/common/audit/audit-http-metadata.util';
 import { UserActionLogWriter } from '@app/common/audit/user-action-log.writer';
 import { attachRequestId, REQUEST_ID_HEADER } from '@app/common/logging/request-id.util';
 import { writeStructuredLog } from '@app/common/logging/structured-log.util';
@@ -172,18 +173,7 @@ export class ProxyService {
       });
 
       const contentType = response.headers.get('content-type') ?? 'application/json';
-
-      this.logHttpActivity(req, response.status);
-
-      writeStructuredLog(this.logger, 'log', {
-        event: 'gateway.proxy.completed',
-        requestId,
-        method: req.method,
-        path: req.url,
-        targetService: service,
-        statusCode: response.status,
-        durationMs: Date.now() - startedAt,
-      });
+      const durationMs = Date.now() - startedAt;
 
       // Archivos binarios: reenviar como stream
       if (
@@ -192,6 +182,16 @@ export class ProxyService {
         || contentType === 'application/octet-stream'
         || contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       ) {
+        this.logHttpActivity(req, response.status, durationMs, null, response.headers);
+        writeStructuredLog(this.logger, 'log', {
+          event: 'gateway.proxy.completed',
+          requestId,
+          method: req.method,
+          path: req.url,
+          targetService: service,
+          statusCode: response.status,
+          durationMs,
+        });
         const buffer = Buffer.from(await response.arrayBuffer());
         void reply
           .status(response.status)
@@ -201,6 +201,16 @@ export class ProxyService {
       }
 
       const body = await response.text();
+      this.logHttpActivity(req, response.status, durationMs, body, response.headers);
+      writeStructuredLog(this.logger, 'log', {
+        event: 'gateway.proxy.completed',
+        requestId,
+        method: req.method,
+        path: req.url,
+        targetService: service,
+        statusCode: response.status,
+        durationMs,
+      });
       void reply
         .status(response.status)
         .header('content-type', contentType)
@@ -227,7 +237,13 @@ export class ProxyService {
   /**
    * auth-service usa URI versioning (/v1/*). El resto de microservicios expone rutas sin /v1.
    */
-  private logHttpActivity(req: FastifyRequest, statusCode: number): void {
+  private logHttpActivity(
+    req: FastifyRequest,
+    statusCode: number,
+    durationMs: number,
+    responseBody?: string | null,
+    responseHeaders?: Headers | null,
+  ): void {
     const path = (req.url ?? '').split('?')[0];
     const actor = (req as RequestWithUser).user;
     if (!actor || !shouldLogHttpRequest(req.method, path)) {
@@ -237,12 +253,14 @@ export class ProxyService {
     void this.actionLogWriter.logSafely({
       action: resolveHttpAction(req.method, path),
       description: resolveHttpDescription(req.method, path),
-      metadata: {
-        method: req.method,
-        path,
-        status_code: statusCode,
-        request_id: req.requestId ?? null,
-      },
+      metadata: buildHttpAuditMetadata({
+        req,
+        statusCode,
+        durationMs,
+        requestId: req.requestId ?? null,
+        responseBody,
+        responseHeaders,
+      }),
       ipAddress: req.ip ?? null,
       userId: actor.id,
       tenantId: actor.tenantId,
