@@ -52,6 +52,8 @@ export function buildMailContent(
       return newsletterSubscribedEmail(data, ctx);
     case EcommerceMailTemplate.NEWSLETTER_CAMPAIGN:
       return newsletterCampaignEmail(data, ctx);
+    case EcommerceMailTemplate.INSTITUTIONAL_INQUIRY:
+      return institutionalInquiryEmail(data, ctx);
     default:
       throw new Error(`Plantilla no soportada: ${template}`);
   }
@@ -391,5 +393,54 @@ function newsletterCampaignEmail(data: Record<string, unknown>, ctx: TemplateCon
       showSupportBlock: false,
     }),
     text: `${title}\n\n${bodyText}${ctaUrl ? `\n\n${ctaLabel}: ${ctaUrl}` : `\n\n${storeUrl}`}`,
+  };
+}
+
+function institutionalInquiryEmail(data: Record<string, unknown>, ctx: TemplateContext) {
+  const formTitle = String(data.formTitle ?? 'Consulta web');
+  const customerName = String(data.customerName ?? 'Cliente');
+  const customerEmail = String(data.customerEmail ?? '');
+  const customerPhone = data.customerPhone ? String(data.customerPhone) : '';
+  const subjectLine = data.subject ? String(data.subject) : formTitle;
+  const message = String(data.message ?? '');
+  const metadata = (data.metadata ?? {}) as Record<string, string>;
+  const metadataLines = Object.entries(metadata)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+
+  const subject = `[${ctx.storeName}] ${subjectLine}`;
+  const body = `
+    ${renderHeading(formTitle, { centered: false })}
+    ${renderInfoRow('Nombre', customerName)}
+    ${renderInfoRow('Correo', customerEmail)}
+    ${customerPhone ? renderInfoRow('Teléfono', customerPhone) : ''}
+    ${renderSectionTitle('Mensaje')}
+    ${renderParagraph(message.replace(/\n/g, '<br>'), { centered: false })}
+    ${metadataLines ? `${renderSectionTitle('Detalle adicional')}${renderParagraph(metadataLines.replace(/\n/g, '<br>'), { centered: false })}` : ''}
+  `;
+
+  const textBody = [
+    formTitle,
+    `Nombre: ${customerName}`,
+    `Correo: ${customerEmail}`,
+    customerPhone ? `Teléfono: ${customerPhone}` : '',
+    '',
+    message,
+    metadataLines ? `\n${metadataLines}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    subject,
+    html: renderLayout({
+      title: subject,
+      preview: `${formTitle} — ${customerName}`,
+      body,
+      ...ctx,
+      showSupportBlock: false,
+    }),
+    text: textBody,
   };
 }

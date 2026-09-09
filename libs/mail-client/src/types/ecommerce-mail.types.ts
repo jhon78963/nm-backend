@@ -12,6 +12,7 @@ export enum EcommerceMailTemplate {
   ORDER_PAYMENT_RECEIVED = 'order.payment-received',
   NEWSLETTER_SUBSCRIBED = 'newsletter.subscribed',
   NEWSLETTER_CAMPAIGN = 'newsletter.campaign',
+  INSTITUTIONAL_INQUIRY = 'institutional.inquiry',
 }
 
 export interface OrderMailItem {
@@ -121,6 +122,16 @@ export type EcommerceMailData = {
     previewText?: string;
     ctaUrl?: string;
     ctaLabel?: string;
+    storeUrl: string;
+  };
+  [EcommerceMailTemplate.INSTITUTIONAL_INQUIRY]: {
+    formTitle: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    subject?: string;
+    message: string;
+    metadata?: Record<string, string>;
     storeUrl: string;
   };
 };
