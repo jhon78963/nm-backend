@@ -293,8 +293,9 @@ cd nm-ecommerce && npx playwright test
   - Criterio: operador recibe aviso < 1 min
   - **Hecho 2026-09-09:** email `order.staff-new` a `MAIL_SUPPORT_EMAIL` en `publishOrderCreated`
 
-- [ ] **2.3.2** PDF ventas mensuales (si no se hizo en 1.4.2)  
+- [x] **2.3.2** PDF ventas mensuales (si no se hizo en 1.4.2)  
   - Referencia: PDF diario ya implementado en report-service
+  - **Hecho 2026-09-08 (1.4.2) / verificado 2026-09-09:** `GET /reports/sales/monthly/pdf` + export en ERP; test unitario
 
 - [ ] **2.3.3** Tests gateway + mail-service básicos  
   - Smoke tests de proxy y envío mail mock
