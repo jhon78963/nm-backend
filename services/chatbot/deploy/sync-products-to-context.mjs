@@ -8,6 +8,7 @@
  */
 
 import { prisma, disconnectPrisma } from './prisma-client.mjs';
+import { buildProductUrl } from './product-slug.mjs';
 
 const STORE_URL = (process.env.STORE_URL ?? 'https://novedadesmaritex.net.pe').replace(/\/$/, '');
 
@@ -50,7 +51,7 @@ function buildFullTextContent(product) {
     '',
     badges,
     '',
-    `Ver producto en tienda: ${STORE_URL}/producto/${product.id}`,
+    `Ver producto en tienda: ${buildProductUrl(STORE_URL, product)}`,
   ]
     .filter((line) => line !== '')
     .join('\n');

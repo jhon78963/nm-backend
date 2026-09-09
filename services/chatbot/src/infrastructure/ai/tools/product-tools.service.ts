@@ -1,4 +1,5 @@
 import { getPrismaClient } from '../../database/prisma/prisma.client.js';
+import { buildProductUrl } from '../../../shared/product-slug.util.js';
 import { TOOL_NAMES } from './product-tools.definitions.js';
 import { logger } from '../../shared/logger.js';
 
@@ -31,8 +32,8 @@ function getStoreUrl(): string {
   return (process.env['STORE_URL'] ?? 'https://novedadesmaritex.net.pe').replace(/\/$/, '');
 }
 
-function productUrl(productId: string): string {
-  return `${getStoreUrl()}/producto/${productId}`;
+function productUrl(product: { id: string; name: string }): string {
+  return buildProductUrl(getStoreUrl(), product);
 }
 
 function formatPrice(value: unknown): number | null {
@@ -166,7 +167,7 @@ export class ProductToolsService {
         precioMaximo: maxPrecio,
         moneda: 'PEN',
         tallas,
-        urlTienda: productUrl(product.id),
+        urlTienda: productUrl(product),
         mensaje:
           minPrecio === null
             ? 'Producto encontrado pero sin precio registrado; un asesor puede confirmar.'
@@ -214,7 +215,7 @@ export class ProductToolsService {
         enOferta: product.isOnSale,
         descuento: product.percentageDiscount ?? null,
         imagen: product.media[0]?.url ?? null,
-        urlTienda: productUrl(product.id),
+        urlTienda: productUrl(product),
         tienda: getStoreUrl(),
       });
     } catch (err) {
@@ -259,7 +260,7 @@ export class ProductToolsService {
           precioReferencial: formatPrice(
             p.productSizes.find((s: { isDeleted: boolean }) => !s.isDeleted)?.salePrice ?? null,
           ),
-          url: productUrl(p.id),
+          url: productUrl(p),
         })),
         tienda: getStoreUrl(),
       });

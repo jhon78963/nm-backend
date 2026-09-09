@@ -312,9 +312,10 @@ cd nm-ecommerce && npx playwright test
   - Criterio: cada admin ERP tiene agente activo
   - **Hecho 2026-09-09:** sync admins ERP por `userId`; `npm run verify:agents:erp`
 
-- [ ] **2.4.2** Link producto en respuestas Malu → tienda  
+- [x] **2.4.2** Link producto en respuestas Malu → tienda  
   - Archivos: `services/chatbot/src/infrastructure/ai/tools/product-tools.service.ts`  
   - Criterio: bot puede enviar URL `novedadesmaritex.net.pe/producto/{slug}`
+  - **Hecho 2026-09-09:** `buildProductSlug` en URLs de tools + sync RAG; `npm run test:slug`
 
 ---
 
