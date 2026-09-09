@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+import { writeStructuredLog } from '../logging/structured-log.util';
 import { captureServerException } from '../sentry/init-sentry';
 
 /**
@@ -48,10 +49,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // En producción no exponer stack traces ni detalles internos
     const isProduction = process.env.NODE_ENV === 'production';
     if (!isProduction && status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} → ${status}`,
-        exception instanceof Error ? exception.stack : String(exception),
-      );
+      writeStructuredLog(this.logger, 'error', {
+        event: 'http.request.failed',
+        requestId: request.requestId,
+        method: request.method,
+        path: request.url,
+        statusCode: status,
+        error: exception instanceof Error ? exception.message : String(exception),
+        stack: exception instanceof Error ? exception.stack : undefined,
+      });
     }
 
     if (status >= 500) {
@@ -66,6 +72,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message,
       ...(errors && { errors }),
+      ...(request.requestId && { requestId: request.requestId }),
       timestamp: new Date().toISOString(),
       path: request.url,
     });

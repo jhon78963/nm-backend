@@ -75,6 +75,7 @@ describe('ProxyService', () => {
           url: '/api/v1/ecommerce/orders/admin',
           headers: { authorization: 'Bearer token' },
           body: undefined,
+          requestId: 'trace-ecommerce-123456',
         } as never,
         reply as never,
       );
@@ -85,11 +86,39 @@ describe('ProxyService', () => {
           method: 'GET',
           headers: expect.objectContaining({
             authorization: 'Bearer token',
+            'x-request-id': 'trace-ecommerce-123456',
           }),
         }),
       );
       expect(reply.status).toHaveBeenCalledWith(200);
       expect(send).toHaveBeenCalledWith('{"ok":true}');
+    });
+
+    it('genera y reenvía x-request-id cuando el request no lo trae', async () => {
+      fetchMock.mockResolvedValue({
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => '{}',
+      });
+
+      const reply = {
+        status: jest.fn().mockReturnThis(),
+        header: jest.fn().mockReturnThis(),
+        send: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await service.forward(
+        {
+          method: 'GET',
+          url: '/api/v1/dashboard/metrics',
+          headers: {},
+          body: undefined,
+        } as never,
+        reply as never,
+      );
+
+      const fetchHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
+      expect(fetchHeaders['x-request-id']).toMatch(/^[\w.-]{8,64}$/i);
     });
 
     it('devuelve 503 cuando el servicio destino no responde', async () => {
@@ -117,6 +146,7 @@ describe('ProxyService', () => {
         expect.objectContaining({
           statusCode: 503,
           message: expect.stringContaining('report'),
+          requestId: expect.stringMatching(/^[\w.-]{8,64}$/i),
         }),
       );
     });

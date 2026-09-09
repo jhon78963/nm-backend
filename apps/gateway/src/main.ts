@@ -7,6 +7,7 @@ import helmet from '@fastify/helmet';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from '@app/common/filters/global-exception.filter';
+import { LoggingInterceptor } from '@app/common/interceptors/logging.interceptor';
 import { resolveCorsOrigins } from '@app/common/utils/cors-origins.util';
 
 async function bootstrap() {
@@ -40,6 +41,7 @@ async function bootstrap() {
   });
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // Swagger unificado — agrega la documentación de todos los servicios
   if (config.get('NODE_ENV') !== 'production') {

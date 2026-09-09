@@ -6,6 +6,8 @@ import {
   shouldLogHttpRequest,
 } from '@app/common/audit/audit-http.util';
 import { UserActionLogWriter } from '@app/common/audit/user-action-log.writer';
+import { attachRequestId, REQUEST_ID_HEADER } from '@app/common/logging/request-id.util';
+import { writeStructuredLog } from '@app/common/logging/structured-log.util';
 import type { AuthenticatedUser } from '@app/common/types/authenticated-user.type';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
@@ -119,8 +121,17 @@ export class ProxyService {
   async forward(req: FastifyRequest, reply: FastifyReply) {
     const service = this.resolveService(req.url);
     const targetUrl = this.buildTargetUrl(this.serviceUrls[service], req.url, service);
+    const requestId = attachRequestId(req);
+    const startedAt = Date.now();
 
-    this.logger.debug(`${req.method} ${req.url} → ${service} (${targetUrl})`);
+    writeStructuredLog(this.logger, 'debug', {
+      event: 'gateway.proxy.start',
+      requestId,
+      method: req.method,
+      path: req.url,
+      targetService: service,
+      targetUrl,
+    });
 
     const isMultipart = (req.headers['content-type'] ?? '').includes('multipart/form-data');
 
@@ -128,6 +139,7 @@ export class ProxyService {
       let fetchBody: BodyInit | undefined;
       const headers: Record<string, string> = {
         accept: 'application/json',
+        [REQUEST_ID_HEADER]: requestId,
       };
 
       if (isMultipart) {
@@ -163,6 +175,16 @@ export class ProxyService {
 
       this.logHttpActivity(req, response.status);
 
+      writeStructuredLog(this.logger, 'log', {
+        event: 'gateway.proxy.completed',
+        requestId,
+        method: req.method,
+        path: req.url,
+        targetService: service,
+        statusCode: response.status,
+        durationMs: Date.now() - startedAt,
+      });
+
       // Archivos binarios: reenviar como stream
       if (
         contentType.startsWith('image/')
@@ -184,10 +206,19 @@ export class ProxyService {
         .header('content-type', contentType)
         .send(body);
     } catch (err) {
-      this.logger.error(`Proxy error: ${(err as Error).message}`);
+      writeStructuredLog(this.logger, 'error', {
+        event: 'gateway.proxy.failed',
+        requestId,
+        method: req.method,
+        path: req.url,
+        targetService: service,
+        durationMs: Date.now() - startedAt,
+        error: (err as Error).message,
+      });
       void reply.status(503).send({
         statusCode: 503,
         message: `Servicio ${service} temporalmente no disponible.`,
+        requestId,
         timestamp: new Date().toISOString(),
       });
     }
@@ -210,6 +241,7 @@ export class ProxyService {
         method: req.method,
         path,
         status_code: statusCode,
+        request_id: req.requestId ?? null,
       },
       ipAddress: req.ip ?? null,
       userId: actor.id,

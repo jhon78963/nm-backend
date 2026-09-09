@@ -391,8 +391,9 @@ cd nm-ecommerce && npx playwright test
   - Errores cliente + servidor centralizados
   - **Hecho 2026-09-09:** `@sentry/node` en microservicios + filter 5xx; `@sentry/angular` ERP; `@sentry/nextjs` tienda
 
-- [ ] **3.3.2** **Logs estructurados** con request ID en gateway  
+- [x] **3.3.2** **Logs estructurados** con request ID en gateway  
   - Extender patrón de `libs/common` logging interceptor
+  - **Hecho 2026-09-09:** `LoggingInterceptor` JSON + `x-request-id`; proxy gateway propaga ID y logs `gateway.proxy.*`
 
 - [ ] **3.3.3** **Google Analytics / GTM** en tienda  
   - Respetar cookie consent (Fase 2.1.3)
