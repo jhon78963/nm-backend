@@ -338,10 +338,11 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **3.1.1** **Stock en tiempo real** en PDP tienda  
+- [x] **3.1.1** **Stock en tiempo real** en PDP tienda  
   - Backend: endpoint stock público por variant/warehouse  
   - Frontend: `nm-ecommerce/src/features/product/`  
   - Criterio: "Quedan X unidades" o "Agotado" en PDP
+  - **Hecho 2026-09-09:** `GET /ecommerce/products/:id/stock`, BFF `/api/products/:id/stock`, `useProductStock` + copy PDP
 
 - [ ] **3.1.2** **Facturación SUNAT** pedidos ecommerce  
   - Flujo: orden pagada → `invoicing-service` (Greenter)  
@@ -415,7 +416,7 @@ cd nm-ecommerce && npx playwright test
 
 ## Criterio de cierre Fase 3
 
-- [ ] Stock live en tienda
+- [x] Stock live en tienda
 - [ ] Facturación ecommerce automática
 - [ ] AI visible en ERP productos
 - [ ] Error tracking + analytics
@@ -481,6 +482,7 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-09 | Cierre deep links ventas | nm-frontend | — | sales-deep-links.spec.ts + fix mocks /api/v1 |
 | 2026-09-09 | KB URLs categorías chatbot | nm-backend | ae6b9c0 | jovenes / senoritas |
 | 2026-09-09 | **Fase 2 cerrada** | todos | — | E2E account-sync + adapters ERP + CI e2e |
+| 2026-09-09 | Fase 3.1.1 stock live PDP | nm-backend, nm-ecommerce | — | public stock endpoint + useProductStock |
 
 ---
 

@@ -54,6 +54,7 @@ function isPublicEcommerceProductsRequest(method: string, path: string): boolean
     && (
       path === '/api/v1/ecommerce/products/public'
       || /^\/api\/v1\/ecommerce\/products\/public\/by-slug\/[^/]+$/.test(path)
+      || /^\/api\/v1\/ecommerce\/products\/[^/]+\/stock$/.test(path)
     )
   );
 }

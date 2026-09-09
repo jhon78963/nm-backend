@@ -46,6 +46,64 @@ export interface PublicProductsResponse {
   products: PublicProductItem[];
 }
 
+export interface PublicProductStockColorItem {
+  id: string;
+  stock: number;
+}
+
+export interface PublicProductStockSizeItem {
+  id: string;
+  stock: number;
+  colors: PublicProductStockColorItem[];
+}
+
+export interface PublicProductStockResponse {
+  productId: string;
+  stockStatus: 'in_stock' | 'out_of_stock';
+  sizes: PublicProductStockSizeItem[];
+}
+
+type StockProductSizeRow = {
+  id: string;
+  isDeleted: boolean;
+  size?: {
+    id: string;
+    description: string;
+    isDeleted: boolean;
+  };
+  productSizeColors?: ProductSizeColorLink[];
+};
+
+export function mapProductStockResponse(
+  productSizes: StockProductSizeRow[],
+  stockByProductSizeId: Map<string, number>,
+  stockByProductSizeColorId: Map<string, number>,
+): Omit<PublicProductStockResponse, 'productId'> {
+  const sizes = productSizes
+    .filter((productSize) => !productSize.isDeleted && productSize.size && !productSize.size.isDeleted)
+    .map((productSize) => {
+      const colors = (productSize.productSizeColors ?? [])
+        .filter((link) => link.color && !link.color.isDeleted)
+        .map((link) => ({
+          id: link.color.id,
+          stock: stockByProductSizeColorId.get(`${productSize.id}:${link.colorId}`) ?? 0,
+        }));
+
+      return {
+        id: productSize.id,
+        stock: stockByProductSizeId.get(productSize.id) ?? 0,
+        colors,
+      };
+    });
+
+  return {
+    stockStatus: sizes.some((size) => size.stock > 0 || size.colors.some((color) => color.stock > 0))
+      ? 'in_stock'
+      : 'out_of_stock',
+    sizes,
+  };
+}
+
 type ProductColorRow = {
   id: string;
   description: string;

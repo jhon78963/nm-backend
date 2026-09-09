@@ -5,6 +5,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '@app/common/decorators/public.decorator';
 
 import { PublicProductBySlugParamsDto, PublicProductBySlugQueryDto } from './dto/public-product-by-slug.dto';
+import { PublicProductStockQueryDto } from './dto/public-product-stock.dto';
 import { PublicProductsQueryDto } from './dto/public-products-query.dto';
 import { EcommerceProductsService } from './ecommerce-products.service';
 
@@ -39,6 +40,21 @@ export class EcommerceProductsController {
   ) {
     return this.ecommerceProductsService.getPublicProductBySlug(
       params.slug,
+      query.warehouseId,
+    );
+  }
+
+  @Get(':productId/stock')
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ publicProducts: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Obtener stock público en tiempo real por variantes' })
+  getPublicProductStock(
+    @Param('productId') productId: string,
+    @Query() query: PublicProductStockQueryDto,
+  ) {
+    return this.ecommerceProductsService.getPublicProductStock(
+      productId,
       query.warehouseId,
     );
   }

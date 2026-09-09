@@ -10,7 +10,9 @@ import { PublicProductsQueryDto } from './dto/public-products-query.dto';
 import { ProductReviewsService } from '../product-reviews/product-reviews.service';
 import {
   mapCatalogProductToPublicItem,
+  mapProductStockResponse,
   type PublicProductItem,
+  type PublicProductStockResponse,
   type PublicProductsResponse,
 } from './ecommerce-products.mapper';
 
@@ -175,6 +177,63 @@ export class EcommerceProductsService {
       stockByProductSizeColorId,
       reviewStatsByProductId.get(product.id),
     );
+  }
+
+  async getPublicProductStock(
+    productId: string,
+    warehouseId: string,
+  ): Promise<PublicProductStockResponse> {
+    const product = await this.db.product.findFirst({
+      where: {
+        id: productId,
+        warehouseId,
+        isDeleted: false,
+        status: { in: ['active', 'AVAILABLE'] },
+        wooStatus: { in: ['publish', 'draft'] },
+      },
+      select: {
+        id: true,
+        productSizes: {
+          where: { isDeleted: false },
+          select: {
+            id: true,
+            isDeleted: true,
+            size: {
+              select: { id: true, description: true, isDeleted: true },
+            },
+            productSizeColors: {
+              select: {
+                colorId: true,
+                color: {
+                  select: { id: true, description: true, hash: true, isDeleted: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Producto no encontrado.');
+    }
+
+    const productSizeIds = product.productSizes.map((size) => size.id);
+    const [stockByProductSizeId, stockByProductSizeColorId] = await Promise.all([
+      buildMasterStockByProductSizeId(this.db, warehouseId, productSizeIds),
+      buildStockByProductSizeColorId(this.db, warehouseId, productSizeIds),
+    ]);
+
+    const stock = mapProductStockResponse(
+      product.productSizes,
+      stockByProductSizeId,
+      stockByProductSizeColorId,
+    );
+
+    return {
+      productId: product.id,
+      ...stock,
+    };
   }
 
   private parseProductIds(ids: string): string[] {
