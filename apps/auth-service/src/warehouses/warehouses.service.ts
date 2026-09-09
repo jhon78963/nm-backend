@@ -66,6 +66,7 @@ export class WarehousesService {
       data: {
         name,
         tenantId,
+        baseCash: this.resolveBaseCash(data.baseCash),
         electronicInvoicingEnabled: Boolean(data.electronicInvoicingEnabled ?? false),
       },
     });
@@ -94,6 +95,7 @@ export class WarehousesService {
       where: { id },
       data: {
         ...(data.name != null && { name: String(data.name) }),
+        ...(data.baseCash != null && { baseCash: this.resolveBaseCash(data.baseCash) }),
         ...(wantsWarehouseFlag != null && {
           electronicInvoicingEnabled: wantsWarehouseFlag,
         }),
@@ -114,6 +116,7 @@ export class WarehousesService {
     id: string;
     name: string;
     tenantId: string;
+    baseCash?: { toString(): string } | number | null;
     electronicInvoicingEnabled: boolean;
     tenant?: {
       setting?: { electronicInvoicingEnabled: boolean } | null;
@@ -123,9 +126,18 @@ export class WarehousesService {
       id: warehouse.id,
       name: warehouse.name,
       tenantId: warehouse.tenantId,
+      baseCash: Number(warehouse.baseCash ?? 100),
       electronicInvoicingEnabled: warehouse.electronicInvoicingEnabled,
       tenantElectronicInvoicingEnabled:
         warehouse.tenant?.setting?.electronicInvoicingEnabled ?? false,
     };
+  }
+
+  private resolveBaseCash(value: unknown): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 100;
+    }
+    return parsed;
   }
 }

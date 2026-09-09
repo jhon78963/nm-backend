@@ -37,6 +37,9 @@ const mockDb = {
   sale: {
     findMany: jest.fn(),
   },
+  warehouse: {
+    findFirst: jest.fn(),
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -119,6 +122,7 @@ describe('CashflowService', () => {
   describe('getDaily()', () => {
     it('incluye ventas del día y movimientos de caja en formato legacy', async () => {
       const warehouseId = faker.string.uuid();
+      mockDb.warehouse.findFirst.mockResolvedValue({ baseCash: 100 });
       mockDb.sale.findMany.mockResolvedValue([
         {
           id: 'sale-1',
@@ -138,9 +142,6 @@ describe('CashflowService', () => {
       mockDb.cashMovement.findMany.mockResolvedValue([
         makeMovement({ type: 'EXPENSE', amount: 50, category: 'STORE' }),
       ]);
-      mockDb.cashMovement.aggregate
-        .mockResolvedValueOnce({ _sum: { amount: 1000 } })
-        .mockResolvedValueOnce({ _sum: { amount: 200 } });
 
       const result = await service.getDaily(warehouseId, '2026-08-27');
 
@@ -149,10 +150,12 @@ describe('CashflowService', () => {
       expect(result.data.lists.sales[0].payments).toEqual([{ method: 'CASH', amount: 90 }]);
       expect(result.data.summary.total_sales).toBe(90);
       expect(result.data.summary.total_expenses).toBe(50);
-      expect(result.data.summary.opening_balance).toBe(800);
+      expect(result.data.summary.opening_balance).toBe(100);
+      expect(result.data.summary.closing_balance).toBe(140);
     });
 
     it('incluye el desglose de pagos en ventas mixtas', async () => {
+      mockDb.warehouse.findFirst.mockResolvedValue({ baseCash: 100 });
       mockDb.sale.findMany.mockResolvedValue([
         {
           id: 'sale-mixed',
@@ -173,9 +176,6 @@ describe('CashflowService', () => {
         },
       ]);
       mockDb.cashMovement.findMany.mockResolvedValue([]);
-      mockDb.cashMovement.aggregate
-        .mockResolvedValueOnce({ _sum: { amount: null } })
-        .mockResolvedValueOnce({ _sum: { amount: null } });
 
       const result = await service.getDaily(faker.string.uuid(), '2026-08-26');
 
@@ -190,17 +190,16 @@ describe('CashflowService', () => {
     });
 
     it('retorna listas vacías si no hay ventas ni movimientos', async () => {
+      mockDb.warehouse.findFirst.mockResolvedValue({ baseCash: 100 });
       mockDb.sale.findMany.mockResolvedValue([]);
       mockDb.cashMovement.findMany.mockResolvedValue([]);
-      mockDb.cashMovement.aggregate
-        .mockResolvedValueOnce({ _sum: { amount: null } })
-        .mockResolvedValueOnce({ _sum: { amount: null } });
 
       const result = await service.getDaily(faker.string.uuid(), '2026-08-01');
 
       expect(result.data.lists.sales).toEqual([]);
       expect(result.data.summary.total_sales).toBe(0);
-      expect(result.data.summary.opening_balance).toBe(0);
+      expect(result.data.summary.opening_balance).toBe(100);
+      expect(result.data.summary.closing_balance).toBe(100);
     });
   });
 

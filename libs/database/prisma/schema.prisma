@@ -60,6 +60,7 @@ model Warehouse {
   name               String  @db.VarChar(255)
   tenantId           String  @map("tenant_id")
   catalogPublicToken String? @unique @map("catalog_public_token")
+  baseCash           Decimal @default(100) @map("base_cash") @db.Decimal(12, 2)
   isDeleted          Boolean  @default(false) @map("is_deleted")
   electronicInvoicingEnabled Boolean @default(false) @map("electronic_invoicing_enabled")
 

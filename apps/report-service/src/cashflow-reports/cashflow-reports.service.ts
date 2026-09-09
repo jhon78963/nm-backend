@@ -35,6 +35,7 @@ export interface DailyCashflowReport {
 }
 
 const DEFAULT_PAYMENT_FILTERS = ['CASH', 'YAPE', 'CARD'] as const;
+const DEFAULT_BASE_CASH = 100;
 
 @Injectable()
 export class CashflowReportsService {
@@ -49,7 +50,11 @@ export class CashflowReportsService {
     const to = dayjs(date).endOf('day').toDate();
     const filters = this.normalizePaymentFilters(activeFilters);
 
-    const [salesRows, movementModels, prevIncome, prevExpense] = await Promise.all([
+    const [warehouse, salesRows, movementModels] = await Promise.all([
+      this.db.warehouse.findFirst({
+        where: { id: warehouseId, isDeleted: false },
+        select: { baseCash: true },
+      }),
       this.db.sale.findMany({
         where: {
           warehouseId,
@@ -78,14 +83,6 @@ export class CashflowReportsService {
           date: { gte: from, lte: to },
         },
         orderBy: { date: 'desc' },
-      }),
-      this.db.cashMovement.aggregate({
-        where: { warehouseId, isDeleted: false, type: 'INCOME', date: { lt: from } },
-        _sum: { amount: true },
-      }),
-      this.db.cashMovement.aggregate({
-        where: { warehouseId, isDeleted: false, type: 'EXPENSE', date: { lt: from } },
-        _sum: { amount: true },
       }),
     ]);
 
@@ -126,9 +123,9 @@ export class CashflowReportsService {
     const totalSales = sales.reduce((sum, row) => sum + row.amount, 0);
     const totalIncomes = incomes.reduce((sum, row) => sum + row.amount, 0);
     const totalExpenses = expenses.reduce((sum, row) => sum + row.amount, 0);
-    const openingBalance =
-      Number(prevIncome._sum.amount ?? 0) - Number(prevExpense._sum.amount ?? 0);
-    const closingBalance = openingBalance + totalSales + totalIncomes - totalExpenses;
+    const baseCash = Number(warehouse?.baseCash ?? DEFAULT_BASE_CASH);
+    const openingBalance = baseCash;
+    const closingBalance = baseCash + totalSales + totalIncomes - totalExpenses;
 
     return {
       success: true,
