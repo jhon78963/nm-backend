@@ -5,7 +5,7 @@
 | Microservicio NestJS | Dominio Laravel origen | Tablas DB principales | Integraciones |
 |---|---|---|---|
 | `apps/auth-service` | `app/Auth/`, `app/Administration/`, `app/Profile/` | `users`, `roles`, `permissions`, `tenants`, `warehouses`, `refresh_tokens`, `user_action_logs` | Sanctum → JWT dual-token |
-| `apps/catalog-service` | `app/Inventory/Product*`, `app/Inventory/Color*`, `app/Inventory/Size*` | `products`, `product_size`, `product_size_color`, `colors`, `sizes`, `genders` | WooCommerce REST API, Node uploader |
+| `apps/catalog-service` | `app/Inventory/Product*`, `app/Inventory/Color*`, `app/Inventory/Size*` | `products`, `product_size`, `product_size_color`, `colors`, `sizes`, `genders` | storage-service (media), nm-ecommerce (`woo_status`) |
 | `apps/inventory-service` | `app/Inventory/Purchase*`, `app/Inventory/Inventory*`, `app/Inventory/Warehouse` | `inventory_balances`, `inventory_movements`, `purchases`, `purchase_lines`, `purchase_line_color_deltas` | catalog-service (eventos) |
 | `apps/pos-service` | `app/Finance/Sale*`, `app/Finance/ElectronicDocument*`, `app/Finance/DocumentSeries` | `sales`, `sale_details`, `sale_payments`, `document_series`, `electronic_document_logs` | **Greenter/SUNAT** (integración crítica) |
 | `apps/finance-service` | `app/Finance/CashMovement*`, `app/Finance/AccumulatedAccount*`, `app/Finance/FinancialSummary` | `cash_movements`, `cash_movement_vouchers`, `accumulated_account_settings`, `accumulated_account_transfers` | Node uploader (vouchers) |
@@ -41,9 +41,9 @@ pos-service (NestJS) ──HTTP POST──> nm-backend (Laravel, solo /api/fisca
 pos-service (NestJS) ──gRPC/HTTP──> sunat-sidecar (PHP Artisan command)
 ```
 
-### 2. WooCommerce Sync
-- Mantener la lógica en `catalog-service` usando [`@woocommerce/woocommerce-rest-api`](https://www.npmjs.com/package/@woocommerce/woocommerce-rest-api)
-- El `SyncWooCommerceCatalogCommand` (artisan) → `catalog-service/src/woocommerce/woocommerce-sync.command.ts` con `@nestjs/schedule`
+### 2. Tienda online (nm-ecommerce)
+- La visibilidad en tienda usa `products.woo_status` (`draft` / `publish`) — legacy del nombre WooCommerce, sin sync externo
+- Catálogo público: `ecommerce-service` + `nm-ecommerce` (Next.js)
 
 ### 3. Node Uploader (ya es Node)
 - Integrar directamente en `catalog-service` y `finance-service` como cliente HTTP
@@ -79,7 +79,7 @@ Gateway (REST) ─┬─> auth-service      (HTTP interno / puerto 3001)
 | Sprint | Entregable | Script |
 |--------|-----------|--------|
 | S1 | Monorepo + auth-service | `01-setup-monorepo.sh`, `02-scaffold-auth-service.sh` |
-| S2 | catalog-service + WooCommerce sync | `03-scaffold-catalog-service.sh` |
+| S2 | catalog-service | `03-scaffold-catalog-service.sh` |
 | S3 | inventory-service (ledger + purchases) | `04-scaffold-inventory-service.sh` |
 | S4 | pos-service (checkout + tickets) | `05-scaffold-pos-service.sh` |
 | S5 | finance-service (cashflow + acumulados) | `06-scaffold-finance-service.sh` |

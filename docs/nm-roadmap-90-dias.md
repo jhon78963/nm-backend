@@ -401,7 +401,7 @@ cd nm-ecommerce && npx playwright test
 
 - [x] **3.3.4** Dashboard Grafana operacional (opcional)  
   - Chatbot ya tiene patrón Loki en `services/chatbot/docker-compose.yml`
-  - **Hecho 2026-09-09:** `deploy/observability` + profile `observability` en docker-compose.full — Loki/Promtail/Grafana para todos los microservicios NM
+  - **Hecho 2026-09-09:** configs en `nm-backend/deploy/observability/`; contenedores en `nm-deploy/docker-compose.observability.yml` (profile `observability`); nginx `grafana.novedadesmaritex.net.pe`
 
 ---
 
@@ -409,18 +409,17 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **3.4.1** Limpiar MongoDB/UPRIT del chatbot si no se usa  
-  - Archivos: `services/chatbot/src/main.ts`, repos Mongo
+- [x] **3.4.1** Limpiar MongoDB/UPRIT del chatbot si no se usa  
+  - **Hecho 2026-09-09:** `main.ts` Prisma-only; `.env.example` sin Mongo; doc `services/chatbot/docs/uprit-legacy-mongodb.md` (código Mongo legacy pendiente de borrado en PR aparte)
 
-- [ ] **3.4.2** `docker-compose.prod.yml` documentado  
-  - Path: `nm-deploy/` o `nm-backend/`
+- [x] **3.4.2** `docker-compose.prod.yml` documentado  
+  - **Hecho 2026-09-09:** `nm-deploy/docker-compose.prod.yml` + `docs/PRODUCTION-COMPOSE.md`; `deploy-prod.sh` usa `-f docker-compose.prod.yml`
 
-- [ ] **3.4.3** Rotación secrets prod (JWT, service keys, Meta, Culqi)  
-  - Documentar en `vps/secrets/` (sin commitear valores)
+- [x] **3.4.3** Rotación secrets prod (JWT, service keys, Meta, Culqi)  
+  - **Hecho 2026-09-09:** `vps/secrets/README.md` + `*.example` + `scripts/generate-internal-secrets.sh` + `scripts/apply-secrets-to-vps.sh`
 
-- [ ] **3.4.4** Eliminar código WooCommerce muerto o reactivar sync  
-  - Backend: `catalog-service/woocommerce`  
-  - Frontend: rutas ecommerce comentadas
+- [x] **3.4.4** Eliminar código WooCommerce muerto o reactivar sync  
+  - **Hecho 2026-09-09:** eliminado módulo `catalog-service/woocommerce`, tabla `woocommerce_sync_maps`, refs frontend/ecommerce; `woo_status` se mantiene como flag tienda NM
 
 ---
 

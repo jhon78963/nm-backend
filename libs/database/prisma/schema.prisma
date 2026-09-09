@@ -291,7 +291,6 @@ model Product {
   warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
   productSizes ProductSize[]
   histories    ProductHistory[]
-  wooSyncMaps  WoocommerceSyncMap[]
   media        ProductMedia[]
   reviews      ProductReview[]
 
@@ -369,19 +368,6 @@ model ProductHistory {
 
   @@index([productId])
   @@map("product_histories")
-}
-
-model WoocommerceSyncMap {
-  id            String    @id @default(uuid())
-  productId     String    @map("product_id")
-  wooProductId  Int       @map("woo_product_id")
-  checksum      String?
-  lastSyncedAt  DateTime? @map("last_synced_at")
-
-  product Product @relation(fields: [productId], references: [id])
-
-  @@unique([productId])
-  @@map("woocommerce_sync_maps")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

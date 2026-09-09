@@ -1,6 +1,14 @@
 # Observabilidad NM Services — Loki + Promtail + Grafana
 
-Stack centralizado para **todos los microservicios** del monorepo `nm-backend` cuando corren con Docker Compose.
+Stack centralizado para **todos los microservicios** NM cuando corren con Docker Compose.
+
+## Arquitectura
+
+| Capa | Ubicación | Rol |
+|------|-----------|-----|
+| Configs (Loki, Promtail, dashboards) | `nm-backend/deploy/observability/` | Fuente de verdad |
+| Contenedores (Loki, Promtail, Grafana) | `nm-deploy/docker-compose.observability.yml` | Orquestación de plataforma |
+| Labels de scrape | `nm-backend/docker-compose.full.yml` | `logging=promtail`, `app=nm-services` |
 
 ## Qué cubre
 
@@ -15,32 +23,45 @@ Los logs JSON estructurados (request ID, `service`, `event`, `statusCode`) de la
 
 ## Levantar el stack
 
-Desde la raíz de `nm-backend`:
+Desde `nm-deploy` (recomendado — stack unificado):
 
 ```bash
-docker compose -f docker-compose.full.yml --profile observability up -d loki promtail grafana
+cd nm-deploy
+docker compose --profile observability up -d
 ```
 
-Con el stack de apps ya corriendo:
+Con reverse-proxy en producción:
 
 ```bash
-docker compose -f docker-compose.full.yml --profile observability up -d
+docker compose --profile edge --profile observability up -d --build
+```
+
+Solo backend en local (sin tienda/admin):
+
+```bash
+cd nm-backend
+docker compose -f docker-compose.full.yml up -d
+# Observabilidad: usar nm-deploy con --profile observability
 ```
 
 ## Acceso
 
-| Servicio | URL | Credenciales default |
-|----------|-----|----------------------|
-| Grafana | http://localhost:3010 | `admin` / `admin` (cambiar en prod) |
-| Loki | http://localhost:3100 | sin auth (solo red interna) |
+| Entorno | Grafana | Loki (interno) |
+|---------|---------|----------------|
+| Local | http://localhost:3010 | http://localhost:3100 |
+| Prod + edge | https://grafana.novedadesmaritex.net.pe | solo red Docker |
 
-Variables en `.env`:
+Credenciales default: `admin` / `admin` — **cambiar en prod**.
+
+Variables en `nm-deploy/.env`:
 
 ```bash
 GRAFANA_PORT=3010
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
 GRAFANA_ROOT_URL=http://localhost:3010
+# Prod:
+# GRAFANA_ROOT_URL=https://grafana.novedadesmaritex.net.pe
 ```
 
 ## Dashboard incluido
@@ -66,9 +87,9 @@ GRAFANA_ROOT_URL=http://localhost:3010
 
 ## Producción
 
-- Cambiar credenciales Grafana y exponer tras reverse proxy (HTTPS).
+- Cambiar credenciales Grafana antes de exponer.
+- DNS: `grafana.novedadesmaritex.net.pe` → VPS (mismo certificado wildcard o SAN del dominio principal).
 - El chatbot UPRIT mantiene su stack Loki propio en `services/chatbot/docker-compose.yml`; este stack es para **NM Maritex**.
-- Opcional: unificar ambos en un solo Loki en prod si comparten VPS.
 
 ## Chatbot legacy
 

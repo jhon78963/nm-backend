@@ -3,7 +3,7 @@
 # Levanta PostgreSQL + Redis para desarrollo.
 # Los microservicios NestJS corren con `npm run start:dev:<service>`.
 #
-# Para producción usar docker-compose.prod.yml con imágenes Docker compiladas.
+# Para producción usar nm-deploy/docker-compose.prod.yml (stack completo + nginx).
 # =============================================================================
 
 services:

@@ -132,7 +132,7 @@ echo -e "${GREEN}║  MIGRATION KIT COMPLETO — nm-backend → NestJS Microserv
 echo -e "${GREEN}╠══════════════════════════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║  Microservicios:                                                     ║${NC}"
 echo -e "${GREEN}║    ✓ auth-service     :3001  (JWT, RBAC, Tenants)                   ║${NC}"
-echo -e "${GREEN}║    ✓ catalog-service  :3002  (Products, WooCommerce)                ║${NC}"
+echo -e "${GREEN}║    ✓ catalog-service  :3002  (Products, catalog)                  ║${NC}"
 echo -e "${GREEN}║    ✓ inventory-service:3003  (Ledger, Purchases, Kardex)            ║${NC}"
 echo -e "${GREEN}║    ✓ pos-service      :3004  (Checkout, SUNAT, Tickets)             ║${NC}"
 echo -e "${GREEN}║    ✓ finance-service  :3005  (Cashflow, Acumulados)                 ║${NC}"

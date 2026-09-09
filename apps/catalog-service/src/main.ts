@@ -35,7 +35,7 @@ async function bootstrap() {
   if (config.get('NODE_ENV') !== 'production') {
     const swaggerCfg = new DocumentBuilder()
       .setTitle('nm-services — Catalog Service')
-      .setDescription('Gestión de productos, colores, tallas y sincronización WooCommerce')
+      .setDescription('Gestión de productos, colores, tallas y catálogo para nm-ecommerce')
       .setVersion('1.0')
       .addBearerAuth()
       .build();

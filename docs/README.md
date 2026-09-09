@@ -32,7 +32,7 @@ Angular Frontend (nm-frontend-v2 :4200)
 |---|---|---|---|
 | `gateway` | 3000 | BFF proxy | `routes/api.php` |
 | `auth-service` | 3001 | Auth, Tenants, RBAC, Auditoría | `app/Auth/`, `app/Administration/` |
-| `catalog-service` | 3002 | Productos, Colores, Tallas, WooCommerce | `app/Inventory/Product*` |
+| `catalog-service` | 3002 | Productos, Colores, Tallas | `app/Inventory/Product*` |
 | `inventory-service` | 3003 | Ledger, Compras, Kardex | `app/Inventory/Purchase*`, `app/Inventory/Inventory*` |
 | `pos-service` | 3004 | Checkout, Ventas, SUNAT proxy, Tickets | `app/Finance/Sale*`, `PosController` |
 | `finance-service` | 3005 | Flujo de caja, Cuentas acumuladas | `app/Finance/CashMovement*` |
@@ -130,7 +130,7 @@ solo se cambia este archivo.
 | `JWT_SECRET` | Secret del access token (mín. 32 chars) |
 | `JWT_REFRESH_SECRET` | Secret del refresh token (distinto del anterior) |
 | `SUNAT_BACKEND_URL` | URL del nm-backend Laravel (sidecar SUNAT) |
-| `WOOCOMMERCE_URL` | URL del WordPress/WooCommerce |
+| `ECOMMERCE_STORE_URL` | URL pública de la tienda (nm-ecommerce) |
 | `AI_ENGINE_URL` | URL del nm_ai_engine (Python/FastAPI) |
 | `UPLOADER_URL` | URL del Node uploader (media/vouchers) |
 
