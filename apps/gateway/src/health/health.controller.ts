@@ -26,6 +26,8 @@ export class HealthController {
       { name: 'document',  url: config.get('DOCUMENT_SERVICE_URL',  'http://localhost:3011'), path: '/health' },
       { name: 'storage',   url: config.get('STORAGE_SERVICE_URL',   'http://localhost:3010'), path: '/health' },
       { name: 'mail',      url: config.get('MAIL_SERVICE_URL',      'http://localhost:3013'), path: '/health' },
+      { name: 'ecommerce', url: config.get('ECOMMERCE_SERVICE_URL', 'http://localhost:3012'), path: '/health' },
+      { name: 'chatbot',   url: config.get('CHATBOT_SERVICE_URL',   'http://localhost:8090'), path: '/health' },
       { name: 'ai-engine', url: config.get('AI_ENGINE_URL',         'http://localhost:3008'), path: '/health' },
       { name: 'invoicing', url: config.get('INVOICING_SERVICE_URL', 'http://localhost:3009'), path: '/api/health' },
     ];

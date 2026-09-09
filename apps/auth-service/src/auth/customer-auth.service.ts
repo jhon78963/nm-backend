@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 import { CLIENTE_ROLE } from '@app/common/auth/ecommerce-customer-permissions';
 import { DatabaseService } from '@app/database';
