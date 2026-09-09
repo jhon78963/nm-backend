@@ -70,6 +70,10 @@ import {
   isHandoffAffirmative,
   isStaleHandoffConfirmation,
 } from '../../services/handoff-detection.service.js';
+import {
+  buildPdpPurchaseHandoffPrompt,
+  parsePdpPurchaseMessage,
+} from '../../services/ecommerce-pdp-purchase.service.js';
 
 const CONTEXT_WINDOW_SIZE = 10;
 const MAX_CONSECUTIVE_HANDOFFS = 3;
@@ -457,6 +461,25 @@ export class HandleIncomingMessageUseCase {
         phoneNumberValue,
         funnelUserId,
         userMessage,
+      });
+    }
+
+    const pdpPurchaseIntent = parsePdpPurchaseMessage(userContent);
+    if (pdpPurchaseIntent) {
+      logger.info('[HandleIncomingMessage] PDP WhatsApp purchase intent detected', {
+        phone: phoneNumberValue,
+        productName: pdpPurchaseIntent.productName,
+        sku: pdpPurchaseIntent.sku,
+      });
+
+      await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
+
+      return this.startHandoffConfirmation({
+        conversation,
+        phoneNumberValue,
+        funnelUserId,
+        userMessage,
+        confirmBody: buildPdpPurchaseHandoffPrompt(pdpPurchaseIntent),
       });
     }
 
@@ -991,6 +1014,7 @@ export class HandleIncomingMessageUseCase {
     phoneNumberValue: string;
     funnelUserId: string;
     userMessage: Message;
+    confirmBody?: string;
   }): Promise<HandleIncomingMessageResult> {
     const { phoneNumberValue, funnelUserId, userMessage } = params;
 
@@ -999,7 +1023,10 @@ export class HandleIncomingMessageUseCase {
       .withHandoffState('pending');
     await this.conversationRepo.save(updatedConversation);
 
-    const { body: confirmBody } = await this.sendHandoffConfirmation(phoneNumberValue);
+    const { body: confirmBody } = await this.sendHandoffConfirmation(
+      phoneNumberValue,
+      params.confirmBody,
+    );
     await this.saveFunnelMessage(funnelUserId, confirmBody, 'bot');
     await this.updateFunnelUserStage(funnelUserId, 'DECISION', null);
 
@@ -1015,8 +1042,11 @@ export class HandleIncomingMessageUseCase {
     };
   }
 
-  private async sendHandoffConfirmation(to: string): Promise<{ messageId: string; body: string }> {
-    const prompt = HANDOFF_CONFIRMATION_MSG;
+  private async sendHandoffConfirmation(
+    to: string,
+    customBody?: string,
+  ): Promise<{ messageId: string; body: string }> {
+    const prompt = customBody?.trim() || HANDOFF_CONFIRMATION_MSG;
 
     if (isInteractiveHandoffEnabled() && this.messagingProvider.sendInteractiveButtons) {
       const result = await this.messagingProvider.sendInteractiveButtons({

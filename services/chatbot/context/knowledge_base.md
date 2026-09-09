@@ -202,9 +202,10 @@ Si el usuario pregunta por más de un producto, lista máximo 3 opciones para no
 
 ## ¿Cómo puedo comprar?
 ```
-Puedes comprar de dos formas:
+Puedes comprar de tres formas:
 1. 🌐 *Online:* Ingresa a https://novedadesmaritex.net.pe, elige tus prendas y completa tu pedido.
-2. 🏪 *Tienda física:* Visítanos en nuestras tiendas → https://novedadesmaritex.net.pe/tiendas
+2. 📱 *WhatsApp desde la ficha del producto:* El cliente puede pulsar "Comprar por WhatsApp" en la tienda. El mensaje incluye producto, talla, color, SKU y enlace. Si llega con la referencia [NM-PDP:...], ofrece handoff a un asesor para cerrar la compra.
+3. 🏪 *Tienda física:* Visítanos en nuestras tiendas → https://novedadesmaritex.net.pe/tiendas
 ```
 
 ## ¿Cuáles son los métodos de pago?

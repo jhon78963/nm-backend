@@ -350,9 +350,10 @@ cd nm-ecommerce && npx playwright test
   - Criterio: boleta/factura PDF en cuenta cliente
   - **Hecho 2026-09-09:** `EcommerceInvoicingService`, campos fiscales en `EcommerceOrder`, hook pago `paid`, `GET /ecommerce/orders/mine/:orderNumber/invoice`, botón PDF en cuenta
 
-- [ ] **3.1.3** **Compra por WhatsApp** desde PDP  
+- [x] **3.1.3** **Compra por WhatsApp** desde PDP  
   - Botón prellena mensaje a Malu con SKU/link  
   - Integrar con chatbot handoff
+  - **Hecho 2026-09-09:** `ProductWhatsAppPurchaseButton`, mensaje `[NM-PDP:...]`, detección en chatbot → handoff asesor
 
 - [ ] **3.1.4** **Ventas al por mayor** (B2B)  
   - Página institucional existe; flujo: precios mayorista + checkout separado o cotización
