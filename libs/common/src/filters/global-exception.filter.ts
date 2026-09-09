@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+import { captureServerException } from '../sentry/init-sentry';
+
 /**
  * GlobalExceptionFilter — Equivale al Handler::render() de Laravel.
  * Unifica el formato de error de toda la API y redacta datos sensibles
@@ -50,6 +52,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url} → ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+    }
+
+    if (status >= 500) {
+      captureServerException(exception, {
+        statusCode: status,
+        method: request.method,
+        url: request.url,
+      });
     }
 
     void reply.status(status).send({

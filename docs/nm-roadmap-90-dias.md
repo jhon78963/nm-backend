@@ -387,8 +387,9 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **3.3.1** **Sentry** (o similar) en backend, frontend, ecommerce  
+- [x] **3.3.1** **Sentry** (o similar) en backend, frontend, ecommerce  
   - Errores cliente + servidor centralizados
+  - **Hecho 2026-09-09:** `@sentry/node` en microservicios + filter 5xx; `@sentry/angular` ERP; `@sentry/nextjs` tienda
 
 - [ ] **3.3.2** **Logs estructurados** con request ID en gateway  
   - Extender patrón de `libs/common` logging interceptor
