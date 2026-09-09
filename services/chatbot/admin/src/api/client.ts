@@ -1,9 +1,31 @@
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
+let cachedAuthConfig: { ssoOnly: boolean; erpPanelUrl: string } | null = null
+
+async function resolveAuthConfig(): Promise<{ ssoOnly: boolean; erpPanelUrl: string }> {
+  if (cachedAuthConfig) return cachedAuthConfig
+  try {
+    const res = await fetch(`${BASE}/api/v1/auth/config`)
+    if (res.ok) {
+      cachedAuthConfig = (await res.json()) as { ssoOnly: boolean; erpPanelUrl: string }
+      return cachedAuthConfig
+    }
+  } catch {
+    /* ignore */
+  }
+  cachedAuthConfig = {
+    ssoOnly: false,
+    erpPanelUrl: import.meta.env.VITE_ERP_PANEL_URL ?? 'https://app.novedadesmaritex.net.pe',
+  }
+  return cachedAuthConfig
+}
+
 export interface ApiError {
   error: string
   status: number
 }
+
+import { appPath } from '../router/basename'
 
 export function getToken(): string | null {
   return localStorage.getItem('uprit_agent_token')
@@ -34,7 +56,20 @@ export function getWebSocketUrl(token: string): string {
 
 function logout(): void {
   localStorage.removeItem('uprit_agent_token')
-  window.location.href = '/login'
+  void resolveAuthConfig().then((config) => {
+    if (config.ssoOnly) {
+      try {
+        window.parent.postMessage(
+          { type: 'nm-chatbot-sso-expired' },
+          new URL(config.erpPanelUrl).origin,
+        )
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    window.location.href = appPath('/login')
+  })
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

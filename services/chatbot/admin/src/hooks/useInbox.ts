@@ -45,7 +45,8 @@ interface UseInboxOptions {
   activeConversationId?: string | undefined
 }
 
-const FALLBACK_POLL_MS = 60_000
+const FALLBACK_POLL_MS = 5_000
+const CONNECTED_INBOX_POLL_MS = 15_000
 
 export function useInbox(options: UseInboxOptions = {}) {
   const {
@@ -115,7 +116,10 @@ export function useInbox(options: UseInboxOptions = {}) {
   }, [fetch])
 
   useEffect(() => {
-    if (wsConnected) return
+    if (wsConnected) {
+      const id = setInterval(() => void fetch(false), CONNECTED_INBOX_POLL_MS)
+      return () => clearInterval(id)
+    }
     const id = setInterval(() => void fetch(false), FALLBACK_POLL_MS)
     return () => clearInterval(id)
   }, [fetch, wsConnected])

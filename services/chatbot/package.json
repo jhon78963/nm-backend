@@ -10,7 +10,9 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "prepare:prisma": "mkdir -p prisma && cp ../../libs/database/prisma/schema.prisma prisma/schema.prisma && prisma generate --schema=./prisma/schema.prisma",
+    "postinstall": "npm run prepare:prisma",
+    "build": "npm run prepare:prisma && tsc --project tsconfig.json",
     "build:watch": "tsc --project tsconfig.json --watch",
     "start": "node --env-file=.env dist/main.js",
     "dev": "npm run build && node --env-file=.env --watch dist/main.js",

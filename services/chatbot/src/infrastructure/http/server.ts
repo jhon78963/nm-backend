@@ -5,6 +5,10 @@ import { existsSync } from 'node:fs';
 import { logger } from '../shared/logger.js';
 import type { Router } from 'express';
 import { authenticateAgentJwt } from './middlewares/authenticate-agent-jwt.middleware.js';
+import {
+  embedOnlyAdminMiddleware,
+  redirectToErpChatbot,
+} from './middlewares/embed-only-admin.middleware.js';
 
 export interface ServerOptions {
   port: number;
@@ -58,15 +62,27 @@ export function createServer(
   });
 
   app.get('/', (_req, res) => {
-    res.redirect(302, '/admin/');
+    redirectToErpChatbot(res);
+  });
+
+  // Legacy URLs — send users to the ERP entry point.
+  app.get('/login', (_req, res) => {
+    redirectToErpChatbot(res);
+  });
+  app.get('/chat/:id', (_req, res) => {
+    redirectToErpChatbot(res);
+  });
+  app.get('/chat', (_req, res) => {
+    redirectToErpChatbot(res);
   });
 
   // Admin panel React (production build at /admin)
   const adminDist =
     process.env['ADMIN_PANEL_DIST'] ?? path.join(process.cwd(), 'admin', 'dist');
   if (existsSync(adminDist)) {
+    app.use('/admin', embedOnlyAdminMiddleware);
     app.use('/admin', express.static(adminDist, { index: 'index.html' }));
-    app.get('/admin/*', (_req: Request, res: Response) => {
+    app.get('/admin/*', embedOnlyAdminMiddleware, (_req: Request, res: Response) => {
       res.sendFile(path.join(adminDist, 'index.html'));
     });
     logger.info('[HTTP] Admin panel static files enabled', { adminDist });

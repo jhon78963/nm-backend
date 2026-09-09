@@ -41,7 +41,7 @@ interface HistoryResponse extends ConversationMeta {
   messages: ChatMessage[]
 }
 
-const FALLBACK_POLL_MS = 60_000
+const FALLBACK_POLL_MS = 5_000
 
 function toChatMessage(data: MessageEventData): ChatMessage {
   return {

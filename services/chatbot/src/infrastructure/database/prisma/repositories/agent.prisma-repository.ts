@@ -32,6 +32,13 @@ export class AgentPrismaRepository implements AgentRepository {
     return doc ? this.toDomain(doc) : null;
   }
 
+  async findByEmail(email: string): Promise<Agent | null> {
+    const doc = await this.prisma.chatAgent.findFirst({
+      where: { email: email.toLowerCase().trim() },
+    });
+    return doc ? this.toDomain(doc) : null;
+  }
+
   async findNamesByIds(ids: string[]): Promise<Map<string, string>> {
     if (ids.length === 0) return new Map();
     const docs = await this.prisma.chatAgent.findMany({

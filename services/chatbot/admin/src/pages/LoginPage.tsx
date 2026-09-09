@@ -8,7 +8,7 @@ const HERO_IMAGE =
   'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200'
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, ssoOnly, ssoBootstrapping, ssoError } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -32,6 +32,28 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true })
   }, [isAuthenticated, navigate])
+
+  if (ssoBootstrapping) {
+    return (
+      <section className="login-page" data-theme={theme}>
+        <div className="login-container">
+          <p className="login-subtitle">Conectando con tu sesión del ERP…</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (ssoOnly) {
+    return (
+      <section className="login-page" data-theme={theme}>
+        <div className="login-container">
+          <p className="login-subtitle">
+            {ssoError ?? 'Accede al chatbot desde el ERP: Aplicaciones → Chatbot.'}
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

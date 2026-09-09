@@ -66,6 +66,10 @@ async function bootstrap(): Promise<void> {
   const jwtSecret = process.env['JWT_SECRET'];
   if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
 
+  if (process.env['ERP_SSO_ONLY'] === 'true' && !process.env['ERP_JWT_SECRET']) {
+    throw new Error('ERP_JWT_SECRET environment variable is required when ERP_SSO_ONLY=true');
+  }
+
   // ── Repositories ──────────────────────────────────────────────────────────
   const conversationRepo = new ConversationPrismaRepository();
   const messageRepo = new MessagePrismaRepository();

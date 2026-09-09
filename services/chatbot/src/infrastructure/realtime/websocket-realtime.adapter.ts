@@ -291,6 +291,10 @@ export class WebSocketRealtimeAdapter implements RealtimePort {
       return;
     }
 
+    if (parsed.type === 'pong') {
+      return;
+    }
+
     if (
       (parsed.type === 'typing.start' || parsed.type === 'typing.stop') &&
       typeof parsed.conversationId === 'string' &&

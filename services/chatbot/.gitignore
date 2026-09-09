@@ -1,6 +1,9 @@
 # Dependencias
 node_modules/
 
+# Prisma schema copy (generated from ../../libs/database/prisma)
+prisma/
+
 # Compilación
 dist/
 .tsbuildinfo

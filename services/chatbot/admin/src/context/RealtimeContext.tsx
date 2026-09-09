@@ -31,6 +31,9 @@ const CLIENT_PING_MS = 25_000
 function parseEvent(data: string): RealtimeEvent | null {
   try {
     const parsed = JSON.parse(data) as { type?: string }
+    if (parsed.type === 'ping' || parsed.type === 'pong' || parsed.type === 'connected') {
+      return null
+    }
     if (
       parsed.type === 'message.new' ||
       parsed.type === 'message.status' ||
@@ -120,7 +123,17 @@ export function RealtimeProvider({
 
     ws.onmessage = (ev) => {
       setLastSyncAt(new Date())
-      const parsed = parseEvent(String(ev.data))
+      const raw = String(ev.data)
+      try {
+        const control = JSON.parse(raw) as { type?: string }
+        if (control.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }))
+          return
+        }
+      } catch {
+        /* fall through to business events */
+      }
+      const parsed = parseEvent(raw)
       if (parsed) emit(parsed)
     }
 

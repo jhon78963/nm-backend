@@ -454,10 +454,24 @@ function ChatPanel({
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [showAttachMenu])
 
-  const isBotPreview = botPreview === true && meta?.mode === 'bot'
+  const isAssignedToMe = meta?.assignedAgentId === agent?.id
+  const isBotMode = meta?.mode === 'bot'
   const isUnassignedHuman = meta?.mode === 'human' && !meta?.assignedAgentId
-  const canReply = !readOnly && !isBotPreview && !isUnassignedHuman
-  const showTakeBtn = isBotPreview || isUnassignedHuman
+  const isAssignedToOther =
+    meta?.mode === 'human' &&
+    meta?.assignedAgentId != null &&
+    meta.assignedAgentId !== agent?.id
+
+  const isBotPreview =
+    (botPreview === true && isBotMode) ||
+    (isAdminPanel === true && isBotMode && !isAssignedToMe)
+
+  const showTakeBtn =
+    !readOnly &&
+    !isAssignedToOther &&
+    (isBotPreview || isUnassignedHuman)
+
+  const canReply = !readOnly && meta?.mode === 'human' && isAssignedToMe
   const csWindowOpen = meta?.csWindowOpen ?? true
   const windowBlocked = canReply && !csWindowOpen
   const isPinned = meta?.pinned ?? false
@@ -741,7 +755,15 @@ function ChatPanel({
 
       {!canReply && isBotPreview && (
         <div className="dash-input-bar" style={{ justifyContent: 'center', color: '#94a3b8', fontSize: '.85rem' }}>
-          Revisión del bot — usa «Tomar conversación» para responder
+          {isAdminPanel
+            ? 'Usa «Tomar conversación» para asignarte el chat y responder'
+            : 'Revisión del bot — usa «Tomar conversación» para responder'}
+        </div>
+      )}
+
+      {!canReply && isAssignedToOther && isAdminPanel && (
+        <div className="dash-input-bar" style={{ justifyContent: 'center', color: '#94a3b8', fontSize: '.85rem' }}>
+          Chat asignado a {meta?.assignedAgentName ?? 'otro asesor'}. Reasígnalo a ti o responde con esa cuenta.
         </div>
       )}
 
@@ -1102,7 +1124,7 @@ export default function DashboardPage() {
           <ChatPanel
             id={id}
             onBack={closeChat}
-            readOnly={isAdmin}
+            readOnly={false}
             botPreview={!isAdmin && agentFilter === 'bot'}
             onTakeSuccess={handleTakeSuccess}
             onMutated={reloadInbox}

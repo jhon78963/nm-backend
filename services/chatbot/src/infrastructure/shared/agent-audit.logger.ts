@@ -4,6 +4,8 @@ import { logger } from './logger.service.js';
 export type AgentAuditAction =
   | 'login_success'
   | 'login_failed'
+  | 'sso_erp_success'
+  | 'sso_erp_failed'
   | 'logout'
   | 'message_sent'
   | 'conversation_assigned'
@@ -29,6 +31,8 @@ export interface AgentAuditFields {
 const ACTION_LABELS: Record<AgentAuditAction, string> = {
   login_success: 'Inicio de sesión',
   login_failed: 'Login fallido',
+  sso_erp_success: 'SSO ERP exitoso',
+  sso_erp_failed: 'SSO ERP fallido',
   logout: 'Cierre de sesión',
   message_sent: 'Mensaje enviado',
   conversation_assigned: 'Chat asignado a asesor',

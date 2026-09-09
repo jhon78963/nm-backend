@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import type { AgentRepository } from '../../../domain/repositories/agent.repository.js';
 import type { AgentRole } from '../../../domain/entities/agent.entity.js';
+import { signAgentToken } from '../../services/agent-token.service.js';
 
 export interface LoginAgentInput {
   username: string;
@@ -46,23 +46,7 @@ export class LoginAgentUseCase {
 
     await this.agentRepo.updateLastLogin(agent.id);
 
-    const secret = process.env['JWT_SECRET'];
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
-    }
-
-    const expiresIn = process.env['JWT_EXPIRES_IN'] ?? '8h';
-
-    const token = jwt.sign(
-      {
-        sub: agent.id,
-        username: agent.username,
-        name: agent.name,
-        role: agent.role,
-      },
-      secret,
-      { expiresIn } as jwt.SignOptions,
-    );
+    const token = signAgentToken(agent);
 
     return {
       token,

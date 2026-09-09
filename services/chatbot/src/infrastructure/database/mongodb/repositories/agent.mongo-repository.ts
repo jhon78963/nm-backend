@@ -31,6 +31,11 @@ export class AgentMongoRepository implements AgentRepository {
     return doc ? this.toDomain(doc as LeanAgent) : null;
   }
 
+  async findByEmail(email: string): Promise<Agent | null> {
+    const doc = await AgentModel.findOne({ email: email.toLowerCase().trim() }).lean();
+    return doc ? this.toDomain(doc as LeanAgent) : null;
+  }
+
   async findNamesByIds(ids: string[]): Promise<Map<string, string>> {
     if (ids.length === 0) return new Map();
     const docs = await AgentModel.find({ id: { $in: ids } }).select('id name').lean();

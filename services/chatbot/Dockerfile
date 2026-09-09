@@ -24,7 +24,7 @@ COPY services/chatbot/tsconfig.json ./
 COPY services/chatbot/src ./src
 
 RUN npx prisma generate --schema=./prisma/schema.prisma
-RUN npm run build
+RUN npx tsc --project tsconfig.json
 
 
 FROM node:24-alpine AS admin-build

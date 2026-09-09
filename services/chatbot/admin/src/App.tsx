@@ -3,11 +3,12 @@ import { AuthProvider } from './auth/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import DashboardShell from './components/DashboardShell'
 import LoginPage from './pages/LoginPage'
+import { APP_BASENAME } from './router/basename'
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={APP_BASENAME}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
