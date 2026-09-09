@@ -235,10 +235,11 @@ cd nm-frontend && npm test && npm run build -- --configuration=docker
   - Criterio: una sola URL canónica de búsqueda
   - **Hecho 2026-09-09:** canónica `/buscar`; `/search` → 308; JSON-LD y `ROUTES.search` alineados
 
-- [ ] **2.1.5** E2E Playwright checkout  
+- [x] **2.1.5** E2E Playwright checkout  
   - Crear: `nm-ecommerce/tests-e2e/checkout.spec.ts`  
   - Cubrir: BACS, cupón, guest tracking, Culqi mock  
   - CI: añadir job e2e (staging o con mocks)
+  - **Hecho 2026-09-09:** Playwright + mocks API checkout; job `e2e` en CI
 
 ### Verificación Fase 2.1
 
