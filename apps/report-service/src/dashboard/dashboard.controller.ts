@@ -40,6 +40,7 @@ export class DashboardController {
       lowStockProducts: raw.inventory.lowStockItems,
       pendingPurchases: raw.purchases.pendingThisMonth,
       activeCustomers: raw.customers.total,
+      pendingTasks: raw.tasks.pendingToday,
     };
   }
 }

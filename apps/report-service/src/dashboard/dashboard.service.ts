@@ -21,6 +21,7 @@ export class DashboardService {
       // Ventas de hoy
       salesToday,
       revenueTodayAgg,
+      sunatPendingToday,
 
       // Ventas del mes
       salesMonth,
@@ -50,6 +51,14 @@ export class DashboardService {
       this.db.sale.aggregate({
         where: { warehouseId, isDeleted: false, createdAt: { gte: today, lte: todayEnd } },
         _sum: { totalAmount: true },
+      }),
+      this.db.sale.count({
+        where: {
+          warehouseId,
+          isDeleted: false,
+          createdAt: { gte: today, lte: todayEnd },
+          sunatStatus: { in: ['PENDING', 'REJECTED'] },
+        },
       }),
 
       this.db.sale.count({
@@ -101,6 +110,7 @@ export class DashboardService {
       inventory: { lowStockItems: lowStockCount },
       purchases: { pendingThisMonth: purchasesMonth },
       customers: { total: customersCount },
+      tasks: { pendingToday: sunatPendingToday },
       cashflow: { todayMovements: Number(cashToday._sum.amount ?? 0) },
       payroll: { monthTotal: Number(payrollMonth._sum.amount ?? 0) },
       topProducts: topProducts.map((p) => ({

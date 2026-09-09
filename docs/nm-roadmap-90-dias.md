@@ -270,10 +270,11 @@ cd nm-ecommerce && npx playwright test
   - Criterio: usuario ve mensaje claro, no solo redirect a `/not-found`
   - **Hecho 2026-09-09:** ruta `/access-denied`; guards redirigen con mensaje 403
 
-- [ ] **2.2.4** **Dashboard vendedora** (rol no-admin)  
+- [x] **2.2.4** **Dashboard vendedora** (rol no-admin)  
   - Archivo: `nm-frontend/src/app/features/dashboards/`  
   - Métricas básicas: ventas del día, tareas pendientes  
   - Criterio: vendedora ve valor al login, no solo saludo
+  - **Hecho 2026-09-09:** métricas vendedora (ventas, monto, tareas); `pendingTasks` en API
 
 - [ ] **2.2.5** Fix docs/tests stale  
   - `inventories/products/README.md`  

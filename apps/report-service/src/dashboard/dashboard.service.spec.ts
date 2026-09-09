@@ -37,6 +37,7 @@ describe('DashboardService', () => {
   function setupMocks(opts: {
     salesToday?: number;
     revToday?: number;
+    sunatPending?: number;
     salesMonth?: number;
     revMonth?: number;
     lowStock?: number;
@@ -47,6 +48,7 @@ describe('DashboardService', () => {
   } = {}) {
     mockDb.sale.count
       .mockResolvedValueOnce(opts.salesToday   ?? 5)    // today
+      .mockResolvedValueOnce(opts.sunatPending ?? 0)    // sunat pending
       .mockResolvedValueOnce(opts.salesMonth   ?? 120); // month
     mockDb.sale.aggregate
       .mockResolvedValueOnce({ _sum: { totalAmount: opts.revToday  ?? 450 } })
@@ -77,6 +79,14 @@ describe('DashboardService', () => {
       const result = await service.getMetrics(warehouseId);
 
       expect(result.inventory.lowStockItems).toBe(12);
+    });
+
+    it('incluye tareas pendientes del día (comprobantes SUNAT)', async () => {
+      setupMocks({ sunatPending: 4 });
+
+      const result = await service.getMetrics(warehouseId);
+
+      expect(result.tasks.pendingToday).toBe(4);
     });
 
     it('retorna 0 en todos los campos cuando no hay actividad', async () => {
@@ -110,6 +120,7 @@ describe('DashboardService', () => {
         inventory: { lowStockItems: expect.any(Number) },
         purchases: { pendingThisMonth: expect.any(Number) },
         customers: { total: expect.any(Number) },
+        tasks: { pendingToday: expect.any(Number) },
         cashflow: { todayMovements: expect.any(Number) },
         payroll: { monthTotal: expect.any(Number) },
         topProducts: expect.any(Array),

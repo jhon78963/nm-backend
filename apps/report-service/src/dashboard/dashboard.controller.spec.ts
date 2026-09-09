@@ -23,6 +23,7 @@ const mockMetrics = {
   inventory: { lowStockItems: 7 },
   purchases: { pendingThisMonth: 3 },
   customers: { total: 412 },
+  tasks: { pendingToday: 2 },
   cashflow: { todayMovements: 1200 },
   payroll: { monthTotal: 14400 },
   topProducts: [
@@ -84,6 +85,24 @@ describe('DashboardController', () => {
       service.getMetrics.mockResolvedValue(mockMetrics as any);
       await controller.getMetrics(mockUser);
       expect(service.getMetrics).toHaveBeenCalledWith('warehouse-uuid');
+    });
+  });
+
+  describe('getMetricsForFrontend', () => {
+    it('should map backend metrics to the frontend contract', async () => {
+      service.getMetrics.mockResolvedValue(mockMetrics as any);
+
+      const result = await controller.getMetricsForFrontend(mockUser);
+
+      expect(result).toEqual({
+        todaySales: 12,
+        todaySalesAmount: 4800,
+        todayExpenses: 0,
+        lowStockProducts: 7,
+        pendingPurchases: 3,
+        activeCustomers: 412,
+        pendingTasks: 2,
+      });
     });
   });
 });
