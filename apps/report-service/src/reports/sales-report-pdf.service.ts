@@ -61,6 +61,13 @@ export class SalesReportPdfService {
     return this.documentClient.generatePdf('sales-report', templateData);
   }
 
+  async generateMonthly(month: string, warehouseId: string): Promise<Buffer> {
+    const report = await this.reportsService.getMonthlySalesReport(month, warehouseId);
+    const templateData = this.buildMonthlyTemplateData(report);
+
+    return this.documentClient.generatePdf('sales-report', templateData);
+  }
+
   private buildDailyTemplateData(report: Awaited<ReturnType<ReportsService['getDailySalesReport']>>): SalesReportTemplateData {
     return {
       title: 'Reporte de Ventas Diario',
@@ -91,6 +98,36 @@ export class SalesReportPdfService {
       generatedAt: dayjs().format('DD/MM/YYYY HH:mm'),
       isDaily: false,
       summary: this.formatSummary(report.summary),
+      paymentBreakdown: report.paymentBreakdown.map((entry) => ({
+        label: entry.label,
+        count: entry.count,
+        amount: this.formatMoney(entry.amount),
+      })),
+      dailyBreakdown: report.dailyBreakdown.map((day) => ({
+        date: day.date,
+        dayOfWeek: day.dayOfWeek,
+        transactions: day.transactions,
+        cash: this.formatMoney(day.cash),
+        digital: this.formatMoney(day.digital),
+        total: this.formatMoney(day.total),
+      })),
+    };
+  }
+
+  private buildMonthlyTemplateData(
+    report: Awaited<ReturnType<ReportsService['getMonthlySalesReport']>>,
+  ): SalesReportTemplateData {
+    const daysInMonth = dayjs(`${report.monthIso}-01`).daysInMonth();
+
+    return {
+      title: 'Reporte de Ventas Mensual',
+      subtitle: report.monthLabel,
+      generatedAt: dayjs().format('DD/MM/YYYY HH:mm'),
+      isDaily: false,
+      summary: this.formatSummary({
+        ...report.summary,
+        daysInRange: daysInMonth,
+      }),
       paymentBreakdown: report.paymentBreakdown.map((entry) => ({
         label: entry.label,
         count: entry.count,

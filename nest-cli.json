@@ -104,15 +104,6 @@
         ]
       }
     },
-    "ai-proxy-service": {
-      "type": "application",
-      "root": "apps/ai-proxy-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/ai-proxy-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/ai-proxy-service/tsconfig.app.json"
-      }
-    },
     "storage-service": {
       "type": "application",
       "root": "apps/storage-service",
@@ -156,15 +147,6 @@
       "sourceRoot": "libs/database/src",
       "compilerOptions": {
         "tsConfigPath": "libs/database/tsconfig.lib.json"
-      }
-    },
-    "contracts": {
-      "type": "library",
-      "root": "libs/contracts",
-      "entryFile": "index",
-      "sourceRoot": "libs/contracts/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/contracts/tsconfig.lib.json"
       }
     },
     "storage": {

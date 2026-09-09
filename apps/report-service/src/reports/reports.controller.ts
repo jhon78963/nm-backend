@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Query, UseGuards, StreamableFile, NotImplementedException, Header,
+  Controller, Get, Query, UseGuards, StreamableFile, Header,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import dayjs from 'dayjs';
@@ -105,8 +105,23 @@ export class ReportsController {
   @Permissions('report.sales')
   @Header('Content-Type', 'application/pdf')
   @ApiOperation({ summary: 'Exportar reporte mensual en PDF' })
-  getMonthlySalesPdf() {
-    throw new NotImplementedException('PDF export not yet implemented.');
+  @ApiQuery({ name: 'month', required: false, description: 'YYYY-MM (default: mes actual)' })
+  @ApiQuery({ name: 'warehouse_id', required: false })
+  async getMonthlySalesPdf(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('month') month?: string,
+    @Query('warehouse_id') warehouseId?: string,
+  ) {
+    const now = new Date();
+    const targetMonth = month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const targetWarehouse = warehouseId ?? user.warehouseId;
+    const buffer = await this.salesReportPdfService.generateMonthly(targetMonth, targetWarehouse);
+    const filename = `reporte-ventas-mensual-${targetMonth}.pdf`;
+
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get('sales/daily-period')
