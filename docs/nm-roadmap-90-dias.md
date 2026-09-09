@@ -259,10 +259,11 @@ cd nm-ecommerce && npx playwright test
   - Criterio: respuestas API pasan por adapter como inventario/finanzas
   - **Hecho 2026-09-09:** adapters en orders, reviews, customers, coupons, newsletter
 
-- [ ] **2.2.2** Rutas deep-link **ventas**  
+- [x] **2.2.2** Rutas deep-link **ventas**  
   - Hoy: modales en list page  
   - Nuevo: `/finances/sales/new`, `/finances/sales/:id`, `/finances/sales/:id/exchange`  
   - Archivos: `finances.routes.ts`, componentes sales
+  - **Hecho 2026-09-09:** rutas en `lists.routes.ts`; list navega en lugar de modales
 
 - [ ] **2.2.3** Pantalla **acceso denegado** explícita  
   - Guards: `permission.guard.ts`, `role.guard.ts`  
