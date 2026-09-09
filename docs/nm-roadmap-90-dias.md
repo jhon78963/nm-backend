@@ -462,7 +462,7 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-08 | Fase 1.4 frontend | nm-frontend | fb34a7a | rutas WooCommerce eliminadas |
 | 2026-09-08 | **Fase 1 cerrada** | todos | push main | Ver criterios arriba |
 | 2026-09-08 | Fase 2.1.1 carrito server-side | nm-backend, nm-ecommerce | 8f42e35, dcbaaa8 | CustomerCartModule + sync login |
-| 2026-09-09 | Fase 2.1.2 wishlist server-side | nm-backend, nm-ecommerce | pendiente push | CustomerWishlistModule + sync login |
+| 2026-09-09 | Fase 2.1.2 wishlist server-side | nm-backend, nm-ecommerce | 8dc641e, 1bde329 | CustomerWishlistModule + sync login |
 
 ---
 
