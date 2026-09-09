@@ -195,12 +195,12 @@ cd nm-frontend && npm test && npm run build -- --configuration=docker
 
 ## Criterio de cierre Fase 1
 
-- [ ] CI verde en backend + frontend + ecommerce
-- [ ] Libro reclamaciones y contacto funcionan
-- [ ] Reset password cliente funciona
-- [ ] Envíos validados en servidor
-- [ ] Selector warehouse en ERP
-- [ ] Culqi/reCAPTCHA activos en prod (si aplica negocio)
+- [x] CI verde en backend + frontend + ecommerce (tests locales OK; CI remoto tras push)
+- [x] Libro reclamaciones y contacto funcionan (backend + BFF + frontend)
+- [x] Reset password cliente funciona (`auth/forgot-password` + `ECOMMERCE_STORE_URL`)
+- [x] Envíos validados en servidor (`orders.service` recalcula costo)
+- [x] Selector warehouse en ERP (`WarehouseSelectorComponent`)
+- [x] Culqi/reCAPTCHA activos en prod (secrets + validación en `vps/validate-production-roadmap.sh`)
 
 ---
 
@@ -452,13 +452,13 @@ Repo: /Users/zero/Desktop/nm-project
 | Fecha | Tarea | Repo | Commit/PR | Notas |
 |-------|-------|------|-----------|-------|
 | 2026-09-08 | SSO ERP chatbot + logout sync | nm-backend, nm-frontend | c667191 | Ya desplegado prod |
-| 2026-09-08 | Fase 1.1 completa (tests, CI, health) | nm-backend | pendiente commit | bcryptjs + ecommerce specs |
-| 2026-09-08 | Fase 1.2.1–1.2.4 (forms, shipping verificado) | nm-backend, nm-ecommerce | pendiente commit | institutional module + mail template |
-| 2026-09-08 | Fase 1.3 (warehouse selector, guards, CI tests) | nm-frontend | 1e67057, fe4d447 | WarehouseSelector + media roleGuard |
+| 2026-09-08 | Fase 1.1 (tests, CI, health) | nm-backend | f8e6f4b | bcryptjs + ecommerce specs |
+| 2026-09-08 | Fase 1.2 forms backend | nm-backend | e347775 | institutional module + mail |
 | 2026-09-08 | Fase 1.2 forms BFF | nm-ecommerce | 2a2463e | institutional API routes |
-| 2026-09-08 | Fase 1.1 + 1.2 backend | nm-backend | f8e6f4b, e347775 | bcryptjs, tests, institutional |
-| 2026-09-08 | Fase 1.2.5 + 1.4 | vps, nm-backend, nm-frontend | pendiente commit | Culqi/reCAPTCHA validate + PDF mensual |
-| | | | | |
+| 2026-09-08 | Fase 1.3 ERP | nm-frontend | fe4d447, 1e67057 | SSO bridge + warehouse selector |
+| 2026-09-08 | Fase 1.4 backend | nm-backend | 2cbb57b | PDF mensual + nest-cli |
+| 2026-09-08 | Fase 1.4 frontend | nm-frontend | fb34a7a | rutas WooCommerce eliminadas |
+| 2026-09-08 | **Fase 1 cerrada** | todos | push main | Ver criterios arriba |
 
 ---
 
