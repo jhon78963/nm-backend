@@ -105,6 +105,8 @@ run_laravel_etl() {
 
   log "ETL Laravel (${LARAVEL_DB}) → Prisma (${DB})..."
   npx ts-node --project tsconfig.migration.json scripts/migrate-laravel-data.ts
+  npx ts-node --project tsconfig.migration.json scripts/migrate-product-histories.ts
+  npx ts-node --project tsconfig.migration.json scripts/migrate-inventory-movements.ts
   npx ts-node --project tsconfig.migration.json scripts/migrate-action-logs.ts
   npx ts-node --project tsconfig.migration.json scripts/migrate-permissions.ts
   log "ETL completado."
