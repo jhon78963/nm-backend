@@ -253,10 +253,11 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **2.2.1** **Adapters** para APIs ecommerce transaccionales  
+- [x] **2.2.1** **Adapters** para APIs ecommerce transaccionales  
   - Servicios sin adapter: orders, reviews, customers, coupons, newsletter  
   - Path: `nm-frontend/src/app/features/ecommerce/data-access/`  
   - Criterio: respuestas API pasan por adapter como inventario/finanzas
+  - **Hecho 2026-09-09:** adapters en orders, reviews, customers, coupons, newsletter
 
 - [ ] **2.2.2** Rutas deep-link **ventas**  
   - Hoy: modales en list page  
