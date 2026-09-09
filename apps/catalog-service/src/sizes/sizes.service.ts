@@ -100,6 +100,7 @@ export class SizesService {
         if (!ps) {
           return {
             id: size.id,
+            sizeTypeId: size.sizeTypeId,
             productSizeId: null,
             description: size.description,
             barcode: null,
@@ -119,6 +120,7 @@ export class SizesService {
 
         return {
           id: size.id,
+          sizeTypeId: size.sizeTypeId,
           productSizeId: ps.id,
           description: size.description,
           barcode: ps.barcode,
