@@ -909,8 +909,43 @@ model EcommerceCustomer {
   newsletterSubscriptions EcommerceNewsletterSubscriber[]
   couponAssignments     EcommerceCouponAssignment[]
   couponRedemptions     EcommerceCouponRedemption[]
+  cart                  EcommerceCart?
 
   @@map("ecommerce_customers")
+}
+
+model EcommerceCart {
+  id          String   @id @default(uuid())
+  customerId  String   @unique @map("customer_id")
+  warehouseId String   @map("warehouse_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  customer EcommerceCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items    EcommerceCartItem[]
+
+  @@map("ecommerce_carts")
+}
+
+model EcommerceCartItem {
+  id             String   @id @default(uuid())
+  cartId         String   @map("cart_id")
+  productId      String   @map("product_id")
+  productSizeId  String   @map("product_size_id")
+  colorId        String?  @map("color_id")
+  quantity       Int
+  nameSnapshot   String   @map("name_snapshot") @db.VarChar(255)
+  variationLabel String?  @map("variation_label") @db.VarChar(255)
+  imageUrl       String?  @map("image_url") @db.VarChar(500)
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  cart EcommerceCart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productSizeId, colorId])
+  @@index([cartId])
+  @@map("ecommerce_cart_items")
 }
 
 model EcommerceCustomerAddress {

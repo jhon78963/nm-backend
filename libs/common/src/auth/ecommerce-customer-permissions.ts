@@ -20,6 +20,7 @@ export const ECOMMERCE_CUSTOMER_PERMISSIONS: readonly string[] = [
   'ecommerce.order.read.own',
   'ecommerce.order.track',
   'ecommerce.wishlist.manage',
+  'ecommerce.cart.manage',
   'ecommerce.address.read',
   'ecommerce.address.manage',
 ];

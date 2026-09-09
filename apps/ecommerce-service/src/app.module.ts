@@ -28,6 +28,7 @@ import { StoreSearchModule } from './store-search/store-search.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { CulqiModule } from './payments/culqi/culqi.module';
 import { InstitutionalModule } from './institutional/institutional.module';
+import { CustomerCartModule } from './customer-cart/customer-cart.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { InstitutionalModule } from './institutional/institutional.module';
     NewsletterModule,
     CulqiModule,
     InstitutionalModule,
+    CustomerCartModule,
   ],
 })
 export class AppModule {}
