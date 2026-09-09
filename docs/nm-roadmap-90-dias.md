@@ -464,7 +464,7 @@ Repo: /Users/zero/Desktop/nm-project
 | 2026-09-08 | **Fase 1 cerrada** | todos | push main | Ver criterios arriba |
 | 2026-09-08 | Fase 2.1.1 carrito server-side | nm-backend, nm-ecommerce | 8f42e35, dcbaaa8 | CustomerCartModule + sync login |
 | 2026-09-09 | Fase 2.1.2 wishlist server-side | nm-backend, nm-ecommerce | 8dc641e, 1bde329 | CustomerWishlistModule + sync login |
-| 2026-09-09 | Fase 2.1.3 banner cookies | nm-ecommerce | pendiente push | consent banner + gated analytics |
+| 2026-09-09 | Fase 2.1.3 banner cookies | nm-ecommerce | 0f3880a | consent banner + gated analytics |
 
 ---
 
