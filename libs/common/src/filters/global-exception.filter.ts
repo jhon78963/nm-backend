@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+import '../logging/request-id.types';
 import { writeStructuredLog } from '../logging/structured-log.util';
 import { captureServerException } from '../sentry/init-sentry';
 
