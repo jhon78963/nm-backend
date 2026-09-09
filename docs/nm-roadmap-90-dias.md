@@ -276,9 +276,10 @@ cd nm-ecommerce && npx playwright test
   - Criterio: vendedora ve valor al login, no solo saludo
   - **Hecho 2026-09-09:** métricas vendedora (ventas, monto, tareas); `pendingTasks` en API
 
-- [ ] **2.2.5** Fix docs/tests stale  
+- [x] **2.2.5** Fix docs/tests stale  
   - `inventories/products/README.md`  
   - `active-warehouse.service.spec.ts` (UUIDs string)
+  - **Hecho 2026-09-09:** README alineado al módulo actual; specs con UUIDs
 
 ---
 
