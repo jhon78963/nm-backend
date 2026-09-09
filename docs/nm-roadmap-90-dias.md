@@ -297,8 +297,9 @@ cd nm-ecommerce && npx playwright test
   - Referencia: PDF diario ya implementado en report-service
   - **Hecho 2026-09-08 (1.4.2) / verificado 2026-09-09:** `GET /reports/sales/monthly/pdf` + export en ERP; test unitario
 
-- [ ] **2.3.3** Tests gateway + mail-service básicos  
+- [x] **2.3.3** Tests gateway + mail-service básicos  
   - Smoke tests de proxy y envío mail mock
+  - **Hecho 2026-09-09:** `proxy.service.spec`, mail guard/service/delivery/controller specs; scripts `test:gateway` y `test:mail`
 
 ---
 

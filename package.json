@@ -32,6 +32,8 @@
     "test:pos": "jest apps/pos-service --passWithNoTests --forceExit",
     "test:finance": "jest apps/finance-service --passWithNoTests --forceExit",
     "test:hr": "jest apps/hr-service --passWithNoTests --forceExit",
+    "test:gateway": "jest apps/gateway --passWithNoTests --forceExit",
+    "test:mail": "jest apps/mail-service --passWithNoTests --forceExit",
     "test:all": "jest --passWithNoTests --forceExit",
     "test:cov": "jest --coverage --forceExit",
     "test:e2e": "jest --config jest-e2e.config.js --forceExit",
