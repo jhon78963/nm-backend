@@ -365,10 +365,11 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **3.2.1** Mostrar **predicción demanda/precio** en ficha producto ERP  
+- [x] **3.2.1** Mostrar **predicción demanda/precio** en ficha producto ERP  
   - Backend: `report-service` → `ai-engine` proxy ya existe  
   - Frontend: `nm-frontend/.../inventories/products/` o `/ai`  
   - Criterio: admin ve sugerencia de precio en edit product
+  - **Hecho 2026-09-09:** `ProductAiInsightsPanel` en paso General de editar producto
 
 - [ ] **3.2.2** **Alertas stock bajo**  
   - Cron job o evento post-venta  
