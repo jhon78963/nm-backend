@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '@app/database';
 import { getAvailableQuantity } from '@app/common/utils/product-inventory.util';
+import { LowStockAlertsService } from '@app/common/inventory/low-stock-alerts.service';
 import { SunatService } from '../sunat/sunat.service';
 import { DocumentSeriesService } from '../sunat/document-series.service';
 import { FiscalConfigService } from '../fiscal/fiscal-config.service';
@@ -45,6 +46,7 @@ export class CheckoutService {
     private readonly sunat: SunatService,
     private readonly docSeries: DocumentSeriesService,
     private readonly fiscalConfig: FiscalConfigService,
+    private readonly lowStockAlerts: LowStockAlertsService,
   ) {}
 
   async process(dto: CheckoutDto, createdById: string): Promise<CheckoutResult> {
@@ -224,6 +226,20 @@ export class CheckoutService {
         return { status: 'PENDING_EMISSION' };
       });
     }
+
+    const soldVariants = dto.items
+      .filter((item) => item.colorId)
+      .map((item) => ({
+        productSizeId: item.productSizeId,
+        colorId: item.colorId!,
+      }));
+
+    void this.lowStockAlerts
+      .checkAfterSale(dto.warehouseId, soldVariants, {
+        source: 'pos_sale',
+        referenceLabel: sale.code ?? sale.fullInvoiceNumber ?? sale.id,
+      })
+      .catch(() => undefined);
 
     return {
       sale: {

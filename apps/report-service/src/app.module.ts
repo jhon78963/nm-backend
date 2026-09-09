@@ -9,6 +9,8 @@ import { FinancialSummaryModule } from './financial-summary/financial-summary.mo
 import { CashflowReportsModule } from './cashflow-reports/cashflow-reports.module';
 import { HealthModule } from '@app/common/health/health.module';
 import { PermissionsModule } from '@app/common/auth/permissions.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { LowStockAlertsModule } from './low-stock-alerts/low-stock-alerts.module';
 
 @Module({
   imports: [
@@ -16,6 +18,7 @@ import { PermissionsModule } from '@app/common/auth/permissions.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     PermissionsModule,
@@ -25,6 +28,7 @@ import { PermissionsModule } from '@app/common/auth/permissions.module';
     ReportsModule,
     FinancialSummaryModule,
     CashflowReportsModule,
+    LowStockAlertsModule,
   ],
 })
 export class AppModule {}

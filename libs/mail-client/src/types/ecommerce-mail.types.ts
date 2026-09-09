@@ -14,6 +14,7 @@ export enum EcommerceMailTemplate {
   NEWSLETTER_SUBSCRIBED = 'newsletter.subscribed',
   NEWSLETTER_CAMPAIGN = 'newsletter.campaign',
   INSTITUTIONAL_INQUIRY = 'institutional.inquiry',
+  INVENTORY_LOW_STOCK = 'inventory.low-stock',
 }
 
 export interface OrderMailItem {
@@ -145,6 +146,21 @@ export type EcommerceMailData = {
     subject?: string;
     message: string;
     metadata?: Record<string, string>;
+    storeUrl: string;
+  };
+  [EcommerceMailTemplate.INVENTORY_LOW_STOCK]: {
+    warehouseName: string;
+    threshold: number;
+    source: 'cron' | 'pos_sale' | 'ecommerce_order';
+    sourceLabel: string;
+    referenceLabel?: string;
+    items: Array<{
+      productName: string;
+      sizeLabel: string;
+      colorLabel: string;
+      quantity: number;
+    }>;
+    erpInventoryUrl: string;
     storeUrl: string;
   };
 };

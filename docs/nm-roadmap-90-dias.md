@@ -371,9 +371,10 @@ cd nm-ecommerce && npx playwright test
   - Criterio: admin ve sugerencia de precio en edit product
   - **Hecho 2026-09-09:** `ProductAiInsightsPanel` en paso General de editar producto
 
-- [ ] **3.2.2** **Alertas stock bajo**  
+- [x] **3.2.2** **Alertas stock bajo**  
   - Cron job o evento post-venta  
   - Notificación: email o WhatsApp interno
+  - **Hecho 2026-09-09:** digest diario 8am PE + hook POS/ecommerce; email interno `inventory.low-stock` con dedup 24h
 
 - [ ] **3.2.3** Eventos async post-checkout (Redis Pub/Sub)  
   - Desacoplar: POS checkout → inventario → mail → reportes  

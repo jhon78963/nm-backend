@@ -56,6 +56,8 @@ export function buildMailContent(
       return newsletterCampaignEmail(data, ctx);
     case EcommerceMailTemplate.INSTITUTIONAL_INQUIRY:
       return institutionalInquiryEmail(data, ctx);
+    case EcommerceMailTemplate.INVENTORY_LOW_STOCK:
+      return inventoryLowStockEmail(data, ctx);
     default:
       throw new Error(`Plantilla no soportada: ${template}`);
   }
@@ -490,6 +492,91 @@ function institutionalInquiryEmail(data: Record<string, unknown>, ctx: TemplateC
     html: renderLayout({
       title: subject,
       preview: `${formTitle} — ${customerName}`,
+      body,
+      ...ctx,
+      showSupportBlock: false,
+    }),
+    text: textBody,
+  };
+}
+
+function inventoryLowStockEmail(data: Record<string, unknown>, ctx: TemplateContext) {
+  const warehouseName = String(data.warehouseName ?? 'Almacén');
+  const threshold = Number(data.threshold ?? 5);
+  const sourceLabel = String(data.sourceLabel ?? 'Inventario');
+  const referenceLabel = data.referenceLabel ? String(data.referenceLabel) : '';
+  const erpInventoryUrl = String(data.erpInventoryUrl ?? '');
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  const rows = items
+    .map((raw) => {
+      const item = raw as Record<string, unknown>;
+      const productName = String(item.productName ?? 'Producto');
+      const sizeLabel = String(item.sizeLabel ?? '');
+      const colorLabel = String(item.colorLabel ?? '');
+      const quantity = Number(item.quantity ?? 0);
+      const variation = [sizeLabel, colorLabel].filter(Boolean).join(' / ');
+
+      return `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #ececec;">${productName}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #ececec;">${variation || '—'}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #ececec;text-align:center;">${quantity}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const subject = `[ERP] Stock bajo — ${warehouseName} (${items.length})`;
+  const body = `
+    ${renderHeading('Alerta de stock bajo', { centered: false })}
+    ${renderParagraph(
+      `${items.length} variante(s) en ${warehouseName} tienen menos de ${threshold} unidades disponibles.`,
+      { centered: false },
+    )}
+    ${renderInfoRow('Origen', sourceLabel)}
+    ${referenceLabel ? renderInfoRow('Referencia', referenceLabel) : ''}
+    ${renderSectionTitle('Variantes afectadas')}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;">Producto</th>
+          <th style="text-align:left;padding:8px 12px;border-bottom:2px solid #ddd;">Variante</th>
+          <th style="text-align:center;padding:8px 12px;border-bottom:2px solid #ddd;">Stock</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${erpInventoryUrl ? renderButton(erpInventoryUrl, 'Revisar inventario en ERP') : ''}
+  `;
+
+  const textLines = items.map((raw) => {
+    const item = raw as Record<string, unknown>;
+    const productName = String(item.productName ?? 'Producto');
+    const sizeLabel = String(item.sizeLabel ?? '');
+    const colorLabel = String(item.colorLabel ?? '');
+    const quantity = Number(item.quantity ?? 0);
+    const variation = [sizeLabel, colorLabel].filter(Boolean).join(' / ');
+    return `- ${productName}${variation ? ` (${variation})` : ''}: ${quantity}`;
+  });
+
+  const textBody = [
+    `Stock bajo en ${warehouseName}`,
+    `Umbral: menos de ${threshold} unidades`,
+    `Origen: ${sourceLabel}`,
+    referenceLabel ? `Referencia: ${referenceLabel}` : '',
+    '',
+    ...textLines,
+    erpInventoryUrl ? `\nERP: ${erpInventoryUrl}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    subject,
+    html: renderLayout({
+      title: subject,
+      preview: `${items.length} variantes con stock bajo en ${warehouseName}`,
       body,
       ...ctx,
       showSupportBlock: false,

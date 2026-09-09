@@ -4,6 +4,7 @@ import { DatabaseService } from '@app/database';
 
 import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceMailNotificationsService } from '../mail/ecommerce-mail-notifications.service';
+import { LowStockAlertsService } from '@app/common/inventory/low-stock-alerts.service';
 import { EcommerceOrderEventsService } from './ecommerce-order-events.service';
 
 const mockDb = {
@@ -17,6 +18,9 @@ const mockDb = {
     create: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
   },
+  ecommerceOrder: {
+    findFirst: jest.fn(),
+  },
 };
 
 const mockMailNotifications = {
@@ -27,6 +31,10 @@ const mockMailNotifications = {
 
 const mockInvoicingService = {
   emitForPaidOrder: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockLowStockAlerts = {
+  checkAfterSale: jest.fn().mockResolvedValue(undefined),
 };
 
 const sampleOrder = {
@@ -66,6 +74,7 @@ describe('EcommerceOrderEventsService', () => {
         { provide: DatabaseService, useValue: mockDb },
         { provide: EcommerceMailNotificationsService, useValue: mockMailNotifications },
         { provide: EcommerceInvoicingService, useValue: mockInvoicingService },
+        { provide: LowStockAlertsService, useValue: mockLowStockAlerts },
       ],
     }).compile();
 
@@ -81,6 +90,11 @@ describe('EcommerceOrderEventsService', () => {
   });
 
   it('dispara facturación SUNAT cuando el pago pasa a paid', async () => {
+    mockDb.ecommerceOrder.findFirst.mockResolvedValue({
+      warehouseId: 'warehouse-1',
+      items: [{ productSizeId: 'ps-1', colorId: 'color-1' }],
+    });
+
     await service.publishOrderUpdated({
       previous: { ...sampleOrder, paymentStatus: 'pending' },
       current: { ...sampleOrder, paymentStatus: 'paid' },
@@ -88,5 +102,10 @@ describe('EcommerceOrderEventsService', () => {
     });
 
     expect(mockInvoicingService.emitForPaidOrder).toHaveBeenCalledWith('order-uuid-1');
+    expect(mockLowStockAlerts.checkAfterSale).toHaveBeenCalledWith(
+      'warehouse-1',
+      [{ productSizeId: 'ps-1', colorId: 'color-1' }],
+      { source: 'ecommerce_order', referenceLabel: 'NM-1001' },
+    );
   });
 });

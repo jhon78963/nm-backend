@@ -70,6 +70,7 @@ model Warehouse {
   customers         Customer[]
   purchases         Purchase[]
   inventoryBalances InventoryBalance[]
+  inventoryLowStockAlerts InventoryLowStockAlert[]
   inventoryMovements InventoryMovement[]
   sales             Sale[]
   cashMovements     CashMovement[]
@@ -232,6 +233,7 @@ model Color {
 
   productSizeColors   ProductSizeColor[]
   inventoryBalances   InventoryBalance[]
+  inventoryLowStockAlerts InventoryLowStockAlert[]
   inventoryMovements  InventoryMovement[]
   purchaseLineDeltas  PurchaseLineColorDelta[]
 
@@ -332,6 +334,7 @@ model ProductSize {
   size              Size               @relation(fields: [sizeId], references: [id])
   productSizeColors ProductSizeColor[]
   inventoryBalances InventoryBalance[]
+  inventoryLowStockAlerts InventoryLowStockAlert[]
   inventoryMovements InventoryMovement[]
   purchaseLines     PurchaseLine[]
 
@@ -434,6 +437,23 @@ model InventoryBalance {
 
   @@unique([warehouseId, productSizeId, colorId], name: "warehouseId_productSizeId_colorId")
   @@map("inventory_balances")
+}
+
+model InventoryLowStockAlert {
+  id             String   @id @default(uuid())
+  warehouseId    String   @map("warehouse_id")
+  productSizeId  String   @map("product_size_id")
+  colorId        String   @map("color_id")
+  lastNotifiedAt DateTime @map("last_notified_at")
+  lastQuantity   Int      @map("last_quantity")
+
+  warehouse   Warehouse   @relation(fields: [warehouseId], references: [id])
+  productSize ProductSize @relation(fields: [productSizeId], references: [id])
+  color       Color       @relation(fields: [colorId], references: [id])
+
+  @@unique([warehouseId, productSizeId, colorId])
+  @@index([lastNotifiedAt])
+  @@map("inventory_low_stock_alerts")
 }
 
 model InventoryMovement {
