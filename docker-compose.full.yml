@@ -306,7 +306,9 @@ services:
       STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:-nm-storage-dev-key-change-in-production}
       MAIL_SERVICE_URL: http://mail-service:3013
       MAIL_SERVICE_KEY: ${MAIL_SERVICE_KEY:-nm-mail-dev-key-change-in-production}
+      MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-soporte@novedadesmaritex.net.pe}
       ECOMMERCE_STORE_URL: ${ECOMMERCE_STORE_URL:-http://localhost:3015}
+      ERP_PANEL_URL: ${ERP_PANEL_URL:-http://localhost:4200}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-nm-internal-dev-key}
     # Sin puerto publicado: solo red interna Docker (storefront vía ECOMMERCE_SERVICE_URL).
     depends_on:

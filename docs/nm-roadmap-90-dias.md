@@ -287,10 +287,11 @@ cd nm-ecommerce && npx playwright test
 
 ### Tareas
 
-- [ ] **2.3.1** **Notificación pedido nuevo** ecommerce → ERP  
+- [x] **2.3.1** **Notificación pedido nuevo** ecommerce → ERP  
   - Opciones: email (mail-service), WebSocket futuro, o badge en API polling  
   - Trigger: orden creada en `ecommerce-service`  
   - Criterio: operador recibe aviso < 1 min
+  - **Hecho 2026-09-09:** email `order.staff-new` a `MAIL_SUPPORT_EMAIL` en `publishOrderCreated`
 
 - [ ] **2.3.2** PDF ventas mensuales (si no se hizo en 1.4.2)  
   - Referencia: PDF diario ya implementado en report-service
@@ -319,7 +320,7 @@ cd nm-ecommerce && npx playwright test
 - [ ] Carrito/wishlist persisten en cuenta
 - [ ] E2E checkout en CI
 - [ ] Adapters ecommerce en ERP
-- [ ] Notificación pedido nuevo
+- [x] Notificación pedido nuevo
 - [ ] Cookie banner live
 - [ ] Deep links ventas funcionan
 

@@ -6,6 +6,7 @@ import { EcommerceMailTemplate, MailClientService } from '@app/mail-client';
 import { ECOMMERCE_ORDER_STATUS_LABELS } from '../orders/constants/order-statuses';
 
 type OrderWithItems = {
+  id?: string;
   orderNumber: string;
   email: string;
   status: string;
@@ -37,6 +38,21 @@ export class EcommerceMailNotificationsService {
     return this.config.get<string>(
       'ECOMMERCE_STORE_URL',
       this.config.get<string>('FRONTEND_URL', 'http://localhost:3001'),
+    );
+  }
+
+  private get erpPanelUrl(): string {
+    return (
+      this.config.get<string>('ERP_PANEL_URL') ??
+      this.config.get<string>('FRONTEND_URL', 'http://localhost:4200')
+    ).replace(/\/$/, '');
+  }
+
+  private get supportEmail(): string {
+    return (
+      this.config.get<string>('MAIL_SUPPORT_EMAIL') ??
+      this.config.get<string>('MAIL_FROM_EMAIL') ??
+      'soporte@novedadesmaritex.net.pe'
     );
   }
 
@@ -84,6 +100,28 @@ export class EcommerceMailNotificationsService {
         paymentMethodTitle: order.paymentMethodTitle,
         shippingAddress: (shipping ?? {}) as never,
         trackUrl: this.buildTrackUrl(order.orderNumber, email),
+        storeUrl: this.storeUrl,
+      },
+    });
+  }
+
+  async sendStaffNewOrderAlert(order: OrderWithItems & { id: string }): Promise<void> {
+    const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+    const shipping = order.shippingAddress as Record<string, unknown> | null;
+
+    await this.mailClient.sendEcommerceMail({
+      template: EcommerceMailTemplate.ORDER_STAFF_NEW,
+      to: this.supportEmail,
+      data: {
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        customerName: this.customerNameFromShipping(shipping),
+        customerEmail: order.email.trim().toLowerCase(),
+        total: this.toNumber(order.total),
+        paymentMethodTitle: order.paymentMethodTitle,
+        shippingMethodTitle: order.shippingMethodTitle,
+        itemCount,
+        orderUrl: `${this.erpPanelUrl}/ecommerce/orders/${order.id}`,
         storeUrl: this.storeUrl,
       },
     });

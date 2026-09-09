@@ -10,6 +10,7 @@ export enum EcommerceMailTemplate {
   REVIEW_APPROVED = 'review.approved',
   REVIEW_REJECTED = 'review.rejected',
   ORDER_PAYMENT_RECEIVED = 'order.payment-received',
+  ORDER_STAFF_NEW = 'order.staff-new',
   NEWSLETTER_SUBSCRIBED = 'newsletter.subscribed',
   NEWSLETTER_CAMPAIGN = 'newsletter.campaign',
   INSTITUTIONAL_INQUIRY = 'institutional.inquiry',
@@ -111,6 +112,18 @@ export type EcommerceMailData = {
     orderNumber: string;
     total: number;
     trackUrl: string;
+    storeUrl: string;
+  };
+  [EcommerceMailTemplate.ORDER_STAFF_NEW]: {
+    orderNumber: string;
+    orderId: string;
+    customerName: string;
+    customerEmail: string;
+    total: number;
+    paymentMethodTitle: string;
+    shippingMethodTitle: string;
+    itemCount: number;
+    orderUrl: string;
     storeUrl: string;
   };
   [EcommerceMailTemplate.NEWSLETTER_SUBSCRIBED]: {

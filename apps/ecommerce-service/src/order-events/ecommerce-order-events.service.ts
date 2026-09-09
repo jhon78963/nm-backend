@@ -31,6 +31,13 @@ export class EcommerceOrderEventsService {
     void this.mailNotifications.sendOrderConfirmation(order).catch((error) => {
       this.logger.warn(`No se pudo enviar confirmación de pedido ${order.orderNumber}`, error);
     });
+
+    void this.mailNotifications.sendStaffNewOrderAlert(order).catch((error) => {
+      this.logger.warn(
+        `No se pudo notificar al equipo ERP del pedido ${order.orderNumber}`,
+        error,
+      );
+    });
   }
 
   async publishOrderUpdated(event: OrderUpdatedEvent): Promise<void> {

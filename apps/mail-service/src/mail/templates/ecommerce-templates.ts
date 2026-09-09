@@ -48,6 +48,8 @@ export function buildMailContent(
       return reviewRejectedEmail(data, ctx);
     case EcommerceMailTemplate.ORDER_PAYMENT_RECEIVED:
       return orderPaymentReceivedEmail(data, ctx);
+    case EcommerceMailTemplate.ORDER_STAFF_NEW:
+      return orderStaffNewEmail(data, ctx);
     case EcommerceMailTemplate.NEWSLETTER_SUBSCRIBED:
       return newsletterSubscribedEmail(data, ctx);
     case EcommerceMailTemplate.NEWSLETTER_CAMPAIGN:
@@ -340,6 +342,57 @@ function orderPaymentReceivedEmail(data: Record<string, unknown>, ctx: TemplateC
     subject,
     html: renderLayout({ title: subject, preview: subject, body, ...ctx, footerVariant: 'light' }),
     text: `Pago confirmado para pedido ${orderNumber}.`,
+  };
+}
+
+function orderStaffNewEmail(data: Record<string, unknown>, ctx: TemplateContext) {
+  const orderNumber = String(data.orderNumber ?? '');
+  const customerName = String(data.customerName ?? 'Cliente');
+  const customerEmail = String(data.customerEmail ?? '');
+  const total = Number(data.total ?? 0);
+  const paymentMethodTitle = String(data.paymentMethodTitle ?? '');
+  const shippingMethodTitle = String(data.shippingMethodTitle ?? '');
+  const itemCount = Number(data.itemCount ?? 0);
+  const orderUrl = String(data.orderUrl ?? '');
+
+  const subject = `[ERP] Nuevo pedido web ${orderNumber}`;
+  const body = `
+    ${renderHeading('Nuevo pedido en la tienda', { centered: false })}
+    ${renderParagraph(
+      `Se registró un pedido en ${ctx.storeName}. Revisa y gestiona la orden desde el panel ERP.`,
+      { centered: false },
+    )}
+    ${renderInfoRow('Pedido', orderNumber)}
+    ${renderInfoRow('Cliente', customerName)}
+    ${renderInfoRow('Correo', customerEmail)}
+    ${renderInfoRow('Total', formatMoney(total))}
+    ${renderInfoRow('Artículos', String(itemCount))}
+    ${renderInfoRow('Pago', paymentMethodTitle)}
+    ${renderInfoRow('Envío', shippingMethodTitle)}
+    ${renderButton(orderUrl, 'Abrir pedido en ERP')}
+  `;
+
+  const textBody = [
+    `Nuevo pedido ${orderNumber}`,
+    `Cliente: ${customerName}`,
+    `Correo: ${customerEmail}`,
+    `Total: ${formatMoney(total)}`,
+    `Artículos: ${itemCount}`,
+    `Pago: ${paymentMethodTitle}`,
+    `Envío: ${shippingMethodTitle}`,
+    `ERP: ${orderUrl}`,
+  ].join('\n');
+
+  return {
+    subject,
+    html: renderLayout({
+      title: subject,
+      preview: `Nuevo pedido ${orderNumber} — ${formatMoney(total)}`,
+      body,
+      ...ctx,
+      footerVariant: 'light',
+    }),
+    text: textBody,
   };
 }
 
