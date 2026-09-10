@@ -11,8 +11,12 @@ import type { AuthenticatedUser } from '@app/common/types/authenticated-user.typ
 import { SunatService } from '../sunat/sunat.service';
 import dayjs from 'dayjs';
 import Decimal from 'decimal.js';
+import { Prisma } from '@prisma/client';
 import { ExchangeSaleDto } from './dto/exchange-sale.dto';
 import { UpdateSaleDto, UpdateSaleItemDto } from './dto/update-sale.dto';
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type SaleDetailRecord = {
   id: string;
@@ -52,18 +56,14 @@ export class SalesService {
 
   async findAll(filters: SalesFilters) {
     const { warehouseId, dateFrom, dateTo, documentType, status, search, page = 1, perPage = 20 } = filters;
+    const searchWhere = await this.buildSalesSearchWhere(search);
 
-    const where = {
+    const where: Prisma.SaleWhereInput = {
       warehouseId,
       isDeleted: false,
       ...(documentType && { documentType }),
       ...(status && { status }),
-      ...(search && {
-        OR: [
-          { fullInvoiceNumber: { contains: search } },
-          { customer: { name: { contains: search, mode: 'insensitive' as const } } },
-        ],
-      }),
+      ...searchWhere,
       ...(dateFrom || dateTo
         ? {
             createdAt: {
@@ -702,6 +702,58 @@ export class SalesService {
         subtotal: new Decimal(newPrice).mul(newQty).toDecimalPlaces(2).toNumber(),
       },
     });
+  }
+
+  private async buildSalesSearchWhere(
+    search?: string,
+  ): Promise<Pick<Prisma.SaleWhereInput, 'OR'>> {
+    const trimmed = search?.trim();
+    if (!trimmed) {
+      return {};
+    }
+
+    const insensitiveContains = {
+      contains: trimmed,
+      mode: 'insensitive' as const,
+    };
+
+    const matchingProductSizes = await this.db.productSize.findMany({
+      where: {
+        isDeleted: false,
+        OR: [
+          { barcode: insensitiveContains },
+          { product: { barcode: insensitiveContains } },
+          { product: { name: insensitiveContains } },
+        ],
+      },
+      select: { id: true },
+      take: 200,
+    });
+
+    const orConditions: Prisma.SaleWhereInput[] = [
+      { code: insensitiveContains },
+      { fullInvoiceNumber: insensitiveContains },
+      { customer: { name: insensitiveContains } },
+      { customer: { documentNumber: insensitiveContains } },
+      { details: { some: { productNameSnapshot: insensitiveContains } } },
+      { payments: { some: { reference: insensitiveContains } } },
+    ];
+
+    if (matchingProductSizes.length > 0) {
+      orConditions.push({
+        details: {
+          some: {
+            productSizeId: { in: matchingProductSizes.map((row) => row.id) },
+          },
+        },
+      });
+    }
+
+    if (UUID_REGEX.test(trimmed)) {
+      orConditions.push({ id: trimmed });
+    }
+
+    return { OR: orConditions };
   }
 
   /** Equivale a SaleController@exchangeRate — tipo de cambio del día */
