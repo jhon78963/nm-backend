@@ -50,6 +50,7 @@ function makeProductSize(productId: string, overrides = {}) {
 
 const mockDb = {
   $transaction: jest.fn(),
+  $queryRaw: jest.fn().mockResolvedValue([]),
   product: {
     create: jest.fn(),
     findMany: jest.fn(),
@@ -176,9 +177,45 @@ describe('ProductsService', () => {
 
       const result = await service.findAll({ search: 'polo' }, faker.string.uuid());
 
+      expect(mockDb.$queryRaw).toHaveBeenCalled();
       expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
       expect(result.data).toEqual([]);
       expect(result.meta.total).toBe(0);
+    });
+
+    it('ordena por fecha de creación descendente cuando sortBy=createdAt', async () => {
+      mockDb.$transaction.mockImplementation(async (queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      mockDb.product.findMany.mockResolvedValue([]);
+      mockDb.product.count.mockResolvedValue(0);
+
+      await service.findAll({ sortBy: 'createdAt' as never }, faker.string.uuid());
+
+      expect(mockDb.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+    });
+
+    it('incluye búsqueda por UUID en el filtro OR', async () => {
+      const productId = 'b7bff81e-78d8-4fdf-ac73-a09e3db8e6b1';
+      mockDb.$transaction.mockImplementation(async (queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      mockDb.product.findMany.mockResolvedValue([]);
+      mockDb.product.count.mockResolvedValue(0);
+
+      await service.findAll({ search: productId }, faker.string.uuid());
+
+      expect(mockDb.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([{ id: productId }]),
+          }),
+        }),
+      );
     });
 
     it('aplica filtro de búsqueda por barcode de talla', async () => {

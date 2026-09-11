@@ -3,11 +3,18 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { DatabaseService } from '@app/database';
 import { CreateProductDto, UpdateProductDto } from './dto/create-product.dto';
 import { mapProductCreateInput, mapProductInput } from './product.mapper';
 import { reconcileMasterStock, readMasterStockForProductSize, getAvailableQuantity } from '@app/common/utils/product-inventory.util';
-import { ProductFiltersDto } from './dto/product-filters.dto';
+import {
+  buildAccentInsensitiveNamePattern,
+  isFullUuid,
+  PRODUCT_SEARCH_ACCENT_FROM,
+  PRODUCT_SEARCH_ACCENT_TO,
+} from '@app/common/utils/product-search.util';
+import { ProductFiltersDto, ProductSortField } from './dto/product-filters.dto';
 import { AddProductSizeDto, UpdateProductSizeDto } from './dto/add-product-size.dto';
 import { AddSizeColorDto } from './dto/add-size-color.dto';
 import { ProductHistoryService } from '../product-history/product-history.service';
@@ -78,24 +85,28 @@ export class ProductsService {
   }
 
   async findAll(filters: ProductFiltersDto, warehouseId: string) {
-    const { search, genderId, vendorId, colorId, sizeId, hasImages, page = 1, perPage = 20 } = filters;
+    const {
+      search,
+      genderId,
+      vendorId,
+      colorId,
+      sizeId,
+      hasImages,
+      page = 1,
+      perPage = 20,
+      sortBy = ProductSortField.CREATED_AT,
+    } = filters;
+
+    const trimmedSearch = search?.trim();
+    const searchMatchIds = trimmedSearch
+      ? await this.findProductIdsBySearch(trimmedSearch, warehouseId)
+      : [];
 
     const where = {
       isDeleted: false,
       warehouseId,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { barcode: { contains: search } },
-          {
-            productSizes: {
-              some: {
-                isDeleted: false,
-                barcode: { contains: search },
-              },
-            },
-          },
-        ],
+      ...(trimmedSearch && {
+        OR: this.buildSearchConditions(trimmedSearch, searchMatchIds),
       }),
       ...(genderId && { genderId }),
       ...(vendorId && { vendorId }),
@@ -107,12 +118,17 @@ export class ProductsService {
       ...(hasImages === false && { media: { none: {} } }),
     };
 
+    const orderBy =
+      sortBy === ProductSortField.CREATED_AT
+        ? { createdAt: 'desc' as const }
+        : { name: 'asc' as const };
+
     const [data, total] = await this.db.$transaction([
       this.db.product.findMany({
         where,
         skip: (page - 1) * perPage,
         take: perPage,
-        orderBy: { name: 'asc' },
+        orderBy,
         include: {
           gender: { select: { id: true, name: true } },
           vendor: { select: { id: true, name: true } },
@@ -389,18 +405,24 @@ export class ProductsService {
   // ── Búsqueda para POS (equivale a PosController@searchProduct) ────────────
 
   async searchForPos(query: string, warehouseId: string) {
-    // Busca por nombre, barcode de producto o barcode de talla
+    const trimmedQuery = query.trim();
+    const searchMatchIds = trimmedQuery
+      ? await this.findProductIdsBySearch(trimmedQuery, warehouseId)
+      : [];
+
     const rows = await this.db.productSize.findMany({
       where: {
         isDeleted: false,
-        product: { isDeleted: false, warehouseId },
-        OR: [
-          { product: { name: { contains: query, mode: 'insensitive' } } },
-          { product: { barcode: { contains: query } } },
-          { barcode: { contains: query } },
-        ],
+        product: {
+          isDeleted: false,
+          warehouseId,
+          ...(trimmedQuery && {
+            OR: this.buildSearchConditions(trimmedQuery, searchMatchIds),
+          }),
+        },
       },
       take: 20,
+      orderBy: { product: { createdAt: 'desc' } },
       include: {
         product: { select: { id: true, name: true } },
         size: { select: { id: true, description: true } },
@@ -419,5 +441,66 @@ export class ProductsService {
         quantity: getAvailableQuantity(balance),
       })),
     }));
+  }
+
+  private buildSearchConditions(
+    search: string,
+    searchMatchIds: string[],
+  ): Prisma.ProductWhereInput[] {
+    const conditions: Prisma.ProductWhereInput[] = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { barcode: { contains: search } },
+      {
+        productSizes: {
+          some: {
+            isDeleted: false,
+            barcode: { contains: search },
+          },
+        },
+      },
+    ];
+
+    if (isFullUuid(search)) {
+      conditions.unshift({ id: search });
+    }
+
+    if (searchMatchIds.length > 0) {
+      conditions.push({ id: { in: searchMatchIds } });
+    }
+
+    return conditions;
+  }
+
+  private async findProductIdsBySearch(
+    search: string,
+    warehouseId: string,
+  ): Promise<string[]> {
+    const accentPattern = buildAccentInsensitiveNamePattern(search);
+    if (!accentPattern) {
+      return [];
+    }
+
+    const textPattern = `%${search}%`;
+
+    try {
+      const rows = await this.db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id
+        FROM products
+        WHERE is_deleted = false
+          AND warehouse_id = ${warehouseId}
+          AND (
+            translate(
+              lower(name),
+              ${PRODUCT_SEARCH_ACCENT_FROM},
+              ${PRODUCT_SEARCH_ACCENT_TO}
+            ) LIKE ${accentPattern}
+            OR id::text ILIKE ${textPattern}
+          )
+      `);
+
+      return rows.map((row) => row.id);
+    } catch {
+      return [];
+    }
   }
 }

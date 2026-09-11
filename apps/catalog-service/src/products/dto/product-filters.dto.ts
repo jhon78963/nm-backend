@@ -77,8 +77,8 @@ export class ProductFiltersDto {
   @Max(100)
   perPage?: number = 20;
 
-  @ApiPropertyOptional({ enum: ProductSortField })
+  @ApiPropertyOptional({ enum: ProductSortField, default: ProductSortField.CREATED_AT })
   @IsOptional()
   @IsEnum(ProductSortField)
-  sortBy?: ProductSortField = ProductSortField.NAME;
+  sortBy?: ProductSortField = ProductSortField.CREATED_AT;
 }
