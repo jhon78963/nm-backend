@@ -107,6 +107,14 @@ export function shouldBotRespondToInbound(input: InboundCommercialFilterInput): 
   if (!text) return false;
   if (isLikelySpam(text)) return false;
 
+  // Saludos iniciales (ej. "Hola") deben llegar al mensaje de bienvenida de Malu.
+  const trimmed = text.trim();
+  if (isGreeting(trimmed)) {
+    if (!conversation || !conversationHasBotEngagement(conversation)) {
+      return true;
+    }
+  }
+
   if (conversation && conversationHasBotEngagement(conversation)) {
     if (CATEGORY_SELECTION_PATTERN.test(text)) return true;
     if (isSuspiciousInboundText(text)) return false;

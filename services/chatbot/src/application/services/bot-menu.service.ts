@@ -67,6 +67,43 @@ export function parseMenuSelection(interactiveReplyId: string | undefined): Menu
   return ids.includes(interactiveReplyId) ? (interactiveReplyId as MenuSelection) : null;
 }
 
+/** Welcome-menu digit replies (1–4) — fixed copy from knowledge_base.md. */
+const CATEGORY_DIGIT_RESPONSES: Record<'1' | '2' | '3' | '4', string> = {
+  '1':
+    '¡Genial! 🧒 Aquí tienes nuestra ropa para niños 👇\n\n' +
+    'Puedes ver todos los modelos disponibles, precios y tallas aquí:\n' +
+    '👉 https://novedadesmaritex.net.pe/ninos\n\n' +
+    'Tenemos desde bebé hasta talla 14, con diseños súper lindos 🎀\n\n' +
+    '¿Tienes en mente alguna prenda específica? Cuéntame la edad del niño/niña y te ayudo mejor 😊',
+  '2':
+    '¡Buena elección! 🔥 Tenemos ropa juvenil con los mejores estilos 👇\n\n' +
+    'Explora todos los modelos aquí:\n' +
+    '👉 https://novedadesmaritex.net.pe/jovenes\n\n' +
+    'Polos, pantalones, casacas, buzos y más, con los colores y diseños de moda 😎\n\n' +
+    '¿Buscas algo en especial? Cuéntame y te muestro opciones ✨',
+  '3':
+    '¡Perfecto! 👗 Tenemos una colección increíble para señoritas y damas 👇\n\n' +
+    'Mira todos los modelos disponibles aquí:\n' +
+    '👉 https://novedadesmaritex.net.pe/senoritas\n\n' +
+    'Blusas, vestidos, pantalones, tops, conjuntos y mucho más, en las tallas y colores que buscas 💃\n\n' +
+    '¿Tienes en mente alguna prenda? Con gusto te ayudo a encontrar la ideal 🌟',
+  '4':
+    '¡Excelente! 👔 Tenemos ropa cómoda y con estilo para adultos 👇\n\n' +
+    'Revisa todos los modelos aquí:\n' +
+    '👉 https://novedadesmaritex.net.pe/adulto-mayor\n\n' +
+    'Prendas pensadas para tu comodidad, con tallas amplias y diseños clásicos 👍\n\n' +
+    '¿Qué tipo de prenda buscas? Con gusto te oriento 😊',
+};
+
+export function parseCategoryDigitSelection(text: string): '1' | '2' | '3' | '4' | null {
+  const m = text.trim().match(/^([1-4])\s*$/);
+  return m ? (m[1] as '1' | '2' | '3' | '4') : null;
+}
+
+export function getCategoryDigitResponse(digit: '1' | '2' | '3' | '4'): string {
+  return CATEGORY_DIGIT_RESPONSES[digit];
+}
+
 export function buildMainMenuList(to: string): OutboundInteractiveListMessage {
   const name = botName();
   return {

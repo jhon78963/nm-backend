@@ -1,4 +1,5 @@
 import { logger } from '../../infrastructure/shared/logger.js';
+import { formatMetaApiError } from '../../infrastructure/webhooks/meta/meta-api-error.js';
 
 export interface BatchedInboundText {
   content: string;
@@ -104,7 +105,7 @@ export class MessageBatchDebouncer {
       logger.error('[MessageBatchDebouncer] Flush handler failed', {
         phone: phoneKey,
         batchSize: batch.length,
-        error: err instanceof Error ? err.message : String(err),
+        ...formatMetaApiError(err),
       });
     }
   }

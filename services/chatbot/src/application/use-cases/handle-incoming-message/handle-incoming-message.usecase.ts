@@ -17,6 +17,8 @@ import type { HybridChatService } from '../../services/hybrid-chat.service.js';
 import type { IntentRouterService, ForcedRoutingGroup } from '../../services/intent-router.service.js';
 import {
   parseMenuSelection,
+  parseCategoryDigitSelection,
+  getCategoryDigitResponse,
   isMainMenuTrigger,
   isGreeting,
   buildMainMenuList,
@@ -342,6 +344,25 @@ export class HandleIncomingMessageUseCase {
         userMessage,
         aiContent: prependGuestCartSummary(getWelcomeMessage(), cartSummary),
         aiModel: 'welcome',
+        aiTokens: 0,
+        newCareerId: conversation.careerId,
+        newMetaData: conversation.metaData,
+        newProgramName: conversation.currentProgramName,
+        purchaseCategory: null,
+      });
+    }
+
+    // ── Welcome menu digit (1–4) → fixed category reply without AI ─────────
+    const categoryDigit = parseCategoryDigitSelection(dto.content);
+    if (categoryDigit) {
+      this.messageDebouncer?.cancel(phoneNumber.value);
+      return this.deliverBotTextResponse({
+        conversation,
+        phoneNumberValue: phoneNumber.value,
+        funnelUserId,
+        userMessage,
+        aiContent: getCategoryDigitResponse(categoryDigit),
+        aiModel: 'category-menu',
         aiTokens: 0,
         newCareerId: conversation.careerId,
         newMetaData: conversation.metaData,
