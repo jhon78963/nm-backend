@@ -57,6 +57,7 @@ export class EcommerceGuestCartClient {
     customerPhone: string;
     warehouseId?: string;
     items: WhatsAppGuestCartItemInput[];
+    /** When true, drops previous lines instead of merging by product key. */
     replace?: boolean;
     source?: 'pdp' | 'bot' | 'handoff';
   }): Promise<WhatsAppGuestCartHandoffResult | null> {

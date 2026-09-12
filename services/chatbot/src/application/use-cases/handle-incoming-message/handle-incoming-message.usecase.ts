@@ -1738,6 +1738,8 @@ export class HandleIncomingMessageUseCase {
         customerPhone,
         items: intents.map((intent) => mapPdpIntentToGuestCartItem(intent)),
         source: 'pdp',
+        // Multi-product batch message is the full cart snapshot from the storefront.
+        replace: intents.length > 1,
       });
       if (result?.sessionId) {
         logger.info('[HandleIncomingMessage] WhatsApp guest cart persisted', {
