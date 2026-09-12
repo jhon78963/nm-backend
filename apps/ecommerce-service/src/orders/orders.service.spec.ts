@@ -5,6 +5,7 @@ import { DatabaseService } from '@app/database';
 import { faker } from '@faker-js/faker';
 import { OrdersService } from './orders.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { EcommerceInvoicingService } from '../ecommerce-invoicing/ecommerce-invoicing.service';
 import { EcommerceOrderEventsService } from '../order-events/ecommerce-order-events.service';
 
 function buildTx() {
@@ -42,6 +43,10 @@ const mockOrderEvents = {
   publishOrderUpdated: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockInvoicing = {
+  issueInvoiceForOrder: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('OrdersService', () => {
   let service: OrdersService;
 
@@ -60,6 +65,7 @@ describe('OrdersService', () => {
         },
         { provide: CouponsService, useValue: mockCoupons },
         { provide: EcommerceOrderEventsService, useValue: mockOrderEvents },
+        { provide: EcommerceInvoicingService, useValue: mockInvoicing },
       ],
     }).compile();
 
