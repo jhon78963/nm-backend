@@ -53,9 +53,50 @@ test('parseAllPdpPurchaseIntents merges multiple NM-PDP tokens', () => {
 
   assert.equal(intents.length, 2);
   assert.equal(intents[0]?.productIdPrefix, 'aaaa1111');
+  assert.equal(intents[0]?.productName, 'Bermuda Drill');
+  assert.equal(intents[0]?.unitPrice, 52);
   assert.equal(intents[1]?.productIdPrefix, 'bbbb2222');
+  assert.equal(intents[1]?.productName, 'Camisa Jean');
+  assert.equal(intents[1]?.unitPrice, 68);
 });
 
+test('parseAllPdpPurchaseIntents keeps three PDP blocks aligned', () => {
+  const intents = parseAllPdpPurchaseIntents(
+    [
+      'Hola Malu, quiero comprar estos productos de mi carrito:',
+      '',
+      'Producto: Bermuda Drill Clasica',
+      'Cantidad: 1',
+      'Precio unitario: S/ 52.00',
+      'Talla: 30 — Marrón',
+      '[NM-PDP:pid=d89e2160;qty=1]',
+      '',
+      'Producto: Camisa Jean M/L',
+      'Cantidad: 1',
+      'Precio unitario: S/ 68.00',
+      'Talla: XL — Azul Cristal',
+      '[NM-PDP:pid=216368d3;qty=1]',
+      '',
+      'Producto: Buzo Impermeable Oversize',
+      'Cantidad: 1',
+      'Precio unitario: S/ 19.90',
+      'Talla: ESTÁNDAR — Beige',
+      '[NM-PDP:pid=61f920d9;qty=1]',
+    ].join('\n'),
+  );
+
+  assert.equal(intents.length, 3);
+  assert.equal(intents[0]?.productIdPrefix, 'd89e2160');
+  assert.equal(intents[0]?.productName, 'Bermuda Drill Clasica');
+  assert.equal(intents[0]?.sizeLabel, '30 — Marrón');
+  assert.equal(intents[1]?.productIdPrefix, '216368d3');
+  assert.equal(intents[1]?.productName, 'Camisa Jean M/L');
+  assert.equal(intents[2]?.productIdPrefix, '61f920d9');
+  assert.equal(intents[2]?.productName, 'Buzo Impermeable Oversize');
+  assert.equal(intents[2]?.unitPrice, 19.9);
+});
+
+test('parsePdpPurchaseMessage ignores non-purchase text', () => {
   assert.equal(parsePdpPurchaseMessage('¿Cuánto cuesta el vestido floral?'), null);
 });
 

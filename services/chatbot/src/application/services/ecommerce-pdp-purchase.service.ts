@@ -78,11 +78,14 @@ export function parseAllPdpPurchaseIntents(text: string): ParsedPdpPurchaseInten
   for (let i = 0; i < refs.length; i += 1) {
     const match = refs[i];
     const refRaw = match?.[1];
-    if (!refRaw) continue;
+    if (!refRaw || match.index == null) continue;
 
     const fromRef = parseRefToken(refRaw);
-    const blockStart = match.index ?? 0;
-    const blockEnd = refs[i + 1]?.index ?? trimmed.length;
+    // Each product block is the text *before* its [NM-PDP:…] through that token (not after it).
+    const prevMatch = refs[i - 1];
+    const blockStart =
+      i === 0 ? 0 : (prevMatch!.index ?? 0) + (prevMatch![0]?.length ?? 0);
+    const blockEnd = match.index + match[0].length;
     const block = trimmed.slice(blockStart, blockEnd);
 
     const productName = block.match(PRODUCT_LINE_PATTERN)?.[1]?.trim() ?? null;
