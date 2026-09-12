@@ -265,6 +265,9 @@ export class HandleIncomingMessageUseCase {
       }
     }
 
+    // Guest cart must update even in human mode (post-handoff NM-PDP / batch cart sync).
+    await this.tryPersistGuestCartFromInbound(phoneNumber.value, dto.content);
+
     // ── 3. Human mode: bot silenced — queue message for assigned agent ───
     if (conversation.isHumanMode()) {
       this.messageDebouncer?.cancel(phoneNumber.value);
@@ -572,7 +575,6 @@ export class HandleIncomingMessageUseCase {
       });
 
       await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
-      await this.persistGuestCartFromPdpBatch(phoneNumberValue, pdpPurchaseIntents);
 
       const confirmBody =
         pdpPurchaseIntents.length > 1
@@ -1723,6 +1725,18 @@ export class HandleIncomingMessageUseCase {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  private async tryPersistGuestCartFromInbound(
+    customerPhone: string,
+    userContent: string,
+  ): Promise<void> {
+    const intents = parseAllPdpPurchaseIntents(userContent);
+    if (intents.length === 0) {
+      return;
+    }
+
+    await this.persistGuestCartFromPdpBatch(customerPhone, intents);
   }
 
   private async persistGuestCartFromPdpBatch(
