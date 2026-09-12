@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildPdpPurchaseHandoffPrompt,
+  parseAllPdpPurchaseIntents,
   parsePdpPurchaseMessage,
 } from '../dist/application/services/ecommerce-pdp-purchase.service.js';
 
@@ -33,7 +34,28 @@ test('parsePdpPurchaseMessage detects NM-PDP ref token', () => {
   assert.equal(intent.unitPrice, 49.9);
 });
 
-test('parsePdpPurchaseMessage ignores generic catalog questions', () => {
+test('parseAllPdpPurchaseIntents merges multiple NM-PDP tokens', () => {
+  const intents = parseAllPdpPurchaseIntents(
+    [
+      'Hola Malu, quiero comprar estos productos de mi carrito:',
+      '',
+      'Producto: Bermuda Drill',
+      'Cantidad: 1',
+      'Precio unitario: S/ 52.00',
+      '[NM-PDP:pid=aaaa1111;qty=1]',
+      '',
+      'Producto: Camisa Jean',
+      'Cantidad: 1',
+      'Precio unitario: S/ 68.00',
+      '[NM-PDP:pid=bbbb2222;qty=1]',
+    ].join('\n'),
+  );
+
+  assert.equal(intents.length, 2);
+  assert.equal(intents[0]?.productIdPrefix, 'aaaa1111');
+  assert.equal(intents[1]?.productIdPrefix, 'bbbb2222');
+});
+
   assert.equal(parsePdpPurchaseMessage('¿Cuánto cuesta el vestido floral?'), null);
 });
 

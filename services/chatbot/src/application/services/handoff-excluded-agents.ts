@@ -6,6 +6,12 @@ export function getHandoffExcludedUsernames(): Set<string> {
   );
 }
 
+/** When set, all automatic handoffs assign this agent (ERP username in chat_agents). */
+export function getHandoffAssignAgentUsername(): string | null {
+  const raw = process.env['HANDOFF_ASSIGN_AGENT_USERNAME']?.trim().toLowerCase();
+  return raw || null;
+}
+
 export function isHandoffExcludedAgent(username: string | null | undefined): boolean {
   if (!username) return false;
   return getHandoffExcludedUsernames().has(username.toLowerCase());

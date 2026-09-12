@@ -42,6 +42,16 @@ export function prependGuestCartSummary(baseMessage: string, cartSummary: string
 const CART_CHECKOUT_REQUEST_PATTERN =
   /\b(?:s[ií]|dale|ok|listo|confirmo|armemos|hagamos)\b.{0,40}\b(?:pedido|carrito|compra)\b|\b(?:quiero|deseo)\s+(?:comprar|pagar|cerrar)\s+(?:mi\s+)?carrito\b|\barmar\s+(?:mi\s+)?pedido\b/i;
 
+const CART_SYNC_REQUEST_PATTERN =
+  /\b(?:agregu[eé]|añad[ií]|puse|tengo)\b.{0,50}\b(?:productos?|prendas?|art[ií]culos?)\b.{0,30}\b(?:carrito|carro)\b|\b(?:varios|varias)\b.{0,20}\b(?:productos?|prendas?)\b.{0,30}\b(?:carrito|comprar)\b|\b(?:eso|estos|estas)\b.{0,20}\b(?:deseo|quiero)\s+comprar\b/i;
+
+export function isGuestCartSyncRequest(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (/\[NM-PDP:/i.test(trimmed)) return false;
+  return CART_SYNC_REQUEST_PATTERN.test(trimmed);
+}
+
 export function isGuestCartCheckoutRequest(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;

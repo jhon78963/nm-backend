@@ -1,7 +1,7 @@
 import type { Conversation } from '../../domain/entities/conversation.entity.js';
 import { isGreeting, MENU_ROW_IDS } from './bot-menu.service.js';
 import { parseB2bQuoteMessage } from './ecommerce-b2b-quote.service.js';
-import { parsePdpPurchaseMessage } from './ecommerce-pdp-purchase.service.js';
+import { parseAllPdpPurchaseIntents, parsePdpPurchaseMessage } from './ecommerce-pdp-purchase.service.js';
 import { isExplicitHandoffRequest } from './handoff-detection.service.js';
 
 /** Gambling, scams and common international spam (incl. Indonesian / SEA). */
@@ -62,6 +62,7 @@ export function hasCommercialInterest(text: string): boolean {
 
   if (NM_ECOMMERCE_TOKEN_PATTERN.test(trimmed)) return true;
   if (parsePdpPurchaseMessage(trimmed)) return true;
+  if (parseAllPdpPurchaseIntents(trimmed).length > 0) return true;
   if (parseB2bQuoteMessage(trimmed)) return true;
   if (isExplicitHandoffRequest(trimmed)) return true;
   if (STRICT_COMMERCIAL_PATTERN.test(trimmed)) return true;

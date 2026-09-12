@@ -58,11 +58,65 @@ function parseRefToken(raw: string): Partial<ParsedPdpPurchaseIntent> {
 }
 
 export function parsePdpPurchaseMessage(text: string): ParsedPdpPurchaseIntent | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
+  const all = parseAllPdpPurchaseIntents(text);
+  return all[0] ?? null;
+}
 
+/** Parses every [NM-PDP:…] block in one WhatsApp message (multi-product cart sync). */
+export function parseAllPdpPurchaseIntents(text: string): ParsedPdpPurchaseIntent[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const refPattern = /\[NM-PDP:([^\]]+)\]/gi;
+  const refs = [...trimmed.matchAll(refPattern)];
+  if (refs.length === 0) {
+    const single = parseSinglePdpPurchaseIntent(trimmed);
+    return single ? [single] : [];
+  }
+
+  const intents: ParsedPdpPurchaseIntent[] = [];
+  for (let i = 0; i < refs.length; i += 1) {
+    const match = refs[i];
+    const refRaw = match?.[1];
+    if (!refRaw) continue;
+
+    const fromRef = parseRefToken(refRaw);
+    const blockStart = match.index ?? 0;
+    const blockEnd = refs[i + 1]?.index ?? trimmed.length;
+    const block = trimmed.slice(blockStart, blockEnd);
+
+    const productName = block.match(PRODUCT_LINE_PATTERN)?.[1]?.trim() ?? null;
+    const sku = block.match(SKU_LINE_PATTERN)?.[1]?.trim() ?? fromRef.sku ?? null;
+    const quantityRaw = block.match(QTY_LINE_PATTERN)?.[1];
+    const quantity = quantityRaw
+      ? Number.parseInt(quantityRaw, 10)
+      : fromRef.quantity ?? null;
+    const productUrl = block.match(PRODUCT_URL_PATTERN)?.[0] ?? null;
+    const sizeRaw = block.match(SIZE_LINE_PATTERN)?.[1]?.trim() ?? null;
+    const colorRaw = block.match(COLOR_LINE_PATTERN)?.[1]?.trim() ?? null;
+    const sizeLabel = sizeRaw && sizeRaw !== 'Sin seleccionar' ? sizeRaw : null;
+    const colorLabel = colorRaw && colorRaw !== 'Sin seleccionar' ? colorRaw : null;
+    const unitPrice = parseUnitPrice(block.match(PRICE_LINE_PATTERN)?.[1]?.trim() ?? null);
+
+    intents.push({
+      productName,
+      sku,
+      quantity: Number.isFinite(quantity) ? quantity : 1,
+      productUrl,
+      productIdPrefix: fromRef.productIdPrefix ?? null,
+      sizeLabel,
+      colorLabel,
+      unitPrice,
+    });
+  }
+
+  return intents.filter((intent) => intent.productIdPrefix || intent.productName || intent.productUrl);
+}
+
+function parseSinglePdpPurchaseIntent(trimmed: string): ParsedPdpPurchaseIntent | null {
   const refMatch = trimmed.match(NM_PDP_REF_PATTERN);
   const fromRef = refMatch?.[1] ? parseRefToken(refMatch[1]) : {};
+
 
   const productName = trimmed.match(PRODUCT_LINE_PATTERN)?.[1]?.trim() ?? null;
   const sku = trimmed.match(SKU_LINE_PATTERN)?.[1]?.trim() ?? fromRef.sku ?? null;
@@ -113,6 +167,15 @@ export function mapPdpIntentToGuestCartItem(
     quantity: intent.quantity && intent.quantity > 0 ? intent.quantity : 1,
     ...(intent.unitPrice != null ? { unitPrice: intent.unitPrice } : {}),
   };
+}
+
+export function buildPdpBatchPurchaseHandoffPrompt(itemCount: number): string {
+  const n = Math.max(1, itemCount);
+  const label = n === 1 ? 'un producto' : `${n} productos`;
+  return (
+    `¡Perfecto! Vi que quieres comprar *${label}* desde nuestra tienda online 🛍️\n\n` +
+    '¿Te comunico con un asesor de Maritex para ayudarte a completar tu pedido por WhatsApp?'
+  );
 }
 
 export function buildPdpPurchaseHandoffPrompt(intent: ParsedPdpPurchaseIntent): string {

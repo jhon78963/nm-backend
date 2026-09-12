@@ -3,7 +3,11 @@ import type { ConversationRepository } from '../../../domain/repositories/conver
 import type { UserRepository } from '../../../domain/repositories/user.repository.js';
 import type { ProgramRepository } from '../../../domain/repositories/program.repository.js';
 import type { AgentRepository } from '../../../domain/repositories/agent.repository.js';
-import { getHandoffExcludedUsernames } from '../../services/handoff-excluded-agents.js';
+import {
+  getHandoffAssignAgentUsername,
+  getHandoffExcludedUsernames,
+  isHandoffExcludedAgent,
+} from '../../services/handoff-excluded-agents.js';
 import {
   buildHandoffAssignedLeadMessage,
   buildHandoffPendingLeadMessage,
@@ -79,8 +83,10 @@ import {
   isStaleHandoffConfirmation,
 } from '../../services/handoff-detection.service.js';
 import {
+  buildPdpBatchPurchaseHandoffPrompt,
   buildPdpPurchaseHandoffPrompt,
   mapPdpIntentToGuestCartItem,
+  parseAllPdpPurchaseIntents,
   parsePdpPurchaseMessage,
   type ParsedPdpPurchaseIntent,
 } from '../../services/ecommerce-pdp-purchase.service.js';
@@ -93,6 +99,7 @@ import {
   buildGuestCartCheckoutHandoffPrompt,
   fetchGuestCartOpeningSummary,
   isGuestCartCheckoutRequest,
+  isGuestCartSyncRequest,
   prependGuestCartSummary,
 } from '../../services/whatsapp-guest-cart-summary.service.js';
 
@@ -554,24 +561,52 @@ export class HandleIncomingMessageUseCase {
       });
     }
 
-    const pdpPurchaseIntent = parsePdpPurchaseMessage(userContent);
-    if (pdpPurchaseIntent) {
+    const pdpPurchaseIntents = parseAllPdpPurchaseIntents(userContent);
+    if (pdpPurchaseIntents.length > 0) {
+      const primary = pdpPurchaseIntents[0]!;
       logger.info('[HandleIncomingMessage] PDP WhatsApp purchase intent detected', {
         phone: phoneNumberValue,
-        productName: pdpPurchaseIntent.productName,
-        sku: pdpPurchaseIntent.sku,
+        productCount: pdpPurchaseIntents.length,
+        productName: primary.productName,
+        sku: primary.sku,
       });
 
       await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
-      await this.persistGuestCartFromPdp(phoneNumberValue, pdpPurchaseIntent);
+      await this.persistGuestCartFromPdpBatch(phoneNumberValue, pdpPurchaseIntents);
+
+      const confirmBody =
+        pdpPurchaseIntents.length > 1
+          ? buildPdpBatchPurchaseHandoffPrompt(pdpPurchaseIntents.length)
+          : buildPdpPurchaseHandoffPrompt(primary);
 
       return this.startHandoffConfirmation({
         conversation,
         phoneNumberValue,
         funnelUserId,
         userMessage,
-        confirmBody: buildPdpPurchaseHandoffPrompt(pdpPurchaseIntent),
+        confirmBody,
       });
+    }
+
+    if (isGuestCartSyncRequest(userContent)) {
+      const cartHandoff = await this.resolveCartHandoff(phoneNumberValue);
+      if (cartHandoff?.cart && cartHandoff.cart.itemCount > 0) {
+        logger.info('[HandleIncomingMessage] Guest cart sync intent detected', {
+          phone: phoneNumberValue,
+          itemCount: cartHandoff.cart.itemCount,
+        });
+        await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
+        return this.startHandoffConfirmation({
+          conversation,
+          phoneNumberValue,
+          funnelUserId,
+          userMessage,
+          confirmBody: buildGuestCartCheckoutHandoffPrompt(
+            cartHandoff.cart.itemCount,
+            cartHandoff.cart.total,
+          ),
+        });
+      }
     }
 
     const b2bQuoteIntent = parseB2bQuoteMessage(userContent);
@@ -1596,6 +1631,23 @@ export class HandleIncomingMessageUseCase {
   private async pickAgent(): Promise<Agent | null> {
     if (!this.agentRepo) return null;
     try {
+      const pinnedUsername = getHandoffAssignAgentUsername();
+      if (pinnedUsername) {
+        const pinned = await this.agentRepo.findByUsername(pinnedUsername);
+        if (
+          pinned?.isActive
+          && !isHandoffExcludedAgent(pinned.username)
+        ) {
+          return pinned;
+        }
+        logger.warn('[HandleIncomingMessage] HANDOFF_ASSIGN_AGENT_USERNAME not available', {
+          username: pinnedUsername,
+          found: Boolean(pinned),
+          active: pinned?.isActive ?? false,
+        });
+        return null;
+      }
+
       const agents = await this.agentRepo.findActive();
       const excluded = getHandoffExcludedUsernames();
       const eligible = agents.filter((a) => {
@@ -1673,18 +1725,18 @@ export class HandleIncomingMessageUseCase {
     }
   }
 
-  private async persistGuestCartFromPdp(
+  private async persistGuestCartFromPdpBatch(
     customerPhone: string,
-    intent: ParsedPdpPurchaseIntent,
+    intents: ParsedPdpPurchaseIntent[],
   ): Promise<void> {
-    if (!this.guestCartClient?.enabled) {
+    if (!this.guestCartClient?.enabled || intents.length === 0) {
       return;
     }
 
     try {
       const result = await this.guestCartClient.upsertCart({
         customerPhone,
-        items: [mapPdpIntentToGuestCartItem(intent)],
+        items: intents.map((intent) => mapPdpIntentToGuestCartItem(intent)),
         source: 'pdp',
       });
       if (result?.sessionId) {
@@ -1698,6 +1750,13 @@ export class HandleIncomingMessageUseCase {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  private async persistGuestCartFromPdp(
+    customerPhone: string,
+    intent: ParsedPdpPurchaseIntent,
+  ): Promise<void> {
+    await this.persistGuestCartFromPdpBatch(customerPhone, [intent]);
   }
 
   private async resolveCartHandoff(
