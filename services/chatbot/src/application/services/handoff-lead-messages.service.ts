@@ -30,3 +30,20 @@ export function buildHandoffAssignedLeadMessage(agent: Agent): string {
 export function buildHandoffPendingLeadMessage(): string {
   return process.env['HANDOFF_PENDING_MESSAGE'] ?? DEFAULT_PENDING_MSG;
 }
+
+export function appendCartHandoffDeepLink(
+  message: string,
+  handoffUrl: string,
+  sessionId: string,
+): string {
+  if (message.includes('{cartHandoffUrl}') || message.includes('{cartSessionId}')) {
+    return message
+      .replaceAll('{cartHandoffUrl}', handoffUrl)
+      .replaceAll('{cartSessionId}', sessionId);
+  }
+
+  return (
+    `${message.trim()}\n\n` +
+    `Para concretar tu pedido con un asesor, toca este enlace:\n${handoffUrl}`
+  );
+}

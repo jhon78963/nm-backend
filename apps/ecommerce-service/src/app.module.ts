@@ -30,6 +30,7 @@ import { CulqiModule } from './payments/culqi/culqi.module';
 import { InstitutionalModule } from './institutional/institutional.module';
 import { CustomerCartModule } from './customer-cart/customer-cart.module';
 import { CustomerWishlistModule } from './customer-wishlist/customer-wishlist.module';
+import { WhatsAppGuestCartModule } from './whatsapp-guest-cart/whatsapp-guest-cart.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { CustomerWishlistModule } from './customer-wishlist/customer-wishlist.mo
     InstitutionalModule,
     CustomerCartModule,
     CustomerWishlistModule,
+    WhatsAppGuestCartModule,
   ],
 })
 export class AppModule {}

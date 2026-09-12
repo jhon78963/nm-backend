@@ -52,6 +52,8 @@
     "test:slug": "node --test deploy/product-slug.test.mjs",
     "test:pdp": "npm run build && node --test deploy/ecommerce-pdp-purchase.test.mjs",
     "test:b2b": "npm run build && node --test deploy/ecommerce-b2b-quote.test.mjs",
+    "test:handoff": "npm run build && node --test deploy/whatsapp-cart-handoff.test.mjs",
+    "test:cart-summary": "npm run build && node --test deploy/whatsapp-guest-cart-summary.test.mjs",
     "backup:chatbot": "node --env-file=.env deploy/backup-chatbot-config.mjs",
     "restore:chatbot": "node --env-file=.env deploy/restore-chatbot-config.mjs"
   },

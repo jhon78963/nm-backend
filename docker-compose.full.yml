@@ -326,6 +326,11 @@ services:
       ECOMMERCE_STORE_URL: ${ECOMMERCE_STORE_URL:-http://localhost:3015}
       ERP_PANEL_URL: ${ERP_PANEL_URL:-http://localhost:4200}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-nm-internal-dev-key}
+      STORE_WAREHOUSE_ID: ${STORE_WAREHOUSE_ID:-46ea2f24-30d2-59a3-8790-8670a0105280}
+      WHATSAPP_CART_SESSION_SALT: ${WHATSAPP_CART_SESSION_SALT:-${INTERNAL_SERVICE_KEY:-}}
+      WHATSAPP_GUEST_CART_TTL_SECONDS: ${WHATSAPP_GUEST_CART_TTL_SECONDS:-86400}
+      WHATSAPP_HANDOFF_PHONE: ${WHATSAPP_HANDOFF_PHONE:-51915213408}
+      META_WHATSAPP_DISPLAY_PHONE: ${META_WHATSAPP_DISPLAY_PHONE:-}
     # Sin puerto publicado: solo red interna Docker (storefront vía ECOMMERCE_SERVICE_URL).
     depends_on:
       postgres:
@@ -538,6 +543,8 @@ services:
       ADMIN_PANEL_DIST: /app/admin/dist
       CORS_ORIGINS: ${CHATBOT_CORS_ORIGINS:-http://localhost:4200,http://localhost:5173,http://localhost:8080,http://localhost:3015}
       ADMIN_CORS_ORIGIN: ${CHATBOT_ADMIN_CORS_ORIGIN:-http://localhost:8080}
+      ECOMMERCE_SERVICE_URL: http://ecommerce-service:3012
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-nm-internal-dev-key}
     ports:
       - '${CHATBOT_PORT:-8090}:3000'
     volumes:
@@ -571,6 +578,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      ecommerce-service:
+        condition: service_started
     networks:
       - default
 

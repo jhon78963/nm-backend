@@ -7,6 +7,7 @@ import { getHandoffExcludedUsernames } from '../../services/handoff-excluded-age
 import {
   buildHandoffAssignedLeadMessage,
   buildHandoffPendingLeadMessage,
+  appendCartHandoffDeepLink,
 } from '../../services/handoff-lead-messages.service.js';
 import type { AiProviderPort, ChatMessage } from '../../ports/ai-provider.port.js';
 import type { MessagingProviderPort } from '../../ports/messaging-provider.port.js';
@@ -17,6 +18,7 @@ import type { IntentRouterService, ForcedRoutingGroup } from '../../services/int
 import {
   parseMenuSelection,
   isMainMenuTrigger,
+  isGreeting,
   buildMainMenuList,
   getCampusLocationFromEnv,
   getWelcomeMessage,
@@ -54,6 +56,10 @@ import { logger } from '../../../infrastructure/shared/logger.js';
 import type { Agent } from '../../../domain/entities/agent.entity.js';
 import type { HandoffBy } from '../../../domain/entities/conversation.entity.js';
 import type { ProductToolsService } from '../../../infrastructure/ai/tools/product-tools.service.js';
+import type {
+  EcommerceGuestCartClient,
+  WhatsAppGuestCartHandoffResult,
+} from '../../../infrastructure/http/ecommerce-guest-cart.client.js';
 import { PRODUCT_TOOLS } from '../../../infrastructure/ai/tools/product-tools.definitions.js';
 import { completeWithTools } from '../../../infrastructure/ai/tool-calling-loop.js';
 import { parseStructuredAiResponse } from '../../../infrastructure/ai/parse-structured-ai-response.js';
@@ -72,13 +78,21 @@ import {
 } from '../../services/handoff-detection.service.js';
 import {
   buildPdpPurchaseHandoffPrompt,
+  mapPdpIntentToGuestCartItem,
   parsePdpPurchaseMessage,
+  type ParsedPdpPurchaseIntent,
 } from '../../services/ecommerce-pdp-purchase.service.js';
 import {
   buildB2bQuoteHandoffPrompt,
   parseB2bQuoteMessage,
 } from '../../services/ecommerce-b2b-quote.service.js';
 import { shouldBotRespondToInbound } from '../../services/commercial-interest-filter.service.js';
+import {
+  buildGuestCartCheckoutHandoffPrompt,
+  fetchGuestCartOpeningSummary,
+  isGuestCartCheckoutRequest,
+  prependGuestCartSummary,
+} from '../../services/whatsapp-guest-cart-summary.service.js';
 
 const CONTEXT_WINDOW_SIZE = 10;
 const MAX_CONSECUTIVE_HANDOFFS = 3;
@@ -140,6 +154,8 @@ export class HandleIncomingMessageUseCase {
      * Does not change reply style — only when AI is invoked.
      */
     private readonly messageDebouncer?: MessageBatchDebouncer,
+    /** Guest checkout Redis cart in ecommerce-service (hashed session, never POS). */
+    private readonly guestCartClient?: EcommerceGuestCartClient,
   ) {}
 
   async execute(dto: HandleIncomingMessageDto): Promise<HandleIncomingMessageResult> {
@@ -290,15 +306,41 @@ export class HandleIncomingMessageUseCase {
       });
     }
 
-    // ── F8: main menu (first message or keyword) — send fixed Maritex welcome ─
-    if (isMainMenuTrigger(dto.content, isFirstMessage)) {
+    // ── F8: saludo inicial → bienvenida fija + resumen de carrito si aplica ─
+    if (isFirstMessage && isGreeting(dto.content)) {
       this.messageDebouncer?.cancel(phoneNumber.value);
+      const cartSummary = await fetchGuestCartOpeningSummary(
+        this.guestCartClient,
+        phoneNumber.value,
+      );
       return this.deliverBotTextResponse({
         conversation,
         phoneNumberValue: phoneNumber.value,
         funnelUserId,
         userMessage,
-        aiContent: getWelcomeMessage(),
+        aiContent: prependGuestCartSummary(getWelcomeMessage(), cartSummary),
+        aiModel: 'welcome',
+        aiTokens: 0,
+        newCareerId: conversation.careerId,
+        newMetaData: conversation.metaData,
+        newProgramName: conversation.currentProgramName,
+        purchaseCategory: null,
+      });
+    }
+
+    // ── F8: main menu (keyword) — send fixed Maritex welcome ─
+    if (isMainMenuTrigger(dto.content, isFirstMessage)) {
+      this.messageDebouncer?.cancel(phoneNumber.value);
+      const cartSummary = await fetchGuestCartOpeningSummary(
+        this.guestCartClient,
+        phoneNumber.value,
+      );
+      return this.deliverBotTextResponse({
+        conversation,
+        phoneNumberValue: phoneNumber.value,
+        funnelUserId,
+        userMessage,
+        aiContent: prependGuestCartSummary(getWelcomeMessage(), cartSummary),
         aiModel: 'welcome',
         aiTokens: 0,
         newCareerId: conversation.careerId,
@@ -500,6 +542,7 @@ export class HandleIncomingMessageUseCase {
       });
 
       await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
+      await this.persistGuestCartFromPdp(phoneNumberValue, pdpPurchaseIntent);
 
       return this.startHandoffConfirmation({
         conversation,
@@ -527,6 +570,27 @@ export class HandleIncomingMessageUseCase {
         userMessage,
         confirmBody: buildB2bQuoteHandoffPrompt(b2bQuoteIntent),
       });
+    }
+
+    if (isGuestCartCheckoutRequest(userContent)) {
+      const cartHandoff = await this.resolveCartHandoff(phoneNumberValue);
+      if (cartHandoff?.cart && cartHandoff.cart.itemCount > 0) {
+        logger.info('[HandleIncomingMessage] Guest cart checkout intent detected', {
+          phone: phoneNumberValue,
+          itemCount: cartHandoff.cart.itemCount,
+        });
+        await this.updateFunnelUserCategory(funnelUserId, 'ready_to_buy');
+        return this.startHandoffConfirmation({
+          conversation,
+          phoneNumberValue,
+          funnelUserId,
+          userMessage,
+          confirmBody: buildGuestCartCheckoutHandoffPrompt(
+            cartHandoff.cart.itemCount,
+            cartHandoff.cart.total,
+          ),
+        });
+      }
     }
 
     let aiContent: string;
@@ -560,6 +624,7 @@ export class HandleIncomingMessageUseCase {
             conversation,
             userContent,
             collapseTrailingUserMessages,
+            phoneNumberValue,
           );
           aiContent = hybridResult.content;
           aiModel = hybridResult.model;
@@ -570,8 +635,13 @@ export class HandleIncomingMessageUseCase {
           error: routerErr instanceof Error ? routerErr.message : String(routerErr),
         });
         const fallbackResult = this.hybridChat
-          ? await this.runHybridChat(conversation, userContent, collapseTrailingUserMessages)
-          : await this.runMonolithicPrompt(conversation, userContent);
+          ? await this.runHybridChat(
+            conversation,
+            userContent,
+            collapseTrailingUserMessages,
+            phoneNumberValue,
+          )
+          : await this.runMonolithicPrompt(conversation, userContent, phoneNumberValue);
         aiContent = fallbackResult.content;
         aiModel = fallbackResult.model;
         aiTokens = fallbackResult.totalTokens;
@@ -581,12 +651,13 @@ export class HandleIncomingMessageUseCase {
         conversation,
         userContent,
         collapseTrailingUserMessages,
+        phoneNumberValue,
       );
       aiContent = hybridResult.content;
       aiModel = hybridResult.model;
       aiTokens = hybridResult.totalTokens;
     } else {
-      const fallbackResult = await this.runMonolithicPrompt(conversation, userContent);
+      const fallbackResult = await this.runMonolithicPrompt(conversation, userContent, phoneNumberValue);
       aiContent = fallbackResult.content;
       aiModel = fallbackResult.model;
       aiTokens = fallbackResult.totalTokens;
@@ -656,6 +727,7 @@ export class HandleIncomingMessageUseCase {
       newMetaData,
       newProgramName,
       purchaseCategory,
+      isFirstMessage,
     });
   }
 
@@ -676,13 +748,24 @@ export class HandleIncomingMessageUseCase {
     newMetaData: Conversation['metaData'];
     newProgramName: string | null;
     purchaseCategory: string | null;
+    isFirstMessage?: boolean;
   }): Promise<HandleIncomingMessageResult> {
     const {
       conversation, phoneNumberValue, funnelUserId, userMessage,
       aiContent, aiModel, aiTokens, newCareerId, newMetaData, newProgramName, purchaseCategory,
+      isFirstMessage = false,
     } = params;
 
-    const structured = parseStructuredAiResponse(aiContent);
+    let outboundRaw = aiContent;
+    if (isFirstMessage) {
+      const cartSummary = await fetchGuestCartOpeningSummary(
+        this.guestCartClient,
+        phoneNumberValue,
+      );
+      outboundRaw = prependGuestCartSummary(outboundRaw, cartSummary);
+    }
+
+    const structured = parseStructuredAiResponse(outboundRaw);
     const outboundText = structured.message
       .replace(/\s*<<HANDOFF_TRIGGER>>\s*$/g, '')
       .replace(/\s*HANDOFF_TRIGGER\s*$/g, '')
@@ -815,7 +898,7 @@ export class HandleIncomingMessageUseCase {
     // knowledge_base.md + Mongo tool calling available.
     if (this.hybridChat) {
       try {
-        const hybridResult = await this.runHybridChat(conversation, intentPhrase);
+        const hybridResult = await this.runHybridChat(conversation, intentPhrase, undefined, phoneNumberValue);
         return this.deliverBotTextResponse({
           conversation,
           phoneNumberValue,
@@ -869,7 +952,12 @@ export class HandleIncomingMessageUseCase {
       .trim();
 
     if (this.isRouterFallbackResponse(aiContentClean) && this.hybridChat) {
-      const hybridResult = await this.runHybridChat(conversation, intentPhrase);
+      const hybridResult = await this.runHybridChat(
+        conversation,
+        intentPhrase,
+        undefined,
+        phoneNumberValue,
+      );
       return this.deliverBotTextResponse({
         conversation,
         phoneNumberValue,
@@ -935,6 +1023,13 @@ export class HandleIncomingMessageUseCase {
     }
 
     const menuPayload = buildMainMenuList(phoneNumberValue);
+    const cartSummary = await fetchGuestCartOpeningSummary(
+      this.guestCartClient,
+      phoneNumberValue,
+    );
+    if (cartSummary) {
+      menuPayload.body = prependGuestCartSummary(menuPayload.body, cartSummary);
+    }
     const sendResult = await this.messagingProvider.sendInteractiveList(menuPayload);
 
     const summaryContent = menuPayload.body;
@@ -1239,12 +1334,26 @@ export class HandleIncomingMessageUseCase {
     leadMessage?: string;
   }): Promise<HandleIncomingMessageResult> {
     const agent = params.agent ?? await this.pickAgent();
-    const leadMessage =
+    const cartHandoff = await this.resolveCartHandoff(params.phoneNumberValue);
+    let leadMessage =
       params.leadMessage?.trim()
         ? params.leadMessage
         : agent
           ? buildHandoffAssignedLeadMessage(agent)
           : buildHandoffPendingLeadMessage();
+
+    if (cartHandoff?.cart && cartHandoff.cart.itemCount > 0) {
+      leadMessage = appendCartHandoffDeepLink(
+        leadMessage,
+        cartHandoff.handoffUrl,
+        cartHandoff.sessionId,
+      );
+    } else {
+      leadMessage = leadMessage
+        .replaceAll('{cartHandoffUrl}', '')
+        .replaceAll('{cartSessionId}', '');
+    }
+
     const replyText = formatWhatsAppText(leadMessage);
 
     let conversation = params.conversation.withHumanHandoff(agent?.id ?? null, params.handoffBy);
@@ -1283,7 +1392,12 @@ export class HandleIncomingMessageUseCase {
     await this.updateFunnelUserStage(params.funnelUserId, 'HANDOFF', agent?.id ?? null);
 
     if (agent) {
-      await this.tryNotifyAgent(conversation, params.phoneNumberValue, agent);
+      await this.tryNotifyAgent(
+        conversation,
+        params.phoneNumberValue,
+        agent,
+        cartHandoff?.sessionId,
+      );
     } else {
       logger.warn('[HandleIncomingMessage] Human handoff without assigned agent — awaiting manual claim', {
         phone: params.phoneNumberValue,
@@ -1296,6 +1410,7 @@ export class HandleIncomingMessageUseCase {
       conversationId: conversation.id,
       assignedAgentId: agent?.id ?? null,
       handoffBy: params.handoffBy,
+      cartSessionId: cartHandoff?.sessionId ?? null,
     });
 
     if (agent && this.funnelUserRepo) {
@@ -1499,6 +1614,7 @@ export class HandleIncomingMessageUseCase {
     conversation: Conversation,
     leadPhone: string,
     agent: Agent,
+    cartSessionId?: string,
   ): Promise<void> {
     const panelBase = (process.env['ADMIN_PANEL_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
     const inboxUrl = `${panelBase}/chatbot`;
@@ -1515,8 +1631,9 @@ export class HandleIncomingMessageUseCase {
     const notification =
       `NUEVO CHAT ASIGNADO\n\n` +
       `Lead: ${leadPhone}\n` +
-      `Conversacion: ${conversation.id}\n\n` +
-      `Resumen:\n${summary}\n\n` +
+      `Conversacion: ${conversation.id}\n` +
+      (cartSessionId ? `Carrito: [${cartSessionId}]\n` : '') +
+      `\nResumen:\n${summary}\n\n` +
       `Atiende desde el panel:\n${inboxUrl}`;
 
     try {
@@ -1532,6 +1649,50 @@ export class HandleIncomingMessageUseCase {
         agent: agent.name,
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+  }
+
+  private async persistGuestCartFromPdp(
+    customerPhone: string,
+    intent: ParsedPdpPurchaseIntent,
+  ): Promise<void> {
+    if (!this.guestCartClient?.enabled) {
+      return;
+    }
+
+    try {
+      const result = await this.guestCartClient.upsertCart({
+        customerPhone,
+        items: [mapPdpIntentToGuestCartItem(intent)],
+        source: 'pdp',
+      });
+      if (result?.sessionId) {
+        logger.info('[HandleIncomingMessage] WhatsApp guest cart persisted', {
+          sessionId: result.sessionId,
+          itemCount: result.cart?.itemCount ?? 0,
+        });
+      }
+    } catch (err) {
+      logger.warn('[HandleIncomingMessage] Failed to persist WhatsApp guest cart', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  private async resolveCartHandoff(
+    customerPhone: string,
+  ): Promise<WhatsAppGuestCartHandoffResult | null> {
+    if (!this.guestCartClient?.enabled) {
+      return null;
+    }
+
+    try {
+      return await this.guestCartClient.getHandoff({ customerPhone });
+    } catch (err) {
+      logger.warn('[HandleIncomingMessage] Failed to resolve WhatsApp cart handoff', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
     }
   }
 
@@ -1639,6 +1800,7 @@ export class HandleIncomingMessageUseCase {
     conversation: Conversation,
     lastUserOverride?: string,
     collapseTrailingUserMessages?: number,
+    customerPhone?: string,
   ): Promise<{ content: string; model: string; totalTokens: number }> {
     if (!this.hybridChat) {
       throw new Error('HybridChatService not configured');
@@ -1652,6 +1814,7 @@ export class HandleIncomingMessageUseCase {
 
     const result = await this.hybridChat.chat(
       this.buildHybridChatHistory(conversation, lastUserOverride, collapseTrailingUserMessages),
+      customerPhone ? { customerPhone } : undefined,
     );
     const structured = parseStructuredAiResponse(result.content);
 
@@ -1665,6 +1828,7 @@ export class HandleIncomingMessageUseCase {
   private async runMonolithicPrompt(
     conversation: Conversation,
     _userContent: string,
+    customerPhone?: string,
   ): Promise<{ content: string; model: string; totalTokens: number }> {
     // Prefer the system prompt already stored in the conversation (built fresh at creation).
     // Only fall back to a full DB rebuild if the stored prompt is missing/empty — this avoids
@@ -1695,10 +1859,18 @@ export class HandleIncomingMessageUseCase {
       return { content: result.content, model: result.model, totalTokens: result.totalTokens };
     }
 
-    const result = await completeWithTools(this.aiProvider, messages, PRODUCT_TOOLS, (name, args) =>
-      this.productToolsService!.execute(name, args),
-    );
-    return { content: result.content, model: result.model, totalTokens: result.totalTokens };
+    if (customerPhone) {
+      this.productToolsService.setCartContext(customerPhone);
+    }
+
+    try {
+      const result = await completeWithTools(this.aiProvider, messages, PRODUCT_TOOLS, (name, args) =>
+        this.productToolsService!.execute(name, args),
+      );
+      return { content: result.content, model: result.model, totalTokens: result.totalTokens };
+    } finally {
+      this.productToolsService.clearCartContext();
+    }
   }
 
   private async resolveProgramForBrochure(

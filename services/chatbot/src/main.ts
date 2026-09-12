@@ -22,6 +22,7 @@ import { createAuthRouter } from './infrastructure/http/routes/auth.routes.js';
 import { createAgentInboxRouter } from './infrastructure/http/routes/agent-inbox.routes.js';
 import { createQuickRepliesRouter } from './infrastructure/http/routes/quick-replies.routes.js';
 import { ProductToolsService } from './infrastructure/ai/tools/product-tools.service.js';
+import { EcommerceGuestCartClient } from './infrastructure/http/ecommerce-guest-cart.client.js';
 import { loadKnowledgeBase, resolveKnowledgeBasePath } from './infrastructure/ai/knowledge/knowledge-base.loader.js';
 import { ChatSessionStore } from './infrastructure/ai/chat-session.store.js';
 import { HybridChatService } from './application/services/hybrid-chat.service.js';
@@ -59,8 +60,13 @@ async function bootstrap(): Promise<void> {
   const deepSeekAdapter = new DeepSeekAdapter(deepSeekConfig);
   logger.info('[Bootstrap] AI engine initialized', { model: deepSeekConfig.model });
 
+  const guestCartClient = EcommerceGuestCartClient.fromEnv();
+  logger.info('[Bootstrap] Ecommerce guest cart client configured', {
+    enabled: guestCartClient.enabled,
+  });
+
   // ── Hybrid chat (DeepSeek + knowledge_base.md + catálogo NM) ──────────────
-  const productToolsService = new ProductToolsService();
+  const productToolsService = new ProductToolsService(guestCartClient);
   const knowledgeBase = loadKnowledgeBase(resolveKnowledgeBasePath());
   const hybridChatService = new HybridChatService(deepSeekAdapter, productToolsService, knowledgeBase);
   const chatSessionStore = new ChatSessionStore();
@@ -121,6 +127,7 @@ async function bootstrap(): Promise<void> {
     productToolsService,
     knowledgeBase,
     messageDebouncer,
+    guestCartClient,
   );
 
   const handleMessageStatus = new HandleMessageStatusUseCase(

@@ -2,8 +2,21 @@ const NM_PDP_REF_PATTERN = /\[NM-PDP:([^\]]+)\]/i;
 const PRODUCT_LINE_PATTERN = /^Producto:\s*(.+)$/im;
 const SKU_LINE_PATTERN = /^SKU:\s*(.+)$/im;
 const QTY_LINE_PATTERN = /^Cantidad:\s*(\d+)/im;
+const SIZE_LINE_PATTERN = /^Talla:\s*(.+)$/im;
+const COLOR_LINE_PATTERN = /^Color:\s*(.+)$/im;
+const PRICE_LINE_PATTERN = /^Precio unitario:\s*(.+)$/im;
 const PRODUCT_URL_PATTERN =
   /https?:\/\/(?:www\.)?novedadesmaritex\.net\.pe\/producto\/[^\s]+/i;
+
+export interface WhatsAppGuestCartItemInput {
+  productIdPrefix?: string;
+  sku?: string;
+  name: string;
+  variation?: string;
+  productUrl?: string;
+  quantity: number;
+  unitPrice?: number;
+}
 
 export interface ParsedPdpPurchaseIntent {
   productName: string | null;
@@ -11,6 +24,17 @@ export interface ParsedPdpPurchaseIntent {
   quantity: number | null;
   productUrl: string | null;
   productIdPrefix: string | null;
+  sizeLabel: string | null;
+  colorLabel: string | null;
+  unitPrice: number | null;
+}
+
+function parseUnitPrice(raw: string | null): number | null {
+  if (!raw) return null;
+  const match = raw.replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+  if (!match?.[1]) return null;
+  const value = Number.parseFloat(match[1]);
+  return Number.isFinite(value) ? value : null;
 }
 
 function parseRefToken(raw: string): Partial<ParsedPdpPurchaseIntent> {
@@ -47,6 +71,11 @@ export function parsePdpPurchaseMessage(text: string): ParsedPdpPurchaseIntent |
     ? Number.parseInt(quantityRaw, 10)
     : fromRef.quantity ?? null;
   const productUrl = trimmed.match(PRODUCT_URL_PATTERN)?.[0] ?? null;
+  const sizeRaw = trimmed.match(SIZE_LINE_PATTERN)?.[1]?.trim() ?? null;
+  const colorRaw = trimmed.match(COLOR_LINE_PATTERN)?.[1]?.trim() ?? null;
+  const sizeLabel = sizeRaw && sizeRaw !== 'Sin seleccionar' ? sizeRaw : null;
+  const colorLabel = colorRaw && colorRaw !== 'Sin seleccionar' ? colorRaw : null;
+  const unitPrice = parseUnitPrice(trimmed.match(PRICE_LINE_PATTERN)?.[1]?.trim() ?? null);
 
   const hasPurchaseIntent =
     Boolean(refMatch)
@@ -65,6 +94,24 @@ export function parsePdpPurchaseMessage(text: string): ParsedPdpPurchaseIntent |
     quantity: Number.isFinite(quantity) ? quantity : null,
     productUrl,
     productIdPrefix: fromRef.productIdPrefix ?? null,
+    sizeLabel,
+    colorLabel,
+    unitPrice,
+  };
+}
+
+export function mapPdpIntentToGuestCartItem(
+  intent: ParsedPdpPurchaseIntent,
+): WhatsAppGuestCartItemInput {
+  const variation = [intent.sizeLabel, intent.colorLabel].filter(Boolean).join(' / ') || undefined;
+  return {
+    ...(intent.productIdPrefix ? { productIdPrefix: intent.productIdPrefix } : {}),
+    ...(intent.sku ? { sku: intent.sku } : {}),
+    name: intent.productName?.trim() || 'Producto WhatsApp',
+    ...(variation ? { variation } : {}),
+    ...(intent.productUrl ? { productUrl: intent.productUrl } : {}),
+    quantity: intent.quantity && intent.quantity > 0 ? intent.quantity : 1,
+    ...(intent.unitPrice != null ? { unitPrice: intent.unitPrice } : {}),
   };
 }
 

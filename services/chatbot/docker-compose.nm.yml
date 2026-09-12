@@ -36,6 +36,7 @@ services:
       SERVICE_NAME: nm-chatbot
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-nm_services}
+      ECOMMERCE_SERVICE_URL: http://ecommerce-service:3012
 
     ports:
       - '${CHATBOT_PORT:-8090}:3000'

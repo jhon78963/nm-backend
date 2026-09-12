@@ -1,11 +1,14 @@
 import { getPrismaClient } from '../../database/prisma/prisma.client.js';
 import { buildProductUrl } from '../../../shared/product-slug.util.js';
+import type { EcommerceGuestCartClient } from '../../http/ecommerce-guest-cart.client.js';
 import { TOOL_NAMES } from './product-tools.definitions.js';
 import { logger } from '../../shared/logger.js';
 
 interface ToolArgs {
   nombre_producto?: unknown;
   categoria?: unknown;
+  talla?: unknown;
+  cantidad?: unknown;
 }
 
 function dbErrorPayload(context: string): string {
@@ -50,6 +53,18 @@ type ProductCatalogRow = Awaited<
 >[number];
 
 export class ProductToolsService {
+  private cartCustomerPhone: string | null = null;
+
+  constructor(private readonly guestCartClient?: EcommerceGuestCartClient) {}
+
+  setCartContext(customerPhone: string | null): void {
+    this.cartCustomerPhone = customerPhone?.trim() ? customerPhone.trim() : null;
+  }
+
+  clearCartContext(): void {
+    this.cartCustomerPhone = null;
+  }
+
   private parseArgs(rawArguments: string): ToolArgs {
     try {
       const parsed = JSON.parse(rawArguments) as unknown;
@@ -74,6 +89,10 @@ export class ProductToolsService {
         return this.obtenerInformacionProducto(rawArguments);
       case TOOL_NAMES.BUSCAR_PRODUCTOS:
         return this.buscarProductos(rawArguments);
+      case TOOL_NAMES.AGREGAR_AL_CARRITO_WHATSAPP:
+        return this.agregarAlCarritoWhatsapp(rawArguments);
+      case TOOL_NAMES.CONSULTAR_CARRITO_WHATSAPP:
+        return this.consultarCarritoWhatsapp();
       default:
         logger.warn('[ProductTools] Unknown tool requested', { toolName });
         return JSON.stringify({
@@ -270,6 +289,175 @@ export class ProductToolsService {
         error: err instanceof Error ? err.message : String(err),
       });
       return dbErrorPayload('product_search');
+    }
+  }
+
+  private resolveProductSize(
+    product: ProductCatalogRow,
+    tallaHint?: string,
+  ): { productSizeId: string; variation: string; unitPrice: number } | null {
+    const sizes = product.productSizes.filter((ps) => !ps.isDeleted);
+    if (sizes.length === 0) {
+      return null;
+    }
+
+    let chosen = sizes[0]!;
+    if (tallaHint) {
+      const normalized = tallaHint.trim().toLowerCase();
+      const match = sizes.find(
+        (ps) => ps.size.description.trim().toLowerCase() === normalized,
+      );
+      if (match) {
+        chosen = match;
+      } else if (sizes.length > 1) {
+        return null;
+      }
+    } else if (sizes.length > 1) {
+      return null;
+    }
+
+    const unitPrice = formatPrice(chosen.salePrice) ?? 0;
+    return {
+      productSizeId: chosen.id,
+      variation: chosen.size.description,
+      unitPrice,
+    };
+  }
+
+  async agregarAlCarritoWhatsapp(rawArguments: string): Promise<string> {
+    const nombre = this.extractProductName(rawArguments);
+    if (!nombre) {
+      return JSON.stringify({
+        ok: false,
+        error: 'MISSING_ARGUMENT',
+        mensaje: 'Indica qué producto debe agregarse al carrito.',
+      });
+    }
+
+    if (!this.guestCartClient?.enabled || !this.cartCustomerPhone) {
+      return JSON.stringify({
+        ok: false,
+        error: 'CART_UNAVAILABLE',
+        mensaje:
+          'El carrito WhatsApp no está disponible ahora. Ofrece el enlace del producto en la tienda o HANDOFF_TRIGGER si quiere comprar ya.',
+      });
+    }
+
+    const { categoria, talla, cantidad } = this.parseArgs(rawArguments);
+    const categoriaStr = typeof categoria === 'string' ? categoria : undefined;
+    const tallaStr = typeof talla === 'string' ? talla : undefined;
+    const qtyRaw = typeof cantidad === 'number' ? cantidad : Number(cantidad);
+    const quantity = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
+
+    try {
+      const products = await this.findProductsForTool(nombre, categoriaStr);
+      if (products.length === 0) {
+        return productNotFoundPayload(nombre);
+      }
+
+      const product = products[0]!;
+      const resolvedSize = this.resolveProductSize(product, tallaStr);
+      if (!resolvedSize) {
+        const tallas = product.productSizes
+          .filter((ps) => !ps.isDeleted)
+          .map((ps) => ps.size.description);
+        return JSON.stringify({
+          ok: false,
+          error: 'SIZE_REQUIRED',
+          mensaje: `Indica la talla para "${product.name}". Opciones: ${tallas.join(', ')}.`,
+          tallasDisponibles: tallas,
+        });
+      }
+
+      const productIdPrefix = product.id.replace(/-/g, '').slice(0, 8).toLowerCase();
+      const upsert = await this.guestCartClient.upsertCart({
+        customerPhone: this.cartCustomerPhone,
+        source: 'bot',
+        items: [
+          {
+            productId: product.id,
+            productSizeId: resolvedSize.productSizeId,
+            productIdPrefix,
+            ...(product.barcode ? { sku: product.barcode } : {}),
+            name: product.name,
+            variation: resolvedSize.variation,
+            productUrl: productUrl(product),
+            quantity,
+            unitPrice: resolvedSize.unitPrice,
+          },
+        ],
+      });
+
+      if (!upsert?.cart) {
+        return JSON.stringify({
+          ok: false,
+          error: 'CART_WRITE_FAILED',
+          mensaje: 'No pude guardar el carrito. Ofrece derivación con un asesor.',
+        });
+      }
+
+      return JSON.stringify({
+        ok: true,
+        agregado: true,
+        producto: product.name,
+        talla: resolvedSize.variation,
+        cantidad: quantity,
+        itemCount: upsert.cart.itemCount,
+        totalReferencial: upsert.cart.total,
+        moneda: 'PEN',
+        mensaje:
+          `Producto guardado. El cliente lleva ${upsert.cart.itemCount} ítem(s) en el carrito. ` +
+          'Confirma al cliente y pregunta si desea agregar algo más o armar el pedido con un asesor.',
+      });
+    } catch (err) {
+      logger.error('[ProductTools] agregar_al_carrito_whatsapp failed', {
+        nombre,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return dbErrorPayload('whatsapp_cart_add');
+    }
+  }
+
+  async consultarCarritoWhatsapp(): Promise<string> {
+    if (!this.guestCartClient?.enabled || !this.cartCustomerPhone) {
+      return JSON.stringify({
+        ok: false,
+        error: 'CART_UNAVAILABLE',
+        mensaje: 'Carrito WhatsApp no disponible.',
+      });
+    }
+
+    try {
+      const result = await this.guestCartClient.getHandoff({ customerPhone: this.cartCustomerPhone });
+      const cart = result?.cart;
+      if (!cart || cart.itemCount <= 0) {
+        return JSON.stringify({
+          ok: true,
+          vacio: true,
+          mensaje: 'El carrito está vacío. Sugiere buscar productos o compartir enlaces de la tienda.',
+        });
+      }
+
+      return JSON.stringify({
+        ok: true,
+        itemCount: cart.itemCount,
+        totalReferencial: cart.total,
+        moneda: cart.currency,
+        productos: cart.items.map((item) => ({
+          nombre: item.name,
+          cantidad: item.quantity,
+          talla: item.variation ?? null,
+          subtotal: item.lineTotal,
+        })),
+        mensaje:
+          `Tiene ${cart.itemCount} producto(s) por S/ ${cart.total.toFixed(2)} referencial. ` +
+          'Pregunta si desea agregar más o armar el pedido (derivar asesor solo si confirma compra).',
+      });
+    } catch (err) {
+      logger.error('[ProductTools] consultar_carrito_whatsapp failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return dbErrorPayload('whatsapp_cart_read');
     }
   }
 }

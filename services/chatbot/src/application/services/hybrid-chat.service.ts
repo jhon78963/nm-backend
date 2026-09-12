@@ -16,13 +16,24 @@ export class HybridChatService {
     private readonly systemPrompt: string,
   ) {}
 
-  async chat(history: ChatMessage[]): Promise<HybridChatResult> {
-    const messages: ChatMessage[] = [
-      { role: 'system', content: withCurrentDateContext(this.systemPrompt) },
-      ...history,
-    ];
-    return completeWithTools(this.aiProvider, messages, PRODUCT_TOOLS, (name, args) =>
-      this.toolsService.execute(name, args),
-    );
+  async chat(
+    history: ChatMessage[],
+    options?: { customerPhone?: string },
+  ): Promise<HybridChatResult> {
+    if (options?.customerPhone) {
+      this.toolsService.setCartContext(options.customerPhone);
+    }
+
+    try {
+      const messages: ChatMessage[] = [
+        { role: 'system', content: withCurrentDateContext(this.systemPrompt) },
+        ...history,
+      ];
+      return await completeWithTools(this.aiProvider, messages, PRODUCT_TOOLS, (name, args) =>
+        this.toolsService.execute(name, args),
+      );
+    } finally {
+      this.toolsService.clearCartContext();
+    }
   }
 }
